@@ -1,0 +1,82 @@
+agent:
+  image_input_mode: image
+  max_tool_steps: 200
+  max_turns: 60
+  personality: jarvis
+  system_prompt: 'Responda Sempre em Portugues
+
+    '
+  toolset: agent
+display:
+  accent_theme: dark
+  compact: true
+  language: pt-BR
+  show_reasoning: true
+  show_tool_calls: true
+  streaming: true
+security:
+  sandbox_enabled: false
+server:
+  hostname: 0.0.0.0
+  port: 8000
+spiral_memory:
+  enabled: true
+  interval: 4
+  keeper_model: qwen3.5:9b
+  keeper_provider: ollama
+terminal:
+  allowed_commands:
+  - ls
+  - dir
+  - cat
+  - type
+  - echo
+  - pwd
+  - cd
+  - mkdir
+  - copy
+  - move
+  - del
+  - git
+  - npm
+  - node
+  - python
+  - pip
+  - curl
+  - find
+  - grep
+  - rg
+  - ollama
+  backend: powershell
+  cwd: .
+  timeout: 600
+watcher:
+  ignore:
+  - node_modules/**
+  - dist/**
+  - .git/**
+workspace:
+  name: DEEP-AUREA
+  root: C:\DEEP-AUREA
+workspaces:
+- last_opened: ''
+  name: DEEP-AUREA 4.0
+  path: C:\DEEP-AUREA 4.0
+- last_opened: ''
+  name: CLAUDECODE
+  path: C:\CLAUDECODE
+- last_opened: ''
+  name: OPENCODE
+  path: C:\OPENCODE
+- last_opened: ''
+  name: WBC-PAD
+  path: D:\0-PROJETOS\WBC-PAD
+- last_opened: ''
+  name: DEEP-AUREA
+  path: C:\DEEP-AUREA
+- last_opened: ''
+  name: WBC-ZERO-G 5.0
+  path: C:\WBC-ZERO-G 5.0
+- last_opened: ''
+  name: WBC-PDV 2.0
+  path: C:\WBC-PDV 2.0

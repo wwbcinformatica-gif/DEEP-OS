@@ -1,0 +1,13 @@
+{
+  "project": "folder-lister",
+  "description": "A CLI tool to list directories (folders) of a loaded project path.",
+  "language": "python",
+  "generated_at": "2026-06-11T17:20:45.075633",
+  "plan_id": "e8ea69d131af",
+  "dependencies": ["pytest"],
+  "commands": {
+    "run": "python main.py",
+    "test": "pytest",
+    "build": ""
+  }
+}

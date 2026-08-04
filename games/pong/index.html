@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>🏓 PONG - Fliperama</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+    <!-- ==========================================
+         MENU EXECUTIVO - TOPO
+         ========================================== -->
+    <nav id="top-menu">
+        <div class="menu-left">
+            <span class="menu-logo">⚡</span>
+            <span class="menu-brand">PONG FLIPERAMA</span>
+        </div>
+        <div class="menu-center">
+            <button id="plan-toggle" class="menu-btn" title="Plano de Execução">
+                <span class="menu-icon">📋</span>
+                <span class="menu-label">Plano</span>
+                <span class="menu-arrow" id="plan-arrow">▼</span>
+            </button>
+        </div>
+        <div class="menu-right">
+            <span class="menu-status" id="menu-status">● ONLINE</span>
+        </div>
+    </nav>
+
+    <!-- Painel de Plano de Execução (expandível) -->
+    <div id="plan-panel" class="plan-panel">
+        <div class="plan-content">
+            <div class="plan-item done">
+                <span class="plan-check">✅</span>
+                <span class="plan-text">Ler estrutura HTML e CSS atual</span>
+            </div>
+            <div class="plan-item running">
+                <span class="plan-check">🔄</span>
+                <span class="plan-text">Criar novo menu no topo dedicado ao plano</span>
+            </div>
+            <div class="plan-item pending">
+                <span class="plan-check">⬜</span>
+                <span class="plan-text">Remover painel azul flutuante antigo</span>
+            </div>
+            <div class="plan-item pending">
+                <span class="plan-check">⬜</span>
+                <span class="plan-text">Atualizar CSS para novo layout</span>
+            </div>
+            <div class="plan-item pending">
+                <span class="plan-check">⬜</span>
+                <span class="plan-text">Validar resultado final</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- ==========================================
+         JOGO
+         ========================================== -->
+    <div id="game-container">
+        <h1 class="title">🏓 PONG</h1>
+        
+        <div id="scoreboard">
+            <span id="score-p1" class="score">0</span>
+            <span class="score-divider">:</span>
+            <span id="score-p2" class="score">0</span>
+        </div>
+
+        <canvas id="pong-canvas"></canvas>
+
+        <div id="controls-info">
+            <div class="control-group">
+                <h3>⌨️ Teclado</h3>
+                <p><b>Jogador 1:</b> W / S</p>
+                <p><b>Jogador 2:</b> ↑ / ↓</p>
+                <p><b>Reiniciar:</b> R</p>
+            </div>
+        </div>
+
+        <!-- CONTROLES MOBILE -->
+        <div id="mobile-controls">
+            <div class="mobile-player" id="mobile-p1">
+                <button class="touch-btn up" id="p1-up">▲</button>
+                <button class="touch-btn down" id="p1-down">▼</button>
+            </div>
+            <div class="mobile-player" id="mobile-p2">
+                <button class="touch-btn up" id="p2-up">▲</button>
+                <button class="touch-btn down" id="p2-down">▼</button>
+            </div>
+        </div>
+
+        <div id="message-overlay">
+            <p id="game-message">Pressione ESPAÇO para iniciar</p>
+        </div>
+    </div>
+
+    <!-- Script do menu -->
+    <script>
+        // Toggle do painel de plano
+        document.getElementById('plan-toggle').addEventListener('click', function() {
+            const panel = document.getElementById('plan-panel');
+            const arrow = document.getElementById('plan-arrow');
+            panel.classList.toggle('open');
+            arrow.textContent = panel.classList.contains('open') ? '▲' : '▼';
+        });
+    </script>
+
+    <script src="game.js"></script>
+</body>
+</html>

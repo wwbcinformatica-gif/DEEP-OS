@@ -1,0 +1,69 @@
+Olá! Toda vez que fechamos o projeto e rodamos novamente através do .bat, a tela de login aparece limpa. O checkbox "Lembrar-me" não está persistindo os dados do operador no disco, forçando o usuário a digitar o e-mail e a senha novamente a cada inicialização.Para resolver isso, precisamos salvar esses dados criptografados no disco local do usuário via Electron, em vez de depender apenas do localStorage do navegador, que é limpo ao fechar o container.Por favor, implemente a persistência física utilizando o fluxo abaixo:📂 1. No arquivo electron/preload.jsExponha as funções de salvar e buscar as credenciais locais para o frontend React:javascriptconst { contextBridge, ipcRenderer } = require('electron');
+
+contextBridge.exposeInMainWorld('electronAPI', {
+  // ... suas funções de impressão existentes ...
+  salvarCredenciais: (dados) => ipcRenderer.send('salvar-login-local', dados),
+  buscarCredenciais: () => ipcRenderer.invoke('buscar-login-local'),
+  limparCredenciais: () => ipcRenderer.send('limpar-login-local')
+});
+Use o código com cuidado.📂 2. No arquivo electron/main.jsAdicione os handlers para ler e gravar os dados em um arquivo de configuração seguro dentro da pasta de dados do aplicativo (AppData):javascriptconst { ipcMain, app } = require('electron');
+const fs = require('fs');
+const path = require('path');
+
+const pathConfig = path.join(app.getPath('userData'), 'login_config.json');
+
+// Salva se o "Lembrar-me" estiver ativo
+ipcMain.on('salvar-login-local', (_event, dados) => {
+  try {
+    // Em produção, o ideal é ofuscar/criptografar a senha aqui
+    fs.writeFileSync(pathConfig, JSON.stringify(dados, null, 2), 'utf-8');
+  } catch (error) {
+    console.error('Erro ao salvar credenciais:', error);
+  }
+});
+
+// Busca ao inicializar o app
+ipcMain.handle('buscar-login-local', () => {
+  try {
+    if (fs.existsSync(pathConfig)) {
+      const arquivo = fs.readFileSync(pathConfig, 'utf-8');
+      return JSON.parse(arquivo);
+    }
+  } catch (error) {
+    console.error('Erro ao ler credenciais:', error);
+  }
+  return null;
+});
+
+// Limpa se o usuário desmarcar ou deslogar
+ipcMain.on('limpar-login-local', () => {
+  if (fs.existsSync(pathConfig)) {
+    fs.unlinkSync(pathConfig);
+  }
+});
+Use o código com cuidado.📂 3. Na sua tela de Login do React (Frontend)No componente de Login, adicione um useEffect para carregar os dados assim que a tela abrir, e ajuste a função do botão "Entrar":javascript// Ao carregar a tela, preenche os campos automaticamente se houver dados salvos
+useEffect(() => {
+  if (window.electronAPI && window.electronAPI.buscarCredenciais) {
+    window.electronAPI.buscarCredenciais().then((credenciais) => {
+      if (credenciais && credenciais.lembrar) {
+        setUsuario(credenciais.usuario);
+        setSenha(credenciais.senha);
+        setLembrar(true);
+      }
+    });
+  }
+}, []);
+
+// No clique do botão "Entrar" de sucesso:
+const acaoMandarLogin = () => {
+  // ... sua lógica de validação com o backend ...
+  
+  if (loginSucesso) {
+    if (lembrar && window.electronAPI?.salvarCredenciais) {
+      window.electronAPI.salvarCredenciais({ usuario, senha, lembrar: true });
+    } else if (!lembrar && window.electronAPI?.limparCredenciais) {
+      window.electronAPI.limparCredenciais();
+    }
+  }
+};
+Use o código com cuidado.Por favor, aplique essa persistência em arquivo físico local, rode o build do frontend (npm run build) e faça o teste fechando e reabrindo o sistema pelo .bat para confirmar se os campos já iniciam preenchidos. Obrigado!

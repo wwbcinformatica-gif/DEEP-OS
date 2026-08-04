@@ -1,0 +1,829 @@
+/* ── reset + tokens ───────────────────────────────────────────────────── */
+
+* {
+  box-sizing: border-box;
+}
+
+:root {
+  --accent: #007acc;
+  --accent-soft: rgba(0, 122, 204, 0.12);
+  --accent-line: rgba(0, 122, 204, 0.35);
+  --accent-2: #4da6e0;
+
+  /* VS Code font tokens */
+  --font-ui: 'Segoe UI', system-ui, -apple-system, BlinkMacSystemFont, 'Helvetica Neue', sans-serif;
+  --font-mono: 'Cascadia Code', 'Fira Code', 'SF Mono', 'Consolas', 'Courier New', monospace;
+  --font-size-xs: 11px;
+  --font-size-sm: 12px;
+  --font-size-base: 13px;
+  --font-size-md: 14px;
+  --font-size-lg: 15px;
+
+  font-family: var(--font-ui);
+  font-size: var(--font-size-base);
+  line-height: 1.5;
+  font-feature-settings: 'ss01', 'ss02', 'cv01', 'cv11';
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+
+  /* layout tokens */
+  --exp-w: 260px;
+  --chat-w: 360px;
+  --term-h: 200px;
+  --status-h: 24px;
+  --tab-h: 36px;
+}
+
+/* ── dark theme (VS Code-inspired) ──────────────────────────────────── */
+:root,
+:root[data-theme='dark'] {
+  color-scheme: dark;
+  --base-font-size: 15px;
+  --bg: #1e1e1e;
+  --bg-elev: rgba(30, 30, 30, 0.94);
+  --bg-2: #252526;
+  --bg-3: #2d2d2d;
+  --bg-editor: #1e1e1e;
+  --sidebar-bg: #252526;
+  --ink: #d4d4d4;
+  --ink-2: rgba(212, 212, 212, 0.85);
+  --muted: rgba(212, 212, 212, 0.55);
+  --quiet: rgba(212, 212, 212, 0.35);
+  --line: rgba(255, 255, 255, 0.08);
+  --line-strong: rgba(0, 122, 204, 0.3);
+  --scroll-thumb: #424242;
+  --selection-fg: #1e1e1e;
+  --status-bg: #007acc;
+  --status-fg: #ffffff;
+  --tab-active-bg: #1e1e1e;
+  --tab-inactive-bg: #2d2d2d;
+  --input-bg: #3c3c3c;
+  --chat-user-bg: rgba(0, 122, 204, 0.08);
+  --chat-bot-bg: transparent;
+  --bg-active: #37373d;
+  --pink: #c586c0;
+  --teal: #4ec9b0;
+  --blue: #569cd6;
+  --cyan: #9cdcfe;
+  --green: #6a9955;
+  --yellow: #dcdcaa;
+  --orange: #ce9178;
+  --red: #f44747;
+  --thinking-bg: #252526;
+  --thinking-border: #3c3c3c;
+  --terminal-bg: #1e1e1e;
+}
+
+/* ── light theme (VS Code) ──────────────────────────────────────────── */
+:root[data-theme='light'] {
+  color-scheme: light;
+  --base-font-size: 15px;
+  --bg: #ffffff;
+  --bg-elev: rgba(255, 255, 255, 0.94);
+  --bg-2: #f3f3f3;
+  --bg-3: #ececec;
+  --bg-editor: #ffffff;
+  --sidebar-bg: #f3f3f3;
+  --ink: #1e1e1e;
+  --ink-2: rgba(30, 30, 30, 0.85);
+  --muted: rgba(30, 30, 30, 0.55);
+  --quiet: rgba(30, 30, 30, 0.4);
+  --line: rgba(0, 0, 0, 0.1);
+  --line-strong: rgba(0, 122, 204, 0.3);
+  --scroll-thumb: #c1c1c1;
+  --selection-fg: #ffffff;
+  --status-bg: #007acc;
+  --status-fg: #ffffff;
+  --tab-active-bg: #ffffff;
+  --tab-inactive-bg: #ececec;
+  --input-bg: #ffffff;
+  --chat-user-bg: rgba(0, 122, 204, 0.08);
+  --chat-bot-bg: transparent;
+  --bg-active: #e8e8e8;
+  --pink: #a84da8;
+  --teal: #2d9a8a;
+  --blue: #3b7bc9;
+  --cyan: #2b8ec4;
+  --green: #5a8a4a;
+  --yellow: #a68428;
+  --orange: #a64e00;
+  --red: #cd3131;
+  --thinking-bg: #f3f3f3;
+  --thinking-border: #d4d4d4;
+  --terminal-bg: #1e1e1e;
+}
+
+html {
+  scroll-behavior: smooth;
+  background: var(--bg);
+  transition:
+    background-color 0.2s ease,
+    color 0.2s ease;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-ui);
+  font-size: var(--font-size-base);
+  line-height: 1.5;
+  min-height: 100vh;
+  overflow: hidden;
+  transition:
+    background-color 0.2s ease,
+    color 0.2s ease;
+}
+
+/* ── Global monospace utility ────────────────────────────────────────── */
+.mono,
+code,
+pre,
+kbd {
+  font-family: var(--font-mono);
+}
+
+#root {
+  height: 100vh;
+}
+
+/* ── scrollbars ──────────────────────────────────────────────────────── */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--scroll-thumb);
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--muted);
+}
+::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+::selection {
+  background: var(--accent);
+  color: var(--selection-fg);
+}
+
+/* ── selection overrides ─────────────────────────────────────────────── */
+input::placeholder,
+textarea::placeholder {
+  color: var(--muted);
+}
+input,
+textarea,
+select {
+  caret-color: var(--accent);
+}
+textarea {
+  scrollbar-width: thin;
+}
+option {
+  background: var(--bg-2);
+  color: var(--ink);
+}
+
+/* ── interactive states ──────────────────────────────────────────────── */
+button:active {
+  transform: scale(0.97);
+}
+input:focus,
+textarea:focus,
+select:focus {
+  border-color: var(--accent) !important;
+  outline: none !important;
+}
+button:hover,
+select:hover {
+  filter: brightness(1.2);
+}
+
+button:focus-visible,
+a:focus-visible {
+  outline: 1px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* ── keyframes ───────────────────────────────────────────────────────── */
+@keyframes blink {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0;
+  }
+}
+
+@keyframes pulse {
+  0%,
+  100% {
+    opacity: 0.4;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+@keyframes bounce-dot {
+  0%, 80%, 100% { transform: translateY(0); }
+  40% { transform: translateY(-6px); }
+}
+}
+
+/* ── utility classes ─────────────────────────────────────────────────── */
+.panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--line);
+  background: var(--bg-2);
+}
+
+.panel-title {
+  font-family: var(--font-ui);
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+}
+
+.btn {
+  background: transparent;
+  border: 1px solid var(--line);
+  border-radius: '3px';
+  color: var(--muted);
+  cursor: pointer;
+  padding: 4px 8px;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  transition: filter 0.15s, border-color 0.15s;
+}
+
+.btn-accent {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.btn:hover {
+  border-color: var(--accent);
+}
+
+.input {
+  background: var(--input-bg);
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  color: var(--ink);
+  padding: 5px 8px;
+  outline: none;
+  font-family: var(--font-ui);
+  font-size: var(--font-size-base);
+}
+
+/* VS Code select style */
+.select-input {
+  background: var(--input-bg);
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  color: var(--ink);
+  padding: 4px 6px;
+  font-family: var(--font-ui);
+  font-size: var(--font-size-sm);
+  outline: none;
+  cursor: pointer;
+}
+.select-input:focus {
+  border-color: var(--accent) !important;
+}
+
+.status-bar {
+  height: var(--status-h);
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 12px;
+  background: var(--status-bg);
+  color: var(--status-fg);
+  font-family: var(--font-ui);
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+  overflow: hidden;
+  min-width: 0;
+}
+
+.status-bar .status-left {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  flex-shrink: 1;
+  overflow: hidden;
+}
+
+.status-bar .status-left > span {
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+.status-bar .status-right {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+  margin-left: 12px;
+}
+
+.status-bar .status-right > span {
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+.drag-handle-h {
+  width: 3px;
+  height: 100%;
+  background: transparent;
+  cursor: col-resize;
+  flex-shrink: 0;
+  z-index: 10;
+  transition: background 0.15s;
+}
+.drag-handle-h:hover {
+  background: var(--accent-soft);
+}
+
+.drag-handle-v {
+  height: 3px;
+  width: 100%;
+  background: transparent;
+  cursor: row-resize;
+  flex-shrink: 0;
+  z-index: 10;
+  transition: background 0.15s;
+}
+.drag-handle-v:hover {
+  background: var(--accent-soft);
+}
+
+/* ── Chat vertical resize handle (terminal-style, drag upward to expand) ── */
+.drag-handle-chat-h {
+  height: 6px;
+  flex-shrink: 0;
+  cursor: row-resize;
+  position: relative;
+  z-index: 20;
+  touch-action: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  background: var(--line);
+  transition:
+    background 0.15s,
+    height 0.05s;
+}
+.drag-handle-chat-h:hover,
+.drag-handle-chat-h:active {
+  background: var(--accent-line);
+  height: 8px;
+}
+/* Grip dots */
+.drag-handle-chat-h .grip-dot {
+  width: 3px;
+  height: 3px;
+  border-radius: 50%;
+  background: var(--muted);
+  transition: background 0.15s;
+}
+.drag-handle-chat-h:hover .grip-dot,
+.drag-handle-chat-h:active .grip-dot {
+  background: var(--accent);
+}
+
+/* ── Thinking progress bar ───────────────────────────────────────────── */
+@keyframes thinkingProgress {
+  0% {
+    transform: translateX(-100%);
+  }
+  50% {
+    transform: translateX(200%);
+  }
+  100% {
+    transform: translateX(400%);
+  }
+}
+
+@keyframes dotPulse {
+  0%, 80%, 100% {
+    transform: scale(0.6);
+    opacity: 0.4;
+  }
+  40% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+/* ── Toast animation ────────────────────────────────────────────────── */
+@keyframes toastIn {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* ── Stuck / Travamento pulse ───────────────────────────────────────── */
+@keyframes stuckPulse {
+  0%,
+  100% {
+    opacity: 0.7;
+    box-shadow: 0 0 4px rgba(244, 71, 71, 0.3);
+  }
+  50% {
+    opacity: 1;
+    box-shadow: 0 0 16px rgba(244, 71, 71, 0.7);
+  }
+}
+
+/* ═════════════════════════════════════════════════════════════════════
+   MARKDOWN RENDER — Estilo VS Code puro
+   ═════════════════════════════════════════════════════════════════════ */
+
+.markdown-body {
+  width: 100%;
+  max-width: 100%;
+  font-family: var(--font-mono), 'Cascadia Code', 'Fira Code', Consolas, monospace !important;
+  font-size: 13px !important;
+  line-height: 1.5;
+  color: #cccccc !important;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+}
+
+.markdown-body > *:first-child {
+  margin-top: 0;
+}
+.markdown-body > *:last-child {
+  margin-bottom: 0;
+}
+
+/* ─── Headings (VS Code) ──────────────────────────────────────────── */
+.markdown-heading {
+  font-weight: 600;
+  margin: 1em 0 0.5em 0;
+  line-height: 1.3;
+  color: #cccccc !important;
+  font-family: var(--font-mono), 'Cascadia Code', 'Fira Code', Consolas, monospace !important;
+}
+.markdown-h1 {
+  font-size: 1.6em;
+  border-bottom: 1px solid var(--line);
+  padding-bottom: 0.3em;
+}
+.markdown-h2 {
+  font-size: 1.35em;
+  border-bottom: 1px solid var(--line);
+  padding-bottom: 0.25em;
+}
+.markdown-h3 {
+  font-size: 1.15em;
+}
+.markdown-h4 {
+  font-size: 1.05em;
+}
+.markdown-h5 {
+  font-size: 1em;
+}
+.markdown-h6 {
+  font-size: 0.9em;
+  color: var(--muted);
+}
+
+/* ─── Paragraph (VS Code) ───────────────────────────────────────── */
+.markdown-paragraph {
+  margin: 0.5em 0;
+  line-height: 1.5;
+  font-size: 13px !important;
+  font-family: var(--font-mono), 'Cascadia Code', 'Fira Code', Consolas, monospace !important;
+  color: #cccccc !important;
+}
+
+/* ─── Inline Code (VS Code) ─────────────────────────────────────── */
+.markdown-inline-code {
+  font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', 'Consolas', 'Courier New', monospace;
+  font-size: 0.9em;
+  padding: 1px 5px;
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.06);
+  color: #ce9178;
+  border: 1px solid var(--line);
+}
+
+/* ─── Bold / Italic ───────────────────────────────────────────────── */
+.markdown-body strong {
+  font-weight: 700;
+  color: var(--ink-2);
+}
+.markdown-body em {
+  font-style: italic;
+}
+
+/* ─── Links ────────────────────────────────────────────────────────── */
+.markdown-link {
+  color: var(--cyan);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  text-decoration-color: rgba(156, 220, 254, 0.4);
+  transition: text-decoration-color 0.15s;
+}
+.markdown-link:hover {
+  text-decoration-color: var(--cyan);
+  filter: brightness(1.3);
+}
+
+/* ─── Horizontal Rule ─────────────────────────────────────────────── */
+.markdown-hr {
+  border: none;
+  border-top: 1px solid var(--line-strong);
+  margin: 1.2em 0;
+}
+
+/* ─── Lists (VS Code) ───────────────────────────────────────────── */
+.markdown-list {
+  margin: 0.5em 0;
+  padding-left: 1.8em;
+  list-style: disc;
+}
+.markdown-list-item {
+  margin: 0.3em 0;
+  line-height: 1.5;
+  font-size: 13px !important;
+  font-family: var(--font-mono), 'Cascadia Code', 'Fira Code', Consolas, monospace !important;
+  color: #cccccc !important;
+}
+
+/* ─── Code Blocks (VS Code editor style) ────────────────────────── */
+.markdown-code-block {
+  position: relative;
+  margin: 0.8em 0;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: #1e1e1e;
+  overflow: hidden;
+  width: 100%;
+}
+.markdown-code-lang {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--muted);
+  padding: 5px 12px;
+  border-bottom: 1px solid var(--line);
+  background: #2d2d2d;
+  user-select: none;
+  font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', 'Consolas', monospace;
+}
+.markdown-pre {
+  margin: 0;
+  padding: 12px 14px;
+  overflow-x: auto;
+  font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', 'Consolas', 'Courier New', monospace;
+  font-size: 13px;
+  line-height: 1.55;
+  tab-size: 4;
+  color: #d4d4d4;
+  background: #1e1e1e;
+}
+.markdown-pre code {
+  font-family: inherit;
+  background: none !important;
+  padding: 0 !important;
+  border: none !important;
+  white-space: pre;
+}
+.markdown-copy-btn {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  background: var(--bg-3);
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  padding: 2px 6px;
+  font-size: 12px;
+}
+
+/* ── Tabs / Abas (Editor Panel) ────────────────────────────────────── */
+.tab,
+.aba,
+.editor-tab {
+  height: auto !important;
+  padding: 6px 12px !important;
+  line-height: 1.2 !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  overflow: visible !important;
+  gap: 6px;
+  cursor: pointer;
+  user-select: none;
+  white-space: nowrap;
+  flex-shrink: 0;
+  transition: none;
+  border-bottom: none !important;
+  box-shadow: none !important;
+  text-decoration: none !important;
+}
+.editor-tab.active {
+  background: var(--tab-active-bg);
+  color: #f0f0f0;
+}
+.editor-tab.inactive {
+  background: var(--tab-inactive-bg);
+  color: #999;
+}
+.editor-tab:hover {
+  filter: brightness(1.3);
+}
+
+/* ─── Tables (VS Code) ──────────────────────────────────────────── */
+.markdown-table-wrapper {
+  overflow-x: auto;
+  margin: 0.8em 0;
+  width: 100%;
+}
+.markdown-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+  font-family: var(--font-mono), 'Consolas', 'Fira Code', monospace;
+  background: #1a1a1a;
+  border: 1px solid #333;
+}
+.markdown-th {
+  padding: 6px 10px;
+  border: 1px solid #333;
+  background: #252525;
+  font-weight: 600;
+  text-align: left;
+  color: #cccccc;
+  white-space: nowrap;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+.markdown-td {
+  padding: 5px 10px;
+  border: 1px solid #333;
+  color: #cccccc;
+  vertical-align: top;
+}
+.markdown-table tr:nth-child(even) .markdown-td {
+  background: rgba(255, 255, 255, 0.02);
+}
+.markdown-table tr:hover .markdown-td {
+  background: rgba(255, 255, 255, 0.05);
+}
+.markdown-table td:first-child,
+.markdown-table th:first-child {
+  text-align: center;
+  width: 30px;
+  color: #808080;
+}
+
+/* ─── Stream cursor ───────────────────────────────────────────────── */
+.markdown-body + span[style*='animation: blink'] {
+  display: inline-block;
+}
+
+/* ─── Responsivo: usa 100% da largura no chat ─────────────────────── */
+.markdown-body pre {
+  max-width: 100%;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+/* ==========================================================
+   FORÇA BRUTA DEFINITIVA PARA O SLIDER MIGRAR PARA AS LATERAIS
+   ========================================================== */
+
+/* Força global: aplica font-size a TODOS os elementos-raiz e garante herança */
+html,
+body,
+#root {
+  font-size: var(--base-font-size, 15px) !important;
+}
+
+/* Força herança em TODOS os elementos da árvore DOM */
+* {
+  font-size: inherit !important;
+}
+
+/* Override específico para containers principais dos painéis do VS Code */
+aside,
+[id*='explorer'],
+[class*='explorer'],
+[class*='fileExplorer'],
+[id*='chat'],
+[class*='chat'],
+[class*='sessions'],
+[id*='sidebar'],
+[class*='sidebar'],
+[role='navigation'],
+[role='complementary'],
+.panel,
+[class*='panel'],
+.tree,
+[class*='tree'],
+.list,
+[class*='list'],
+.tabs,
+[class*='tab'],
+[class*='activityBar'],
+[class*='primaryBar'] {
+  font-size: var(--base-font-size, 15px) !important;
+}
+
+/* Obriga filhos diretos a herdarem (garante cascata) */
+aside *,
+[id*='explorer'] *,
+[class*='explorer'] *,
+[class*='fileExplorer'] *,
+[id*='chat'] *,
+[class*='chat'] *,
+[class*='sessions'] *,
+[id*='sidebar'] *,
+[class*='sidebar'] *,
+[role='navigation'] *,
+[role='complementary'] *,
+.panel *,
+[class*='panel'] *,
+.tree *,
+[class*='tree'] *,
+.list *,
+[class*='list'] *,
+.tabs *,
+[class*='tab'] *,
+[class*='activityBar'] *,
+[class*='primaryBar'] * {
+  font-size: inherit !important;
+}
+
+/* Corrige inputs, textareas e buttons que podem ter font-size fixo */
+textarea,
+input,
+button,
+select,
+[role='button'] {
+  font-size: var(--base-font-size, 15px) !important;
+}
+
+/* Garante que itens de lista e tree items também herdem */
+li,
+li *,
+[role='treeitem'],
+[role='treeitem'] *,
+[role='listitem'],
+[role='listitem'] *,
+[role='option'],
+[role='option'] * {
+  font-size: inherit !important;
+}
+
+/* Force para spans, divs, paragraphs e labels que são comuns */
+span,
+div,
+p,
+label,
+a,
+code,
+pre {
+  font-size: inherit !important;
+}
+
+/* Toast animation */
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}

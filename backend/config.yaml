@@ -1,0 +1,3 @@
+ollama:
+  gpu_enabled: true
+  gpu_layers: -1

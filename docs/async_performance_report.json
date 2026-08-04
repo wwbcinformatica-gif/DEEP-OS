@@ -1,0 +1,151 @@
+{
+  "test_suite": "async_patch_validation",
+  "project": "DEEP-AUREA",
+  "total_tests": 14,
+  "passed": 14,
+  "failed": 0,
+  "score_percent": 100.0,
+  "total_elapsed_ms": 2190.51,
+  "results": [
+    {
+      "name": "cache_set",
+      "category": "Cache",
+      "elapsed_ms": 0.001,
+      "threshold_ms": 10,
+      "passed": true,
+      "details": "simulado",
+      "iterations": 1000
+    },
+    {
+      "name": "cache_get",
+      "category": "Cache",
+      "elapsed_ms": 0.0009,
+      "threshold_ms": 10,
+      "passed": true,
+      "details": "simulado",
+      "iterations": 1000
+    },
+    {
+      "name": "cache_ttl_expire",
+      "category": "Cache",
+      "elapsed_ms": 0.0011,
+      "threshold_ms": 50,
+      "passed": true,
+      "details": "5000 TTL checks",
+      "iterations": 5000
+    },
+    {
+      "name": "compression_simple",
+      "category": "CompressÃ£o",
+      "elapsed_ms": 0.0015,
+      "threshold_ms": 10,
+      "passed": true,
+      "details": "3 mensagens",
+      "iterations": 1000
+    },
+    {
+      "name": "compression_large",
+      "category": "CompressÃ£o",
+      "elapsed_ms": 0.0016,
+      "threshold_ms": 100,
+      "passed": true,
+      "details": "50 mensagens",
+      "iterations": 100
+    },
+    {
+      "name": "elastic_store",
+      "category": "MemÃ³ria ElÃ¡stica",
+      "elapsed_ms": 0.0074,
+      "threshold_ms": 50,
+      "passed": true,
+      "details": "500 inserts",
+      "iterations": 500
+    },
+    {
+      "name": "elastic_recall",
+      "category": "MemÃ³ria ElÃ¡stica",
+      "elapsed_ms": 2.8975,
+      "threshold_ms": 100,
+      "passed": true,
+      "details": "500 queries sobre 508 entries",
+      "iterations": 500
+    },
+    {
+      "name": "retry_handler",
+      "category": "Retry",
+      "elapsed_ms": 0.017,
+      "threshold_ms": 10,
+      "passed": true,
+      "details": "1000 retry cycles",
+      "iterations": 1000
+    },
+    {
+      "name": "state_transition",
+      "category": "State Machine",
+      "elapsed_ms": 0.0056,
+      "threshold_ms": 5,
+      "passed": true,
+      "details": "10000 transitions (10 pairs each)",
+      "iterations": 10000
+    },
+    {
+      "name": "tokenizer_simple",
+      "category": "Tokenizer",
+      "elapsed_ms": 0.0034,
+      "threshold_ms": 5,
+      "passed": true,
+      "details": "'OlÃ¡ mundo, isto Ã© um teste sim...'",
+      "iterations": 10000
+    },
+    {
+      "name": "tokenizer_complex",
+      "category": "Tokenizer",
+      "elapsed_ms": 0.0157,
+      "threshold_ms": 20,
+      "passed": true,
+      "details": "290 chars",
+      "iterations": 10000
+    },
+    {
+      "name": "concurrent_ops",
+      "category": "ConcorrÃªncia",
+      "elapsed_ms": 0.2723,
+      "threshold_ms": 200,
+      "passed": true,
+      "details": "10 tasks concurrent x 100 iterations",
+      "iterations": 100
+    },
+    {
+      "name": "import_config",
+      "category": "Imports",
+      "elapsed_ms": 0.0022,
+      "threshold_ms": 200,
+      "passed": true,
+      "details": "Import core.config",
+      "iterations": 10
+    },
+    {
+      "name": "import_models",
+      "category": "Imports",
+      "elapsed_ms": 0.0021,
+      "threshold_ms": 200,
+      "passed": true,
+      "details": "Import core.models",
+      "iterations": 10
+    }
+  ],
+  "thresholds": {
+    "cache_set": 10,
+    "cache_get": 10,
+    "cache_ttl_expire": 50,
+    "compression_simple": 10,
+    "compression_large": 100,
+    "elastic_store": 50,
+    "elastic_recall": 100,
+    "concurrent_ops": 200,
+    "retry_handler": 10,
+    "state_transition": 5,
+    "tokenizer_simple": 5,
+    "tokenizer_complex": 20
+  }
+}

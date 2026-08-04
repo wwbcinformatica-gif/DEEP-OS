@@ -1,0 +1,13 @@
+{
+  "project": "project-loader",
+  "description": "CLI tool to load and list project details from a config file",
+  "language": "python",
+  "generated_at": "2026-06-11T17:17:48.014031",
+  "plan_id": "f8c8a9ef8a67",
+  "dependencies": ["click", "pytest"],
+  "commands": {
+    "run": "python -m project_loader list",
+    "test": "pytest",
+    "build": ""
+  }
+}

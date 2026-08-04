@@ -1,0 +1,1 @@
+o problema principal não foi corrigido a tools não pode subir junto com a pagina quando eu utilizar o scroll ela tem que ficar sempre perto de onde eu estiver editando para que eu não precise ficar rolando a pagina a todo momento para usar algumas das ferramentas

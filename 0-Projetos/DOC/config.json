@@ -1,0 +1,118 @@
+{
+  "$schema": "https://opencode.ai",
+  "model": "ollama/hf.co/QuantFactory/Nemomix-v1.0-12B-GGUF:Q4_K_S",
+  "provider": {
+    "google": {
+      "npm": "@ai-sdk/google",
+      "options": {
+        "apiKey": "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"
+      }
+    },
+    "ollama": {
+      "npm": "@ai-sdk/openai-compatible",
+      "name": "Ollama (local)",
+      "options": {
+        "baseURL": "http://localhost:11434/v1"
+      },
+      "models": {
+        "qwen2.5-coder:14b": {
+          "name": "Qwen 2.5 Coder 14B (9.0 GB)"
+        },
+        "kimi-k2.7-code:cloud": {
+          "name": "Kimi K2.7 Code Cloud (256K Context)"
+        },
+        "deepseek-r1:14b": {
+          "name": "DeepSeek R1 14B (9.0 GB)"
+        },
+        "gemma4:12b": {
+          "name": "Gemma 4 12B (7.6 GB)"
+        },
+        "mistral-nemo:12b": {
+          "name": "Mistral Nemo 12B (7.1 GB)"
+        },
+        "qwen3:14b": {
+          "name": "Qwen 3 14B (9.3 GB)"
+        },
+        "qwen3.5:9b": {
+          "name": "Qwen 3.5 9B (6.6 GB)"
+        },
+        "jaigouk/nemomix-unleashed-12b:latest": {
+          "name": "Nemomix Unleashed 12B Full (13 GB)"
+        },
+        "hf.co/QuantFactory/Nemomix-v1.0-12B-GGUF:Q4_K_S": {
+          "name": "Nemomix v1.0 12B Q4 (7.1 GB)"
+        },
+        "michaelbui/nemomix-unleashed-12b:q4-k-m": {
+          "name": "Nemomix Unleashed 12B Q4 (7.5 GB)"
+        },
+        "qwen3-vl:8b": {
+          "name": "Qwen 3 VL Visão 8B (6.1 GB)"
+        },
+        "qwen2.5vl:7b": {
+          "name": "Qwen 2.5 VL Visão 7B (6.0 GB)"
+        },
+        "llava:latest": {
+          "name": "Llava Visão Latest (4.7 GB)"
+        },
+        "deepseek-r1:7b": {
+          "name": "DeepSeek R1 7B (4.7 GB)"
+        },
+        "deepseek-coder-v2:latest": {
+          "name": "DeepSeek Coder V2 (8.9 GB)"
+        },
+        "deepseek-coder:6.7b": {
+          "name": "DeepSeek Coder 6.7B (3.8 GB)"
+        },
+        "qwen2.5-coder:7b": {
+          "name": "Qwen 2.5 Coder 7B (4.7 GB)"
+        },
+        "minimax-m2:cloud": {
+          "name": "MiniMax M2 Cloud"
+        }
+      }
+    },
+    "agent": {
+      "claude": {
+        "description": "Claude Sonnet - Agente completo com todas as ferramentas",
+        "mode": "primary",
+        "model": "anthropic/claude-3.5-sonnet",
+        "permission": {
+          "edit": "allow",
+          "read": "allow",
+          "bash": "allow"
+        }
+      },
+      "ollama-local": {
+        "description": "Agente otimizado para o Qwen 14B Local - Seguro e Gratuito",
+        "mode": "primary",
+        "model": "ollama/qwen2.5-coder:14b",
+        "permission": {
+          "edit": "allow",
+          "read": "allow",
+          "bash": "allow",
+          "webfetch": "allow",
+          "task": "allow",
+          "skill": "allow",
+          "question": "allow"
+        }
+      },
+      "ollama-kimi": {
+        "description": "Agente otimizado para a nuvem de longo contexto do Kimi via Ollama",
+        "mode": "primary",
+        "model": "ollama/kimi-k2.7-code:cloud",
+        "permission": {
+          "edit": "allow",
+          "read": "allow",
+          "bash": "allow",
+          "webfetch": "allow",
+          "task": "allow",
+          "skill": "allow",
+          "question": "allow"
+        }
+      },
+      "default": {
+        "systemPromptFile": ".agent/agents/gemini.md"
+      }
+    }
+  }
+}

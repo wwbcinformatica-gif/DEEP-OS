@@ -1,0 +1,2133 @@
+import React, { useState, useEffect, useRef, useMemo } from 'react';
+import { useTheme } from './hooks/useTheme';
+import { setSoundEnabled, playSound } from './lib/soundFx';
+import { showToast } from './components/Toast';
+import type {
+  Msg,
+  Provider,
+  Mood,
+  HistItem,
+  ExpItem,
+  TLog,
+  FileTab,
+  Theme,
+  AccentTheme,
+  Page,
+  KnowItem,
+} from './lib/constants';
+import { API_BASE, ACCENT_THEMES, DEFAULT_ACCENT_THEME } from './lib/constants';
+import ExplorerPanel from './components/ExplorerPanel';
+import EditorPanel from './components/EditorPanel';
+import ChatPanel from './components/ChatPanel';
+import StatusBar from './components/StatusBar';
+import TerminalPanel from './components/TerminalPanel';
+import ProcessPanel from './components/ProcessPanel';
+import ErrorBoundary from './components/ErrorBoundary';
+import PageRenderer from './components/PageRenderer';
+import MusicPlayer, { type MusicPlayerHandle } from './components/MusicPlayer';
+import ToastContainer from './components/Toast';
+import MediaPlayDialog from './components/MediaPlayDialog';
+
+// ─── Accent theme CSS application ─────────────────────────────────────
+
+// Detecta JSON de protocolo interno (task_plan, task_progress) que nao deve ser exibido
+function isInternalJson(s: string) {
+  if (!s || typeof s !== 'string') return false;
+  const trimmed = s.trim();
+  try {
+    const parsed = JSON.parse(trimmed);
+    return parsed && typeof parsed === 'object' && parsed.type !== 'action_card'
+      && ['task_plan', 'task_progress'].includes(parsed.type);
+  } catch { /* not json */ }
+  return false;
+}
+
+// Remove JSON de protocolo interno e raciocinio interno do modelo
+function stripInternalJson(s: string) {
+  if (!s) return s;
+  let cleaned = s.replace(/\{"type"\s*:\s*"(task_plan|task_progress)"[^}]*\}/g, '');
+  // Remove bloco de raciocinio em ingles (MiMo V2.5)
+  // Procura linha em branco separando thinking (ASCII) de resposta (PT-BR)
+  const lines = cleaned.split('\n');
+  for (let i = 0; i < lines.length; i++) {
+    if (lines[i].trim() === '' && i > 0) {
+      const preBlock = lines.slice(0, i).join('\n').trim();
+      if (!preBlock) continue;
+      const asciiRatio = [...preBlock].filter(c => c.charCodeAt(0) < 128).length / Math.max(preBlock.length, 1);
+      if (asciiRatio > 0.85) {
+        const postBlock = lines.slice(i).join('\n').trim();
+        if (postBlock) {
+          cleaned = postBlock;
+          break;
+        }
+      }
+    }
+  }
+  return cleaned.trim().replace(/\n{3,}/g, '\n\n');
+}
+function lightenHex(hex: string, amount: number): string {
+  const r = Math.min(255, parseInt(hex.slice(1, 3), 16) + amount);
+  const g = Math.min(255, parseInt(hex.slice(3, 5), 16) + amount);
+  const b = Math.min(255, parseInt(hex.slice(5, 7), 16) + amount);
+  return `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`;
+}
+
+function applyAccentTheme(themeKey: AccentTheme) {
+  const t = ACCENT_THEMES.find((t) => t.key === themeKey) || ACCENT_THEMES[0];
+  const hex = t.color;
+  // Convert hex to RGB for rgba usage
+  const r = parseInt(hex.slice(1, 3), 16);
+  const g = parseInt(hex.slice(3, 5), 16);
+  const b = parseInt(hex.slice(5, 7), 16);
+  const brightness = (r * 299 + g * 587 + b * 114) / 1000;
+  const root = document.documentElement;
+  root.style.setProperty('--accent', hex);
+  root.style.setProperty('--accent-soft', `rgba(${r},${g},${b},0.12)`);
+  root.style.setProperty('--accent-line', `rgba(${r},${g},${b},0.35)`);
+  // --accent-2: lighter variant for secondary text/detail (opposite of hover)
+  root.style.setProperty('--accent-2', lightenHex(hex, 60));
+  root.style.setProperty('--status-bg', hex);
+  root.style.setProperty('--line-strong', `rgba(${r},${g},${b},0.25)`);
+  // For light accent colors use dark text on status bar and selection
+  root.style.setProperty('--status-fg', brightness > 160 ? '#000000' : '#ffffff');
+  root.style.setProperty('--selection-fg', brightness > 140 ? '#000000' : '#ffffff');
+}
+
+// ─── Apply saved accent theme BEFORE first render (no flash) ───────
+(function initAccentSync() {
+  try {
+    const saved = JSON.parse(localStorage.getItem('wbc2') || '{}');
+    const themeKey = saved.accentTheme || DEFAULT_ACCENT_THEME;
+    applyAccentTheme(themeKey);
+  } catch {}
+})();
+
+export default function App() {
+  const { theme, toggleTheme } = useTheme();
+
+  // ── Chat state ────────────────────────────────────────────────────────
+  const [msgs, setMsgs] = useState<Msg[]>([]);
+  const [input, setInput] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [stream, setStream] = useState('');
+  const [thinking, setThink] = useState('');
+  const [thinkOn, setThinkOn] = useState(false);
+  const [thinkOpen, setThinkOpen] = useState(true);
+  const [toolLogs, setLogs] = useState<TLog[]>([]);
+  const [checklistSteps, setChecklistSteps] = useState<{ label: string; status: string; error?: string }[]>([]);
+  const abortRef = useRef<AbortController | null>(null);
+  const generationRef = useRef(0); // Contador de geração para descartar eventos antigos
+  const latestExpPath = useRef('');
+  const latestExpRoot = useRef('');
+  const pendingRead = useRef<{ path: string; root: string }[]>([]);
+  const taskIdRef = useRef(''); // Para continuar tarefas
+  const sessionIdRef = useRef(`session_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`);
+  const messageQueueRef = useRef<Array<{text: string; images?: string[]}>>([]);
+  const [pendingToolConfirm, setPendingToolConfirm] = useState<{
+    confirmId: string;
+    tool: string;
+    label: string;
+    risk_level?: string;
+    params: Record<string, any>;
+    taskId: string;
+  } | null>(null);
+
+  // ── Provider ──────────────────────────────────────────────────────────
+  const [prov, setProv] = useState<Provider>('mimo');
+  const [model, setModel] = useState('mimo-v2.5');
+  const [oModels, setOModels] = useState<{ value: string; label: string }[]>([]);
+  const [orModels, setOrModels] = useState<{ value: string; label: string }[]>([]);
+  const [ollSt, setOllSt] = useState<{ running: boolean; models: string[] } | undefined>(undefined);
+  const [customM, setCustomM] = useState('');
+  const [showCust, setShowCust] = useState(false);
+  const [apiKey, setApiKey] = useState('');
+  const [orApiKey, setOrApiKey] = useState('');
+  const [groqApiKey, setGroqApiKey] = useState('');
+  const [openaiApiKey, setOpenaiApiKey] = useState('');
+  const [geminiApiKey, setGeminiApiKey] = useState('');
+  const [mimoApiKey, setMimoApiKey] = useState('');
+  const [initDone, setInitDone] = useState(false);
+
+  // ── Settings ──────────────────────────────────────────────────────────
+  const [mood, setMood] = useState<Mood>('opencode');
+  const [temp, setTemp] = useState(0.7);
+  const [sysPr, setSysPr] = useState('');
+  const [snd, setSnd] = useState(false);
+  const [bright, setBright] = useState(100);
+  const [fsize, setFsize] = useState(13);
+  const [voicePreset, setVoicePreset] = useState<
+    | 'google-female'
+    | 'francisca'
+    | 'maria'
+    | 'google-male'
+    | 'antonio'
+    | 'daniel'
+    | 'jarvis-cinematic'
+    | 'edge-francisca'
+    | 'edge-thalita'
+  >('jarvis-cinematic');
+  const [jarvisRate, setJarvisRate] = useState(50);
+  const [voicePitch, setVoicePitch] = useState(50);
+  // (reserved)
+  const [accentTheme, setAccentTheme] = useState<AccentTheme>(DEFAULT_ACCENT_THEME);
+  const [gpuEnabled, setGpuEnabled] = useState(true);
+
+  const [planData, setPlanData] = useState<any>(null);
+  const planTaskIdRef = useRef('');
+  const planOrigTextRef = useRef('');
+
+  // ── Media Play Dialog ─────────────────────────────────────────────────
+  const [mediaPlayDialog, setMediaPlayDialog] = useState<{
+    fileName: string;
+    isVideo: boolean;
+    filePath?: string;
+  } | null>(null);
+
+  // ── Layout ────────────────────────────────────────────────────────────
+  const [expW, setExpW] = useState(240);
+  const [chatW, setChatW] = useState(480);
+  const [chatH, setChatH] = useState(0); // 0 = fill available height
+  const [termH, setTermH] = useState(220);
+  const [termOpen, setTermOpen] = useState(true);
+  const [processW, setProcessW] = useState(200);
+  const dragging = useRef<'exp' | 'chat' | 'chat-h' | 'term' | 'process' | null>(null);
+
+  // ── Navigation ────────────────────────────────────────────────────────
+  const [page, setPage] = useState<Page>('monitor');
+  const [view, setView] = useState<'page' | 'file'>('page');
+  const [helpOpen, setHelpOpen] = useState(false);
+  const helpRef = useRef<HTMLDivElement>(null);
+
+  // ── File tabs ─────────────────────────────────────────────────────────
+  const [tabs, setTabs] = useState<FileTab[]>([]);
+  const [activeTab, setActiveTab] = useState<string | null>(null);
+
+  // ── Explorer ──────────────────────────────────────────────────────────
+  const [expRoot, setExpRoot] = useState('');
+  const [expTree, setExpTree] = useState<ExpItem[]>([]);
+  const [expPath, setExpPath] = useState<string[]>([]);
+  const [currentDir, setCurrentDir] = useState('');
+  const [histSearch, setHistSearch] = useState('');
+  const [histItens, setHistItens] = useState<HistItem[]>([]);
+
+  // ── Knowledge ─────────────────────────────────────────────────────────
+  const [knows, setKnows] = useState<KnowItem[]>([]);
+
+  // ── Refs ──────────────────────────────────────────────────────────────
+  const fileScrollRef = useRef<HTMLDivElement>(null);
+  const editorRef = useRef<HTMLPreElement>(null);
+  const fileContentRef = useRef('');
+  const musicPlayerRef = useRef<MusicPlayerHandle>(null);
+
+  // ─── Layout persistence ──────────────────────────────────────────────
+  const LAYOUT_KEY = 'wbc2_layout';
+
+  // Load layout from localStorage on mount
+  useEffect(() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem(LAYOUT_KEY) || '{}');
+      if (typeof saved.page === 'string') setPage(saved.page as Page);
+      if (saved.view === 'page' || saved.view === 'file') setView(saved.view);
+      if (typeof saved.expW === 'number') setExpW(saved.expW);
+      if (typeof saved.chatW === 'number') setChatW(saved.chatW);
+      if (typeof saved.chatH === 'number') setChatH(saved.chatH);
+      if (typeof saved.termH === 'number') setTermH(saved.termH);
+      if (typeof saved.termOpen === 'boolean') setTermOpen(saved.termOpen);
+      if (typeof saved.processW === 'number') setProcessW(saved.processW);
+    } catch {}
+  }, []);
+
+  // Save layout to localStorage on change
+  useEffect(() => {
+    if (!initDone) return;
+    try {
+      localStorage.setItem(
+        LAYOUT_KEY,
+        JSON.stringify({ page, view, expW, chatW, chatH, termH, termOpen, processW }),
+      );
+    } catch {}
+  }, [initDone, page, view, expW, chatW, termH, termOpen, processW]);
+
+  // ─── Effects ──────────────────────────────────────────────────────────
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      let themeFromBackend: string | null = null;
+      let sysPrFromBackend: string = '';
+      try {
+        const [themeRes, configRes] = await Promise.all([
+          fetch(`${API_BASE}/api/config/accent-theme`),
+          fetch(`${API_BASE}/api/config/agent`),
+        ]);
+        if (themeRes.ok) {
+          const data = await themeRes.json();
+          if (data.accent_theme) themeFromBackend = data.accent_theme;
+        }
+        if (configRes.ok) {
+          const data = await configRes.json();
+          if (data.system_prompt) sysPrFromBackend = data.system_prompt;
+        }
+      } catch {
+        /* backend offline */
+      }
+      if (cancelled) return;
+
+      // Load ALL saved settings from localStorage
+      let saved: any = {};
+      try {
+        saved = JSON.parse(localStorage.getItem('wbc2') || '{}');
+      } catch {}
+
+      // User's last choice (localStorage) takes precedence over backend default
+      const theme = saved.accentTheme || themeFromBackend || DEFAULT_ACCENT_THEME;
+
+      setAccentTheme(theme as AccentTheme);
+      if (saved.prov) setProv(saved.prov);
+      if (saved.model) setModel(saved.model);
+      if (saved.mood) setMood(saved.mood);
+      if (saved.temp !== undefined) setTemp(saved.temp);
+      setSysPr(saved.sysPr || sysPrFromBackend);
+      if (saved.snd !== undefined) setSnd(saved.snd);
+      if (saved.bright !== undefined) setBright(saved.bright);
+      if (saved.fsize !== undefined) setFsize(saved.fsize);
+      if (saved.voicePreset) setVoicePreset(saved.voicePreset);
+      if (saved.jarvisRate !== undefined) setJarvisRate(saved.jarvisRate);
+      if (saved.voicePitch !== undefined) setVoicePitch(saved.voicePitch);
+      if (saved.apiKey) setApiKey(saved.apiKey);
+      if (saved.orApiKey) setOrApiKey(saved.orApiKey);
+      if (saved.groqApiKey) setGroqApiKey(saved.groqApiKey);
+      if (saved.openaiApiKey) setOpenaiApiKey(saved.openaiApiKey);
+      if (saved.geminiApiKey) setGeminiApiKey(saved.geminiApiKey);
+      if (saved.mimoApiKey) setMimoApiKey(saved.mimoApiKey);
+
+      if (!cancelled) setInitDone(true);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // Welcome message — reflects current provider/model after init
+  useEffect(() => {
+    if (!initDone) return;
+    // Removida a mensagem inicial de "Pronto. Mimo..." a pedido do usuario
+  }, [initDone]);
+
+  useEffect(() => {
+    if (!initDone) return;
+    // Merge with existing localStorage to preserve extended settings (agent/developer/display)
+    let existing: any = {};
+    try {
+      existing = JSON.parse(localStorage.getItem('wbc2') || '{}');
+    } catch {}
+    localStorage.setItem(
+      'wbc2',
+      JSON.stringify({
+        ...existing,
+        prov,
+        model,
+        mood,
+        temp,
+        sysPr,
+        snd,
+        bright,
+        fsize,
+        voicePreset,
+        jarvisRate,
+        voicePitch,
+        apiKey,
+        orApiKey,
+        groqApiKey,
+        openaiApiKey,
+        geminiApiKey,
+        accentTheme,
+      }),
+    );
+  }, [
+    initDone,
+    prov,
+    model,
+    mood,
+    temp,
+    sysPr,
+    snd,
+    bright,
+    fsize,
+    voicePreset,
+    jarvisRate,
+    voicePitch,
+    apiKey,
+    orApiKey,
+    groqApiKey,
+    openaiApiKey,
+    geminiApiKey,
+    accentTheme,
+  ]);
+
+  // Sync accent theme to backend config.yaml whenever it changes
+  useEffect(() => {
+    if (!initDone) return;
+    fetch(`${API_BASE}/api/config/accent-theme`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ theme: accentTheme }),
+    }).catch(() => {});
+  }, [initDone, accentTheme]);
+
+  // Carrega estado da GPU do backend
+  useEffect(() => {
+    if (!initDone) return;
+    fetch(`${API_BASE}/ollama/gpu`)
+      .then((r) => r.json())
+      .then((d) => {
+        if (d.gpu_enabled !== undefined) setGpuEnabled(d.gpu_enabled);
+      })
+      .catch(() => {});
+  }, [initDone]);
+
+  // Sincroniza toggle GPU com backend
+  useEffect(() => {
+    if (!initDone) return;
+    fetch(`${API_BASE}/ollama/gpu`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ gpu_enabled: gpuEnabled, gpu_layers: -1 }),
+    }).catch(() => {});
+  }, [initDone, gpuEnabled]);
+
+  // Apply accent theme CSS variables
+  useEffect(() => {
+    try {
+      applyAccentTheme(accentTheme);
+    } catch (e) {
+      console.warn('Nao foi possivel aplicar o tema de destaque', e);
+    }
+  }, [accentTheme]);
+
+  // Atualiza a variável CSS global quando o tamanho da fonte mudar
+  useEffect(() => {
+    try {
+      document.documentElement.style.setProperty('--base-font-size', `${fsize}px`);
+    } catch (e) {
+      // não bloqueia a aplicação se falhar
+      console.warn('Não foi possível aplicar --base-font-size', e);
+    }
+  }, [fsize]);
+
+  useEffect(() => {
+    fetchHist();
+    // Tenta workspace API primeiro, fallback para /status
+    const tryFetchRoot = (attempt = 0) => {
+      fetch(`${API_BASE}/api/workspace`)
+        .then((r) => (r.ok ? r.json() : null))
+        .then((data) => {
+          if (data?.workspace) {
+            setExpRoot(data.workspace);
+            loadDir('', data.workspace);
+            return;
+          }
+          // Fallback: /status
+          return fetch(`${API_BASE}/status`).then((r) => r.json());
+        })
+        .then((d) => {
+          if (d?.base_dir && !localStorage.getItem('wbc2_expRoot')) {
+            setExpRoot(d.base_dir);
+            loadDir('', d.base_dir);
+          }
+        })
+        .catch(() => {
+          if (attempt < 10) setTimeout(() => tryFetchRoot(attempt + 1), 1000);
+        });
+    };
+    tryFetchRoot();
+  }, []);
+
+  useEffect(() => {
+    setSoundEnabled(snd);
+  }, [snd]);
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (helpRef.current && !helpRef.current.contains(e.target as Node)) {
+        setHelpOpen(false);
+      }
+    };
+    if (helpOpen) document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [helpOpen]);
+
+  useEffect(() => {
+    if (prov === 'ollama') {
+      fetch(`${API_BASE}/ollama/status`)
+        .then((r) => r.json())
+        .then((d) => {
+          setOllSt(d);
+          if (d.running && d.models?.length)
+            setOModels(d.models.map((m: string) => ({ value: m, label: m })));
+        })
+        .catch(() => {});
+    }
+    if (prov === 'openrouter' && orApiKey) {
+      fetch(`${API_BASE}/openrouter/models`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ api_key: orApiKey }),
+      })
+        .then((r) => r.json())
+        .then((d) => {
+          if (d.models?.length) setOrModels(d.models);
+        })
+        .catch(() => {});
+    }
+  }, [prov, orApiKey]);
+
+  // ─── API helpers ──────────────────────────────────────────────────────
+  const fetchHist = async () => {
+    try {
+      const r = await fetch(`${API_BASE}/history`);
+      if (r.ok) setHistItens((await r.json()).history || []);
+    } catch {}
+  };
+
+  const loadHist = async (id: number) => {
+    try {
+      const r = await fetch(`${API_BASE}/history`);
+      if (!r.ok) return;
+      const data = await r.json();
+      const all: HistItem[] = data.history || [];
+      const item = all.find((h: HistItem) => h.id === id);
+      if (!item) return;
+      const ts = new Date(item.created_at).toLocaleTimeString('pt-BR', {
+        hour: '2-digit',
+        minute: '2-digit',
+      });
+      setMsgs([
+        { from: 'user', text: item.question, time: ts },
+        { from: 'bot', text: isInternalJson(item.answer) ? '' : stripInternalJson(item.answer), time: ts },
+      ]);
+    } catch {}
+  };
+
+  const delHist = async (id: number) => {
+    try {
+      await fetch(`${API_BASE}/history/${id}`, { method: 'DELETE' });
+      fetchHist();
+    } catch {}
+  };
+
+  const loadDir = (dirPath: string, rootOverride?: string) => {
+    setCurrentDir(dirPath);
+    const p = new URLSearchParams();
+    p.set('path', dirPath);
+    const root = rootOverride ?? expRoot;
+    if (root) p.set('root', root);
+    fetch(`${API_BASE}/explorer?${p}`)
+      .then((r) => r.json())
+      .then((d) => {
+        if (d.type === 'directory') setExpTree(d.items || []);
+      })
+      .catch(() => {});
+  };
+
+  const refreshExplorer = (root?: string) => {
+    const base = root || expRoot;
+    if (!base) return;
+    loadDir(currentDir || '');
+  };
+
+  const toggleDir = (path: string) => {
+    setExpPath((prev) => [...prev, path]);
+    loadDir(path);
+  };
+
+  const goUpDir = () => {
+    if (!currentDir) return;
+    const parent = currentDir.split(/[\\/]/).slice(0, -1).join('/');
+    if (!parent || parent === currentDir) {
+      // Volta pra raiz
+      setCurrentDir('');
+      loadDir('');
+    } else {
+      setExpPath((prev) => prev.slice(0, -1));
+      loadDir(parent);
+    }
+  };
+
+  const saveFile = async (tabId: string): Promise<boolean> => {
+    const tab = tabs.find((t) => t.id === tabId);
+    if (!tab) return false;
+    try {
+      const resp = await fetch(`${API_BASE}/explorer/write`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ path: tab.path, content: tab.content, root: expRoot }),
+      });
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+      setTabs((prev) => prev.map((t) => (t.id === tabId ? { ...t, dirty: false } : t)));
+      // Refresh explorer apos salvar
+      setTimeout(() => refreshExplorer(), 300);
+      return true;
+    } catch (e: any) {
+      alert(`Erro ao salvar: ${e.message}`);
+      return false;
+    }
+  };
+
+  const saveCurrentFile = () => {
+    if (activeTab) saveFile(activeTab);
+  };
+
+  const setTabContent = (id: string, content: string) => {
+    setTabs((prev) =>
+      prev.map((t) =>
+        t.id === id ? { ...t, content, dirty: t.content !== content ? true : t.dirty } : t,
+      ),
+    );
+  };
+
+  const openFile = (item: ExpItem) => {
+    const path = item.path;
+    const name = path.split(/[\\/]/).pop() || path;
+    const fileExtension = name.includes('.') ? name.split('.').pop()!.toLowerCase() : '';
+
+    // ── Bloquear .docx/.pdf: abrir nativamente no Windows ──────────────
+    if (fileExtension === 'docx' || fileExtension === 'pdf') {
+      const fullUrl = `${API_BASE}/api/explorer/open-external?path=${encodeURIComponent(path)}&root=${encodeURIComponent(expRoot)}`;
+      fetch(fullUrl).catch(() => {});
+      return;
+    }
+
+    const tabId = `file::${path}`;
+    if (tabs.find((t) => t.id === tabId)) {
+      setActiveTab(tabId);
+      setView('file');
+      return;
+    }
+    const p = new URLSearchParams();
+    p.set('path', path);
+    if (expRoot) p.set('root', expRoot);
+    fetch(`${API_BASE}/explorer/read?${p}`)
+      .then((r) => r.json())
+      .then((d) => {
+        const content = d.type === 'text' ? d.content : '[Arquivo binário]';
+        const name = path.split(/[\\/]/).pop() || path;
+        const ext = name.includes('.') ? name.split('.').pop()!.toLowerCase() : '';
+        setTabs((prev) => [...prev, { id: tabId, name, path, content, ext, dirty: false }]);
+        setActiveTab(tabId);
+        setView('file');
+      })
+      .catch((e: any) => {
+        const name = path.split(/[\\/]/).pop() || path;
+        setTabs((prev) => [
+          ...prev,
+          { id: tabId, name, path, content: `[Erro: ${e.message}]`, ext: 'err' },
+        ]);
+        setActiveTab(tabId);
+        setView('file');
+      });
+  };
+
+  const closeTab = async (id: string) => {
+    const tab = tabs.find((t) => t.id === id);
+    if (tab?.dirty) {
+      const confirm = window.confirm(`"${tab.name}" foi alterado. Deseja salvar antes de fechar?`);
+      if (confirm) {
+        const saved = await saveFile(id);
+        if (!saved) return; // Se falhou ao salvar, nao fecha
+      }
+    }
+    setTabs((prev) => {
+      const next = prev.filter((t) => t.id !== id);
+      if (activeTab === id) {
+        setActiveTab(next.length ? next[next.length - 1].id : null);
+        if (!next.length) setView('page');
+      }
+      return next;
+    });
+  };
+
+  // ─── Chat ─────────────────────────────────────────────────────────────
+  const projectLabel = useMemo(() => {
+    if (!expRoot) return 'projeto';
+    const parts = expRoot.split(/[\\/]/).filter(Boolean);
+    return parts[parts.length - 1] || 'projeto';
+  }, [expRoot]);
+
+  const newChat = () => {
+    setMsgs([]);
+    setStream('');
+    setThink('');
+    setThinkOn(false);
+    setLogs([]);
+    setChecklistSteps([]);
+  };
+
+  const stopGen = () => {
+    abortRef.current?.abort();
+    setLoading(false);
+  };
+
+  const send = async (text?: string, images?: string[]) => {
+    const fm = text ?? input;
+    if (!fm.trim() && (!images || images.length === 0)) return;
+
+    // Clear pending tool confirmation if user sends a regular message
+    if (!fm.startsWith('/approve-tool') && !fm.startsWith('/reject-tool')) {
+      setPendingToolConfirm(null);
+    }
+
+    // Detecta "continue" e reusa o task_id anterior
+    const isContinue = fm.trim().toLowerCase() === 'continue' && taskIdRef.current;
+    const effectiveTaskId = isContinue ? taskIdRef.current : '';
+
+    // Valida chave de API antes de enviar (para providers que exigem)
+    if (prov !== 'ollama') {
+      const keyToSend =
+        prov === 'opencode'
+          ? apiKey
+          : prov === 'openclaude'
+            ? apiKey || orApiKey
+            : prov === 'openrouter'
+              ? orApiKey
+              : prov === 'groq'
+                ? groqApiKey
+                : prov === 'openai'
+                  ? openaiApiKey
+                  : prov === 'gemini'
+                    ? geminiApiKey
+                    : '__backend_env__';
+      if (!keyToSend) {
+        setMsgs((c) => [
+          ...c,
+          {
+            from: 'bot',
+            text: `⚠️ Provedor "${prov}" precisa de chave de API.\nCrie o arquivo backend/.env com a chave ou troque para "ollama".`,
+            time: Date.now(),
+          },
+        ]);
+        return;
+      }
+    }
+
+    // Don't show internal commands in chat
+    if (!fm.startsWith('/approve-plan') && !fm.startsWith('/reject-plan')) {
+      const msg: Msg = { from: 'user', text: fm, time: Date.now() };
+      if (images && images.length > 0) msg.images = images;
+      setMsgs((c) => [...c, msg]);
+    }
+    setInput('');
+
+    // Se ja esta processando, adicionar na fila local
+    if (loading) {
+      messageQueueRef.current.push({ text: fm, images });
+      setMsgs((c) => [
+        ...c,
+        {
+          from: 'bot',
+          text: `📋 Mensagem enfileirada (${messageQueueRef.current.length} na fila)`,
+          time: Date.now(),
+        },
+      ]);
+      return;
+    }
+
+    setLoading(true);
+    setStream('');
+    setThink('');
+    setThinkOn(false);
+    setLogs([]);
+    setChecklistSteps([]);
+    setThinkOpen(true);
+    playSound('agent_thinking');
+    // Incrementar geração para descartar eventos da requisição antiga
+    const thisGeneration = ++generationRef.current;
+    const ctrl = new AbortController();
+    abortRef.current = ctrl;
+    let full = '';
+    try {
+      // Store original text for plan approval flow
+      if (!isContinue && !planTaskIdRef.current) {
+        planOrigTextRef.current = fm;
+      }
+
+      const bodyData: any = {
+        user: isContinue ? 'continue' : fm,
+        provider: prov,
+        model,
+        mood,
+        temperature: temp,
+        system_prompt: sysPr,
+        root: expRoot,
+        path: expPath.join('/'),
+        api_key:
+          prov === 'opencode'
+            ? apiKey
+            : prov === 'openclaude'
+              ? apiKey || orApiKey
+              : prov === 'openrouter'
+                ? orApiKey
+                : prov === 'groq'
+                  ? groqApiKey
+                  : prov === 'openai'
+                    ? openaiApiKey
+                    : prov === 'gemini'
+                      ? geminiApiKey
+                      : prov === 'mimo'
+                        ? mimoApiKey
+                        : '',
+        task_id: effectiveTaskId,
+        mode: 'auto',
+        plan_strategy: 'never',
+        images: images || [],
+        session_id: sessionIdRef.current,
+      };
+      // If this is a plan approval re-send, set the flag
+      if (planTaskIdRef.current && fm.startsWith('/approve-plan')) {
+        bodyData.plan_approved = true;
+        bodyData.task_id = planTaskIdRef.current;
+      }
+      const resp = await fetch(`${API_BASE}/chat/stream`, {
+        method: 'POST',
+        signal: ctrl.signal,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(bodyData),
+      });
+      if (resp.status === 401)
+        throw new Error('Autenticacao falhou (401). Verifique a chave de API no backend/.env');
+      if (!resp.ok || !resp.body) throw new Error(`HTTP ${resp.status}`);
+      const reader = resp.body.getReader();
+      const dec = new TextDecoder();
+      let buf = '';
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        buf += dec.decode(value, { stream: true });
+        const lines = buf.split('\n');
+        buf = lines.pop() || '';
+        for (const line of lines) {
+          if (!line.trim()) continue;
+          try {
+            const ev = JSON.parse(line);
+            // Descartar eventos de requisições anteriores
+            if (thisGeneration !== generationRef.current) return;
+            if (ev.type === 'plan') {
+              if (ev.auto_executed) {
+                // LOW plans execute silently — no toast or plan card
+              } else {
+                // Store plan info for approval
+                planTaskIdRef.current = ev.task_id || '';
+                planOrigTextRef.current = '';
+                // Add plan message to chat (will be rendered by PlanMessage inline)
+                const nowStr = new Date().toLocaleTimeString('pt-BR', {
+                  hour: '2-digit',
+                  minute: '2-digit',
+                });
+                setMsgs((c) => [
+                  ...c,
+                  {
+                    from: 'bot',
+                    text: '📋 Plano de execução aguardando aprovação.',
+                    time: nowStr,
+                    planData: ev.data,
+                    planTaskId: ev.task_id || '',
+                    planStatus: 'pending',
+                  },
+                ]);
+                setLoading(false);
+                setStream('');
+                return;
+              }
+            }
+            if (ev.type === 'thinking_start') setThinkOn(true);
+            else if (ev.type === 'thinking') {
+              setThinkOn(true);
+              setThink(ev.content || '');
+            } else if (ev.type === 'token') {
+              full += ev.content || '';
+              setStream(stripInternalJson(full));
+            } else if (ev.type === 'tool_start') {
+              const logId = `${ev.tool}_${Date.now()}`;
+              setLogs((p) => [...p, { id: logId, tool: ev.tool, status: 'running', params: ev.params, startedAt: Date.now() }]);
+              const toolParams = ev.params || {};
+              const paramStr = Object.values(toolParams).slice(0, 1).join('') || '';
+              setStream(`> ${ev.tool}(${paramStr.length > 60 ? paramStr.slice(0, 60) + '...' : paramStr})`);
+              if (planTaskIdRef.current) {
+                setMsgs((c) =>
+                  c.map((m) =>
+                    m.planTaskId === planTaskIdRef.current
+                      ? { ...m, planStatus: 'executing' as const }
+                      : m,
+                  ),
+                );
+              }
+            } else if (ev.type === 'tool_end') {
+              const endedAt = Date.now();
+              setLogs((p) => {
+                const idx = [...p].reverse().findIndex((l) => l.tool === ev.tool && l.status === 'running');
+                if (idx === -1) return p;
+                const realIdx = p.length - 1 - idx;
+                const next = [...p];
+                const startedAt = next[realIdx].startedAt || endedAt;
+                next[realIdx] = {
+                  ...next[realIdx],
+                  status: ev.result?.error ? 'error' : 'done',
+                  result: ev.result,
+                  endedAt,
+                  duration: endedAt - startedAt,
+                };
+                return next;
+              });
+              // NÃO setStream('') aqui — evita que o auto-speak dispare a cada ferramenta
+              // O stream será limpo apenas no evento 'done' final
+            } else if (ev.type === 'tool_error')
+              setLogs((p) => [
+                ...p,
+                { tool: 'erro', status: 'error', result: { error: ev.error } },
+              ]);
+            else if (ev.type === 'tool_confirm') {
+              setPendingToolConfirm({
+                confirmId: ev.confirm_id,
+                tool: ev.tool,
+                label: ev.label,
+                risk_level: ev.risk_level || 'high',
+                params: ev.params || {},
+                taskId: ev.task_id || '',
+              });
+              if (ev.task_id) taskIdRef.current = ev.task_id;
+              setMsgs((c) => [
+                ...c,
+                {
+                  from: 'bot',
+                  text: `⚠️ Ação "${ev.label}" requer confirmação`,
+                  time: Date.now(),
+                },
+              ]);
+            } else if (ev.type === 'queued') {
+              // Mensagem enfileirada - processamento anterior em andamento
+              setMsgs((c) => [
+                ...c,
+                {
+                  from: 'bot',
+                  text: `📋 ${ev.message || 'Mensagem enfileirada'}`,
+                  time: Date.now(),
+                },
+              ]);
+              // Manter loading ativo e esperar
+            } else if (ev.type === 'task_checklist') {
+              setChecklistSteps(ev.steps || []);
+            } else if (ev.type === 'task_progress') {
+              const idx = ev.step_index as number;
+              const st = ev.status as string;
+              setChecklistSteps((prev) => {
+                if (idx < 0 || idx >= prev.length) return prev;
+                const next = [...prev];
+                next[idx] = { ...next[idx], status: st };
+                return next;
+              });
+            } else if (ev.type === 'action') {
+              // AI action commands for media player, explorer, etc.
+              const act = ev.action as string;
+              const payload = ev.payload || {};
+              if (act === 'media_play') {
+                // Show dialog to choose where to play
+                setMediaPlayDialog({
+                  fileName: payload.name || '',
+                  isVideo: payload.isVideo || false,
+                  filePath: payload.path || payload.url || '',
+                });
+              } else if (act === 'media_pause' && musicPlayerRef.current) {
+                musicPlayerRef.current.playPause();
+              } else if (act === 'media_next' && musicPlayerRef.current) {
+                musicPlayerRef.current.next();
+              } else if (act === 'media_prev' && musicPlayerRef.current) {
+                musicPlayerRef.current.prev();
+              } else if (act === 'media_stop' && musicPlayerRef.current) {
+                musicPlayerRef.current.stop();
+                showToast('Reproducao parada', 'info');
+              } else if (act === 'media_list') {
+                const tracks = musicPlayerRef.current?.getTracks() || [];
+                // Send back to next AI turn
+                const listText = tracks.length > 0
+                  ? tracks.map((t, i) => `${i + 1}. ${t.isVideo ? '[VIDEO]' : '[AUDIO]'} ${t.name}`).join('\n')
+                  : 'Nenhuma midia carregada no player.';
+                showToast(`Musicas: ${tracks.length} arquivos`, 'info');
+              } else if (act === 'explorer_cd') {
+                if (payload.path) {
+                  setExpRoot(payload.path);
+                  loadDir(payload.path);
+                  showToast(`Navegando: ${payload.path}`, 'info');
+                }
+              } else if (act === 'open_file') {
+                if (payload.path) {
+                  // Check if it's a media file
+                  const ext = payload.path.split('.').pop()?.toLowerCase() || '';
+                  const isMedia = /\.(mp3|wav|ogg|flac|m4a|aac|mp4|wmv|avi|mkv|webm|mov)$/i.test(ext);
+                  if (isMedia) {
+                    // Show dialog for media files
+                    const name = payload.path.split(/[\\/]/).pop() || payload.path;
+                    const isVideo = /\.(mp4|wmv|avi|mkv|webm|mov)$/i.test(ext);
+                    setMediaPlayDialog({
+                      fileName: name,
+                      isVideo,
+                      filePath: payload.path,
+                    });
+                  } else {
+                    openFile({ path: payload.path } as any);
+                    showToast(`Abrindo: ${payload.path}`, 'info');
+                  }
+                }
+              } else if (act === 'run_terminal') {
+                if (payload.command) {
+                  setTermOpen(true);
+                  showToast(`Terminal: ${payload.command}`, 'info');
+                }
+              }
+            } else if (ev.type === 'done') {
+              full = ev.answer || full;
+              setStream('');
+              setThinkOn(false);
+              setChecklistSteps((prev) => {
+                if (prev.length === 0) return prev;
+                const total = prev.length;
+                return prev.map((step) => ({ ...step, status: 'done' }));
+              });
+              // Skip adding message if this is a pending tool confirmation
+              if (ev.pending_confirm) {
+                setLoading(false);
+              } else if (planTaskIdRef.current) {
+                playSound('agent_success');
+                setMsgs((c) =>
+                  c.map((m) =>
+                    m.planTaskId === planTaskIdRef.current
+                      ? { ...m, planStatus: 'done' as const }
+                      : m,
+                  ),
+                );
+                planTaskIdRef.current = '';
+              } else {
+                playSound('agent_success');
+                const displayText = stripInternalJson(full);
+                setMsgs((c) => [
+                  ...c,
+                  { from: 'bot', text: displayText || '(resposta vazia)', time: Date.now() },
+                ]);
+              }
+              fetchHist();
+              // Salva task_id para continuar depois
+              if (ev.task_id) taskIdRef.current = ev.task_id;
+              else taskIdRef.current = '';
+              // Refresh no explorador apos qualquer resposta (captura mudancas de arquivos)
+              setTimeout(() => refreshExplorer(), 400);
+            } else if (ev.type === 'error') {
+              setStream('');
+              setLoading(false);
+              const isLoop = ev.message?.toLowerCase().includes('loop');
+              setMsgs((c) => [
+                ...c,
+                {
+                  from: 'bot',
+                  text: `! ${ev.message || 'Erro'}`,
+                  time: Date.now(),
+                  isLoopError: isLoop,
+                },
+              ]);
+            }
+          } catch {}
+        }
+      }
+    } catch (e: any) {
+      if (e.name !== 'AbortError')
+        setMsgs((c) => [...c, { from: 'bot', text: `! ${e.message}`, time: Date.now() }]);
+    } finally {
+      // Só limpar estado se ainda estamos na mesma geração
+      if (thisGeneration === generationRef.current) {
+        setLoading(false);
+        setStream('');
+        setThinkOn(false);
+
+        // Processar proxima mensagem da fila
+        if (messageQueueRef.current.length > 0) {
+          const next = messageQueueRef.current.shift()!;
+          setTimeout(() => send(next.text, next.images), 100);
+        }
+      }
+      if (thisGeneration === generationRef.current) {
+        abortRef.current = null;
+      }
+    }
+  };
+
+  const analyzeFile = (tab: FileTab) =>
+    send(
+      `[Arquivo: ${tab.path}]\n\n\`\`\`${tab.ext}\n${tab.content.slice(0, 4000)}\n\`\`\`\n\nAnalise este arquivo:`,
+    );
+
+  // ─── Terminal ─────────────────────────────────────────────────────────
+  // ─── Memo ─────────────────────────────────────────────────────────────
+  const curTab = view === 'file' ? tabs.find((t) => t.id === activeTab) : undefined;
+
+  // ─── Drag resize ──────────────────────────────────────────────────────
+  useEffect(() => {
+    const onMove = (e: MouseEvent) => {
+      if (!dragging.current) return;
+      if (dragging.current === 'exp') setExpW(Math.max(160, Math.min(400, e.clientX)));
+      else if (dragging.current === 'chat')
+        setChatW(
+          Math.max(
+            280,
+            Math.min(Math.round(window.innerWidth * 0.45), window.innerWidth - e.clientX),
+          ),
+        );
+      else if (dragging.current === 'process')
+        setProcessW(Math.max(180, Math.min(600, window.innerWidth - e.clientX)));
+      else if (dragging.current === 'term')
+        setTermH(Math.max(100, Math.min(500, window.innerHeight - e.clientY - 24)));
+      else if (dragging.current === 'chat-h')
+        setChatH(
+          Math.max(
+            200,
+            Math.min(window.innerHeight - 32 - 24, window.innerHeight - e.clientY - 24),
+          ),
+        );
+    };
+    const onUp = () => {
+      dragging.current = null;
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+    };
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+    return () => {
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onUp);
+    };
+  }, []);
+
+  // Responsivo: ajusta larguras iniciais baseado no tamanho da tela (so se nao houver layout salvo)
+  useEffect(() => {
+    if (!initDone) return;
+    try {
+      const saved = JSON.parse(localStorage.getItem(LAYOUT_KEY) || '{}');
+      if (typeof saved.expW === 'number' || typeof saved.chatW === 'number') return;
+    } catch {}
+    const w = window.innerWidth;
+    if (w < 900) {
+      setExpW(180);
+      setChatW(Math.max(320, Math.round(w * 0.4)));
+    } else if (w < 1200) {
+      setExpW(200);
+      setChatW(Math.max(360, Math.round(w * 0.35)));
+    }
+  }, [initDone]);
+
+  // ─── Keyboard shortcuts ──────────────────────────────────────────
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.shiftKey) {
+        switch (e.key.toLowerCase()) {
+          case 'n':
+            e.preventDefault();
+            newChat();
+            showToast('Novo chat criado', 'success');
+            break;
+          case 't':
+            e.preventDefault();
+            setTermOpen((prev) => !prev);
+            showToast(termOpen ? 'Terminal fechado' : 'Terminal aberto', 'info');
+            break;
+          case 's':
+            e.preventDefault();
+            saveCurrentFile();
+            showToast('Arquivo salvo', 'success');
+            break;
+        }
+      }
+      if (e.key === 'Escape' && loading) {
+        e.preventDefault();
+        stopGen();
+        showToast('Geração cancelada', 'info');
+      }
+      if ((e.ctrlKey || e.metaKey) && e.key === 'Enter' && !loading) {
+        e.preventDefault();
+        send();
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  });
+
+  const drag = (which: 'exp' | 'chat' | 'chat-h' | 'term' | 'process') => (e: React.MouseEvent) => {
+    e.preventDefault();
+    dragging.current = which;
+    document.body.style.cursor =
+      which === 'term' || which === 'chat-h' ? 'row-resize' : 'col-resize';
+    document.body.style.userSelect = 'none';
+  };
+
+  const DragH = (dir: 'h' | 'v', onDown: (e: React.MouseEvent) => void) => (
+    <div onMouseDown={onDown} className={dir === 'h' ? 'drag-handle-h' : 'drag-handle-v'} />
+  );
+
+  // ─── Plan Mode Handlers ──────────────────────────────────────────────
+  const handleApprovePlan = (taskId: string) => {
+    if (!taskId) return;
+    // Update message status
+    setMsgs((c) =>
+      c.map((m) => (m.planTaskId === taskId ? { ...m, planStatus: 'approved' as const } : m)),
+    );
+    // Send approval as new message
+    setInput('');
+    planTaskIdRef.current = taskId;
+    send(`/approve-plan ${taskId}`);
+  };
+
+  const handleRejectPlan = (taskId: string) => {
+    if (!taskId) return;
+    // Update message status
+    setMsgs((c) =>
+      c.map((m) => (m.planTaskId === taskId ? { ...m, planStatus: 'rejected' as const } : m)),
+    );
+    planTaskIdRef.current = '';
+    showToast('Plano rejeitado', 'error');
+  };
+
+  const handleCancelPlan = () => {
+    setPlanData(null);
+    planTaskIdRef.current = '';
+    planOrigTextRef.current = '';
+  };
+
+  const handleApproveTool = () => {
+    if (!pendingToolConfirm) return;
+    const { taskId } = pendingToolConfirm;
+    setPendingToolConfirm(null);
+    setInput('');
+    send(`/approve-tool ${taskId}`);
+  };
+
+  const handleRejectTool = () => {
+    if (!pendingToolConfirm) return;
+    const { taskId, tool } = pendingToolConfirm;
+    setPendingToolConfirm(null);
+    showToast(`Ação "${tool}" rejeitada`, 'info');
+    send(`/reject-tool ${taskId}`);
+  };
+
+  // ─── Media Play Handlers ──────────────────────────────────────────────
+  const handleMediaInternalPlay = () => {
+    if (!mediaPlayDialog) return;
+    if (musicPlayerRef.current) {
+      const fd = mediaPlayDialog;
+      if (fd.filePath && fd.filePath.startsWith('http')) {
+        // URL online - adiciona direto
+        musicPlayerRef.current.addByUrl(fd.fileName, fd.filePath, fd.isVideo);
+        musicPlayerRef.current.playFile(fd.fileName);
+      } else if (fd.filePath) {
+        // Arquivo local - converte para URL via backend
+        const streamUrl = `${API_BASE}/api/media/stream?path=${encodeURIComponent(fd.filePath)}&root=${encodeURIComponent(expRoot)}`;
+        musicPlayerRef.current.addByUrl(fd.fileName, streamUrl, fd.isVideo);
+        musicPlayerRef.current.playFile(fd.fileName);
+      }
+      showToast(`Tocando no player interno: ${fd.fileName}`, 'info');
+    }
+    setMediaPlayDialog(null);
+  };
+
+  const handleMediaExternalPlay = () => {
+    if (!mediaPlayDialog) return;
+    // Open file with system default player via backend API
+    if (mediaPlayDialog.filePath && !mediaPlayDialog.filePath.startsWith('http')) {
+      fetch(`${API_BASE}/api/explorer/open-external?path=${encodeURIComponent(mediaPlayDialog.filePath)}&root=${encodeURIComponent(expRoot)}`)
+        .then(() => showToast(`Abrindo no reprodutor padrão: ${mediaPlayDialog.fileName}`, 'info'))
+        .catch(() => showToast('Erro ao abrir arquivo', 'error'));
+    } else if (mediaPlayDialog.filePath && mediaPlayDialog.filePath.startsWith('http')) {
+      // For URLs, open in browser
+      window.open(mediaPlayDialog.filePath, '_blank');
+      showToast(`Abrindo no navegador: ${mediaPlayDialog.fileName}`, 'info');
+    } else {
+      showToast('Caminho do arquivo não disponível', 'error');
+    }
+    setMediaPlayDialog(null);
+  };
+
+  const handleMediaCancel = () => {
+    setMediaPlayDialog(null);
+  };
+
+  // ─── JSX ──────────────────────────────────────────────────────────────
+  const safeBright = Math.max(20, Math.min(150, bright));
+
+  return (
+    <div
+      style={{
+        width: '100vw',
+        height: '100vh',
+        overflow: 'hidden',
+        background: 'var(--bg)',
+        color: 'var(--ink)',
+        display: 'flex',
+        flexDirection: 'column',
+        filter: `brightness(${safeBright}%)`,
+        fontSize: `${fsize}px`,
+        fontFamily: 'inherit',
+      }}
+    >
+      {/* TOP BAR */}
+      <div
+        style={{
+          height: 32,
+          flexShrink: 0,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          padding: '0 14px',
+          borderBottom: '1px solid var(--line)',
+          background: 'var(--bg-2)',
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, overflow: 'hidden' }}>
+          <span style={{ fontSize: 15, fontWeight: 700, color: 'var(--accent)', flexShrink: 0 }}>
+            ◈
+          </span>
+          <span
+            style={{
+              fontSize: 12,
+              fontWeight: 600,
+              color: 'var(--accent)',
+              flexShrink: 0,
+              letterSpacing: '0.3px',
+            }}
+          >
+            {projectLabel}
+          </span>
+          {expRoot && (
+            <>
+              <span style={{ fontSize: 10, color: 'var(--quiet)' }}>/</span>
+              <span
+                style={{
+                  fontSize: 11,
+                  color: 'var(--muted)',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap',
+                  maxWidth: 300,
+                }}
+                title={expRoot}
+              >
+                {projectLabel}
+              </span>
+            </>
+          )}
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <div ref={helpRef} style={{ position: 'relative' }}>
+            <button
+              onClick={() => setHelpOpen((p) => !p)}
+              style={{
+                background: helpOpen ? 'var(--accent-soft)' : 'transparent',
+                border: '1px solid var(--line)',
+                borderRadius: 4,
+                padding: '3px 10px',
+                fontSize: 11,
+                color: 'var(--muted)',
+                cursor: 'pointer',
+                fontFamily: 'inherit',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 4,
+              }}
+            >
+              ❔ Ajuda
+            </button>
+            {helpOpen && (
+              <div
+                style={{
+                  position: 'absolute',
+                  top: '100%',
+                  right: 0,
+                  marginTop: 6,
+                  width: 400,
+                  maxHeight: '80vh',
+                  overflowY: 'auto',
+                  background: 'var(--bg-2)',
+                  border: '1px solid var(--line)',
+                  borderRadius: 6,
+                  boxShadow: '0 8px 32px rgba(0,0,0,0.5)',
+                  zIndex: 1000,
+                  padding: '16px 18px',
+                  color: 'var(--ink)',
+                  fontSize: 12,
+                  lineHeight: 1.6,
+                }}
+              >
+                <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 12, color: 'var(--accent)' }}>
+                  DEEP-AUREA — Guia Completo
+                </div>
+
+                {/* Comandos de Chat */}
+                <div style={{ fontWeight: 700, fontSize: 12, color: 'var(--cyan)', marginTop: 8, marginBottom: 6 }}>
+                  COMANDOS DE CHAT
+                </div>
+                {[
+                  ['/goal <texto>', 'Definir objetivo de longo prazo'],
+                  ['/run <comando>', 'Executar comando no terminal'],
+                  ['/clear', 'Limpar contexto da conversa'],
+                  ['/status', 'Ver status do sistema'],
+                  ['/stop', 'Parar execucao atual'],
+                  ['/help', 'Mostrar esta ajuda'],
+                  ['/review', 'Revisao de codigo'],
+                  ['/build', 'Build do projeto'],
+                  ['/test', 'Executar testes'],
+                  ['/deploy', 'Deploy da aplicacao'],
+                  ['/logs', 'Ver logs do sistema'],
+                  ['/cancel', 'Cancelar tarefa'],
+                ].map(([cmd, desc]) => (
+                  <div key={cmd} style={{ marginBottom: 3, display: 'flex', gap: 8 }}>
+                    <code style={{ color: 'var(--accent)', fontFamily: 'monospace', minWidth: 160, whiteSpace: 'nowrap' }}>{cmd}</code>
+                    <span style={{ color: 'var(--muted)' }}>{desc}</span>
+                  </div>
+                ))}
+
+                {/* Comandos de Voz */}
+                <div style={{ fontWeight: 700, fontSize: 12, color: 'var(--cyan)', marginTop: 12, marginBottom: 6 }}>
+                  COMANDOS DE VOZ (PT-BR)
+                </div>
+                {[
+                  ['"novo contexto"', 'Limpar conversa atual'],
+                  ['"limpar contexto"', 'Limpar conversa atual'],
+                  ['"limpa tudo"', 'Limpar tudo'],
+                  ['"parar" / "cancelar"', 'Interromper execucao'],
+                  ['"ajuda" / "help"', 'Mostrar ajuda'],
+                  ['"status"', 'Ver status do sistema'],
+                ].map(([cmd, desc]) => (
+                  <div key={cmd} style={{ marginBottom: 3, display: 'flex', gap: 8 }}>
+                    <code style={{ color: 'var(--green, #4caf50)', fontFamily: 'monospace', minWidth: 160, whiteSpace: 'nowrap' }}>{cmd}</code>
+                    <span style={{ color: 'var(--muted)' }}>{desc}</span>
+                  </div>
+                ))}
+
+                {/* Comandos de Voz - Midia */}
+                <div style={{ fontWeight: 700, fontSize: 12, color: 'var(--cyan)', marginTop: 12, marginBottom: 6 }}>
+                  COMANDOS DE VOZ - MIDIA
+                </div>
+                {[
+                  ['"pausa" / "pausar musica"', 'Pausar reproducao'],
+                  ['"retomar" / "tocar musica"', 'Continuar reproducao'],
+                  ['"proxima musica"', 'Proxima faixa'],
+                  ['"musica anterior"', 'Faixa anterior'],
+                  ['"parar musica" / "fechar musica"', 'Parar e fechar midia'],
+                  ['"tocar no media"', 'Abrir no player interno MEDIA'],
+                  ['"player interno"', 'Abrir no player interno MEDIA'],
+                  ['"tocar no windows media"', 'Abrir no Windows Media Player'],
+                  ['"tocar no windows"', 'Abrir no Windows Media Player'],
+                  ['"tocar no sistema"', 'Abrir no player do sistema'],
+                  ['"fechar arquivo"', 'Fechar arquivo aberto'],
+                  ['"fechar video"', 'Fechar video reproduzindo'],
+                  ['"fechar tudo"', 'Fechar todos os arquivos'],
+                ].map(([cmd, desc]) => (
+                  <div key={cmd} style={{ marginBottom: 3, display: 'flex', gap: 8 }}>
+                    <code style={{ color: 'var(--yellow, #ffc107)', fontFamily: 'monospace', fontSize: 11, minWidth: 200, whiteSpace: 'nowrap' }}>{cmd}</code>
+                    <span style={{ color: 'var(--muted)' }}>{desc}</span>
+                  </div>
+                ))}
+
+                {/* Ferramentas do Agente */}
+                <div style={{ fontWeight: 700, fontSize: 12, color: 'var(--cyan)', marginTop: 12, marginBottom: 6 }}>
+                  FERRAMENTAS DO AGENTE
+                </div>
+                {[
+                  ['explorer(path)', 'Listar pastas e arquivos'],
+                  ['read(path)', 'Ler conteudo de arquivo'],
+                  ['write(path, content)', 'Criar/editar arquivo'],
+                  ['bash(command)', 'Executar comando no terminal'],
+                  ['delete(path)', 'Deletar arquivo ou pasta'],
+                  ['rename(old, new)', 'Renomear arquivo'],
+                  ['create_directory(path)', 'Criar pasta'],
+                  ['search(pattern, path)', 'Buscar texto em arquivos'],
+                  ['glob(pattern)', 'Buscar arquivos por padrao'],
+                  ['file_edit(path, old, new)', 'Editar com find-replace'],
+                  ['execute_python(code)', 'Executar codigo Python'],
+                  ['web_search(query)', 'Pesquisar na internet'],
+                  ['web_fetch(url)', 'Baixar conteudo de URL'],
+                  ['media_play(name, path)', 'Abrir midia no player interno'],
+                  ['close_app(process, path)', 'Fechar processo ou arquivo'],
+                  ['memory_write(ns, key, content)', 'Salvar na memoria'],
+                  ['memory_read(ns, key)', 'Ler da memoria'],
+                  ['fork_subagent(task)', 'Criar subagente'],
+                  ['task_create(subject)', 'Criar tarefa'],
+                ].map(([func, desc]) => (
+                  <div key={func} style={{ marginBottom: 3, display: 'flex', gap: 8 }}>
+                    <code style={{ color: 'var(--yellow, #ffc107)', fontFamily: 'monospace', fontSize: 11, minWidth: 190, whiteSpace: 'nowrap' }}>{func}</code>
+                    <span style={{ color: 'var(--muted)' }}>{desc}</span>
+                  </div>
+                ))}
+
+                {/* Mencoes */}
+                <div style={{ fontWeight: 700, fontSize: 12, color: 'var(--cyan)', marginTop: 12, marginBottom: 6 }}>
+                  MENCIONAR AGENTES
+                </div>
+                {[
+                  ['@general', 'Assistente geral full-stack'],
+                  ['@coder', 'Programador especialista'],
+                  ['@architect', 'Arquiteto de software'],
+                  ['@debugger', 'Especialista em debugging'],
+                  ['@writer', 'Escritor tecnico'],
+                  ['@planner', 'Planejador de tarefas'],
+                  ['@reviewer', 'Revisor de codigo'],
+                  ['@helper', 'Assistente geral'],
+                  ['@analyst', 'Analista de dados'],
+                ].map(([agent, desc]) => (
+                  <div key={agent} style={{ marginBottom: 3, display: 'flex', gap: 8 }}>
+                    <code style={{ color: 'var(--magenta, #e040fb)', fontFamily: 'monospace', minWidth: 120, whiteSpace: 'nowrap' }}>{agent}</code>
+                    <span style={{ color: 'var(--muted)' }}>{desc}</span>
+                  </div>
+                ))}
+
+                {/* Dicas */}
+                <div style={{ fontWeight: 700, fontSize: 12, color: 'var(--cyan)', marginTop: 12, marginBottom: 6 }}>
+                  DICAS
+                </div>
+                {[
+                  'Ative o checkbox "auto" para enviar por voz automaticamente',
+                  'Clique no microfone para falar seus comandos',
+                  'Use "continue" para retomar tarefa interrompida',
+                  'O agente mostra checkboxes antes de executar',
+                  'A barra de progresso acompanha as etapas em tempo real',
+                  'O painel MEDIA abre musicas e videos automaticamente',
+                  'Mude provedor/modelo em Config para melhor desempenho',
+                ].map((tip, i) => (
+                  <div key={i} style={{ marginBottom: 3, color: 'var(--muted)' }}>
+                    {'\u2022'} {tip}
+                  </div>
+                ))}
+
+                {/* Como Usar o Modelo de IA */}
+                <div style={{ fontWeight: 700, fontSize: 12, color: 'var(--cyan)', marginTop: 14, marginBottom: 6 }}>
+                  COMO USAR O MODELO DE IA
+                </div>
+                <div style={{ fontSize: 11, color: 'var(--muted)', lineHeight: 1.5, marginBottom: 8 }}>
+                  O DEEP-AUREA funciona como um assistente que aprende com voce. Quanto mais voce interage, mais ele aprende seus padroes e preferencias.
+                </div>
+                {[
+                  ['Conversa normal', 'Digite ou fale como se fosse um assistente. O agente entende portugues natural e responde em PT-BR.'],
+                  ['Tarefas complexas', 'Descreva o que precisa: "crie uma tela de login com React" ou "refatore este codigo Python". O agente quebra em etapas automaticamente.'],
+                  ['Comandos de voz', 'Ative o microfone e fale. Funciona para comandos longos como "abra o arquivo config.py e mude a porta para 8080".'],
+                  ['Continuar tarefa', 'Se a tarefa foi interrompida, digite "continue" para retomar de onde parou.'],
+                  ['Cancelar', 'Digite "cancel" ou "parar" a qualquer momento para interromper a execucao.'],
+                  ['Provedores', 'Mude entre Ollama (local, gratuito), Groq (rapido), OpenCode, MiMo, Gemini ou OpenAI em Config.'],
+                ].map(([cmd, desc]) => (
+                  <div key={cmd} style={{ marginBottom: 4, display: 'flex', gap: 8 }}>
+                    <code style={{ color: 'var(--accent)', fontFamily: 'monospace', fontSize: 11, minWidth: 130, whiteSpace: 'nowrap' }}>{cmd}</code>
+                    <span style={{ color: 'var(--muted)', fontSize: 11 }}>{desc}</span>
+                  </div>
+                ))}
+
+                {/* Como o Modelo Aprende */}
+                <div style={{ fontWeight: 700, fontSize: 12, color: 'var(--cyan)', marginTop: 14, marginBottom: 6 }}>
+                  COMO O MODELO APRENDE
+                </div>
+                <div style={{ fontSize: 11, color: 'var(--muted)', lineHeight: 1.5, marginBottom: 8 }}>
+                  O sistema de memoria do DEEP-AUREA guarda o que voce faz, o que funciona e o que falha. Cada sessao alimenta o aprendizado.
+                </div>
+                {[
+                  ['Memoria Espiral', 'Guarda decisoes, solucoes e padroes entre sessoes. Voce nao precisa repetir instrucoes.'],
+                  ['Aprendizado por tarefa', 'Apos cada tarefa, o agente salva o que aprendeu: o que funcionou, o que falhou, e por que.'],
+                  ['Memoria vetorial (FAISS)', 'Busca automatica por conhecimento similar quando voce faz uma pergunta nova.'],
+                  ['Cerebro / FAQ', 'Extrai insights automaticos das tarefas e cria uma base de conhecimento consultavel.'],
+                  ['Correcao do usuario', 'Se voce corrige o agente, ele salva como regra para nao repetir o erro.'],
+                ].map(([cmd, desc]) => (
+                  <div key={cmd} style={{ marginBottom: 4, display: 'flex', gap: 8 }}>
+                    <code style={{ color: 'var(--green, #4caf50)', fontFamily: 'monospace', fontSize: 11, minWidth: 130, whiteSpace: 'nowrap' }}>{cmd}</code>
+                    <span style={{ color: 'var(--muted)', fontSize: 11 }}>{desc}</span>
+                  </div>
+                ))}
+
+                {/* Exemplos Praticos */}
+                <div style={{ fontWeight: 700, fontSize: 12, color: 'var(--cyan)', marginTop: 14, marginBottom: 6 }}>
+                  EXEMPLOS PRATICOS
+                </div>
+                <div style={{ fontSize: 11, color: 'var(--muted)', lineHeight: 1.6 }}>
+                  <div style={{ marginBottom: 6 }}>
+                    <b style={{ color: 'var(--ink)' }}>Criar um componente React:</b><br />
+                    <code style={{ color: 'var(--accent)', fontSize: 10 }}>"Crie um componente Button com variantes primary, secondary e danger usando Tailwind"</code>
+                  </div>
+                  <div style={{ marginBottom: 6 }}>
+                    <b style={{ color: 'var(--ink)' }}>Corrigir bug:</b><br />
+                    <code style={{ color: 'var(--accent)', fontSize: 10 }}>"O login retorna 401 mas as credenciais estao corretas, investigue o backend"</code>
+                  </div>
+                  <div style={{ marginBottom: 6 }}>
+                    <b style={{ color: 'var(--ink)' }}>Refatorar codigo:</b><br />
+                    <code style={{ color: 'var(--accent)', fontSize: 10 }}>"Refatore o arquivo chat.py para usar async/await em todas as chamadas HTTP"</code>
+                  </div>
+                  <div style={{ marginBottom: 6 }}>
+                    <b style={{ color: 'var(--ink)' }}>Explicar codigo:</b><br />
+                    <code style={{ color: 'var(--accent)', fontSize: 10 }}>"Explique o que faz a funcao run_lifecycle no lifecycle.py"</code>
+                  </div>
+                  <div style={{ marginBottom: 6 }}>
+                    <b style={{ color: 'var(--ink)' }}>Deploy:</b><br />
+                    <code style={{ color: 'var(--accent)', fontSize: 10 }}>"Configure o Docker Compose para rodar backend + frontend + banco SQLite"</code>
+                  </div>
+                </div>
+
+                {/* API do Sistema */}
+                <div style={{ fontWeight: 700, fontSize: 12, color: 'var(--cyan)', marginTop: 14, marginBottom: 6 }}>
+                  APIs DO SISTEMA
+                </div>
+                {[
+                  ['POST /cron', 'Criar tarefa agendada (ex: "verificar estoque a cada hora")'],
+                  ['GET /cron', 'Listar tarefas agendadas ativas'],
+                  ['POST /cron/{id}/run', 'Executar uma tarefa agendada agora'],
+                  ['POST /triggers', 'Criar trigger em tabela do banco (executa acao quando dados mudam)'],
+                  ['GET /triggers', 'Listar triggers ativos'],
+                  ['GET /secrets', 'Listar variaveis de ambiente (.env)'],
+                  ['POST /secrets', 'Adicionar/editar chave de API'],
+                  ['GET /secrets/validate', 'Ver quais provedores estao configurados'],
+                  ['GET /logs', 'Ler logs com filtros (nivel, data, texto)'],
+                  ['GET /logs/stats', 'Estatisticas: erros recentes, contagem por nivel'],
+                ].map(([cmd, desc]) => (
+                  <div key={cmd} style={{ marginBottom: 3, display: 'flex', gap: 8 }}>
+                    <code style={{ color: 'var(--yellow, #ffc107)', fontFamily: 'monospace', fontSize: 10, minWidth: 150, whiteSpace: 'nowrap' }}>{cmd}</code>
+                    <span style={{ color: 'var(--muted)', fontSize: 11 }}>{desc}</span>
+                  </div>
+                ))}
+
+                {/* Configuracao Inicial */}
+                <div style={{ fontWeight: 700, fontSize: 12, color: 'var(--cyan)', marginTop: 14, marginBottom: 6 }}>
+                  CONFIGURACAO INICIAL
+                </div>
+                <div style={{ fontSize: 11, color: 'var(--muted)', lineHeight: 1.6 }}>
+                  <div style={{ marginBottom: 4 }}>{'\u2460'} Rode <code style={{ color: 'var(--accent)' }}>START-TOTAL.bat</code> para iniciar backend + frontend</div>
+                  <div style={{ marginBottom: 4 }}>{'\u2461'} Acesse <code style={{ color: 'var(--accent)' }}>http://localhost:5175</code></div>
+                  <div style={{ marginBottom: 4 }}>{'\u2462'} Va em <b style={{ color: 'var(--ink)' }}>Config</b> e configure pelo menos 1 provedor (Groq e gratuito)</div>
+                  <div style={{ marginBottom: 4 }}>{'\u2463'} Abra o chat e teste: "ola, tudo bem?"</div>
+                  <div style={{ marginBottom: 4 }}>{'\u2464'} Para voz, clique no microfone e permita acesso ao microfone</div>
+                  <div style={{ marginBottom: 4 }}>{'\u2465'} Explore as tabs: Conhecimento, Memoria, Agentes, Arquitetura</div>
+                </div>
+
+                <div
+                  style={{
+                    borderTop: '1px solid var(--line)',
+                    marginTop: 12,
+                    paddingTop: 10,
+                    fontSize: 11,
+                    color: 'var(--muted)',
+                  }}
+                >
+                  <div style={{ marginBottom: 4 }}>
+                    <b style={{ color: 'var(--ink)' }}>DEEP-AUREA v2.2</b> — Agent OS
+                  </div>
+                  <div>Desenvolvedor: Wilson Barbosa Coimbra</div>
+                  <div>Copyright {'\u00a9'} Empresa: WBC 2026</div>
+                </div>
+              </div>
+            )}
+          </div>
+          <span style={{ fontSize: 10, color: 'var(--quiet)', letterSpacing: '1px' }}>
+            AGENT OS v2.2
+          </span>
+        </div>
+      </div>
+
+      {/* ── Top Navigation Bar (VS Code style) ── */}
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          borderBottom: '1px solid var(--line)',
+          background: 'var(--bg)',
+          minHeight: '32px',
+          flexShrink: 0,
+        }}
+      >
+        {/* Navigation tabs */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0', padding: '0 4px' }}>
+          {[
+            { id: 'generate' as Page, icon: '>', label: 'Gerar' },
+            { id: 'knowledge' as Page, icon: '#', label: 'Conhecimento' },
+            { id: 'memory' as Page, icon: '@', label: 'Memoria' },
+            { id: 'agents' as Page, icon: '&', label: 'Agentes' },
+            { id: 'architecture' as Page, icon: '\u25C8', label: 'Arquitetura' },
+            { id: 'mcp' as Page, icon: '~', label: 'MCP' },
+            { id: 'monitor' as Page, icon: '>', label: 'Monitor' },
+            { id: 'settings' as Page, icon: '~', label: 'Config' },
+          ].map((it) => {
+            const active = view === 'page' && page === it.id;
+            return (
+              <button
+                key={it.id}
+                onClick={() => {
+                  setPage(it.id);
+                  setView('page');
+                  playSound('click_menu');
+                }}
+                style={{
+                  padding: '6px 12px',
+                  fontSize: '11px',
+                  fontWeight: 600,
+                  border: 'none',
+                  cursor: 'pointer',
+                  borderRadius: '3px',
+                  background: active ? 'var(--accent)' : 'transparent',
+                  color: active ? 'var(--selection-fg)' : 'var(--cyan)',
+                  fontFamily: 'inherit',
+                  transition: 'all 0.15s',
+                }}
+              >
+                {it.icon} {it.label}
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Music Player */}
+        <MusicPlayer ref={musicPlayerRef} />
+
+        {/* Layout controls */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '2px', padding: '0 4px' }}>
+          <button
+            onClick={() => setExpW(expW > 0 ? 0 : 240)}
+            style={{ background: 'none', border: 'none', color: expW > 0 ? 'var(--accent)' : 'var(--muted)', cursor: 'pointer', padding: '4px 6px', fontSize: '12px' }}
+            title="Toggle Explorer"
+          >
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
+              <rect x="1" y="2" width="4" height="12" rx="1" fill="none" stroke="currentColor" strokeWidth="1.2"/>
+              <rect x="6" y="2" width="9" height="12" rx="1" fill="none" stroke="currentColor" strokeWidth="1.2"/>
+            </svg>
+          </button>
+          <button
+            onClick={() => setTermOpen(!termOpen)}
+            style={{ background: 'none', border: 'none', color: termOpen ? 'var(--accent)' : 'var(--muted)', cursor: 'pointer', padding: '4px 6px', fontSize: '12px' }}
+            title="Toggle Terminal"
+          >
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
+              <rect x="1" y="1" width="14" height="14" rx="2" fill="none" stroke="currentColor" strokeWidth="1.2"/>
+              <path d="M4 6L7 8.5L4 11" fill="none" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/>
+              <line x1="9" y1="11" x2="12" y2="11" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/>
+            </svg>
+          </button>
+          <button
+            onClick={() => setChatW(chatW > 0 ? 0 : 480)}
+            style={{ background: 'none', border: 'none', color: chatW > 0 ? 'var(--accent)' : 'var(--muted)', cursor: 'pointer', padding: '4px 6px', fontSize: '12px' }}
+            title="Toggle Chat"
+          >
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
+              <rect x="1" y="2" width="9" height="12" rx="2" fill="none" stroke="currentColor" strokeWidth="1.2"/>
+              <rect x="11" y="4" width="4" height="8" rx="1" fill="none" stroke="currentColor" strokeWidth="1.2"/>
+            </svg>
+          </button>
+          <button
+            onClick={() => setProcessW(processW > 0 ? 0 : 200)}
+            style={{ background: 'none', border: 'none', color: processW > 0 ? 'var(--accent)' : 'var(--muted)', cursor: 'pointer', padding: '4px 6px', fontSize: '12px' }}
+            title="Toggle Processos"
+          >
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
+              <rect x="2" y="2" width="12" height="12" rx="1" fill="none" stroke="currentColor" strokeWidth="1.2"/>
+              <line x1="2" y1="5" x2="14" y2="5" stroke="currentColor" strokeWidth="1"/>
+              <line x1="5" y1="5" x2="5" y2="14" stroke="currentColor" strokeWidth="1"/>
+              <circle cx="8" cy="9" r="1.5" fill="currentColor"/>
+              <circle cx="11" cy="9" r="1" fill="currentColor" opacity="0.5"/>
+            </svg>
+          </button>
+          <div style={{ width: 1, height: 20, background: 'var(--line)', margin: '0 6px' }} />
+          <button style={{ background: 'none', border: 'none', color: 'var(--muted)', cursor: 'pointer', padding: '4px 6px', fontSize: '12px' }} title="Minimizar">
+            <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor"><rect x="3" y="7" width="10" height="1" /></svg>
+          </button>
+          <button style={{ background: 'none', border: 'none', color: 'var(--muted)', cursor: 'pointer', padding: '4px 6px', fontSize: '12px' }} title="Maximizar">
+            <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor"><rect x="3" y="3" width="10" height="10" fill="none" stroke="currentColor" strokeWidth="1.5" /></svg>
+          </button>
+          <button style={{ background: 'none', border: 'none', color: 'var(--muted)', cursor: 'pointer', padding: '4px 6px', fontSize: '12px' }} title="Fechar">
+            <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor"><path d="M4.5 3L8 6.5L11.5 3L13 4.5L9.5 8L13 11.5L11.5 13L8 9.5L4.5 13L3 11.5L6.5 8L3 4.5L4.5 3Z" /></svg>
+          </button>
+        </div>
+      </div>
+
+      <div style={{ flex: 1, display: 'flex', overflow: 'hidden', minHeight: 0 }}>
+        {/* EXPLORER */}
+        <div
+          style={{
+            width: expW,
+            flexShrink: 0,
+            display: 'flex',
+            flexDirection: 'column',
+            borderRight: '1px solid var(--line)',
+            overflow: 'hidden',
+            minHeight: 0,
+          }}
+        >
+          <ExplorerPanel
+            expRoot={expRoot}
+            setExpRoot={setExpRoot}
+            expTree={expTree}
+            setExpTree={setExpTree}
+            expPath={expPath}
+            toggleDir={toggleDir}
+            openFile={openFile}
+            histItens={histItens}
+            loadHist={loadHist}
+            delHist={delHist}
+            histSearch={histSearch}
+            setHistSearch={setHistSearch}
+            apiBase={API_BASE}
+            currentDir={currentDir}
+            goUpDir={goUpDir}
+            loadDir={loadDir}
+            onInjectChat={(text) => setInput(text)}
+            onWorkspaceChange={async (path) => {
+              try {
+                const r = await fetch(`${API_BASE}/api/workspace`, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ path }),
+                });
+                if (!r.ok) {
+                  const err = await r.json();
+                  alert(`Workspace inválido: ${err.detail}`);
+                  return false;
+                }
+                localStorage.setItem('wbc2_expRoot', path);
+                // Limpa o chat ao trocar de projeto para evitar confusao de contexto
+                newChat();
+                return true;
+              } catch {
+                alert('Erro ao conectar ao servidor');
+                return false;
+              }
+            }}
+          />
+        </div>
+
+        {DragH('h', drag('exp'))}
+
+        {/* CENTER + RIGHT */}
+        <div
+          style={{
+            flex: 1,
+            display: 'flex',
+            flexDirection: 'column',
+            overflow: 'hidden',
+            minWidth: 0,
+          }}
+        >
+          {/* EDITOR */}
+          <div
+            style={{
+              flex: 1,
+              display: 'flex',
+              flexDirection: 'column',
+              background: 'var(--bg-editor)',
+              overflow: 'hidden',
+              minHeight: 0,
+            }}
+          >
+            <div
+              style={{
+                display: 'flex',
+                borderBottom: '1px solid var(--line)',
+                background: 'var(--bg)',
+                minHeight: '36px',
+                flexShrink: 0,
+                overflow: 'hidden',
+              }}
+            >
+              <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
+                {tabs.map((tab) => {
+                  const active = view === 'file' && activeTab === tab.id;
+                  return (
+                    <div
+                      key={tab.id}
+                      onClick={() => {
+                        setActiveTab(tab.id);
+                        setView('file');
+                      }}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        padding: '6px 12px',
+                        cursor: 'pointer',
+                        minWidth: 90,
+                        maxWidth: 180,
+                        borderRight: '1px solid var(--line)',
+                        background: active ? 'var(--bg-active)' : 'transparent',
+                        borderBottom: active ? '2px solid var(--accent)' : '2px solid transparent',
+                      }}
+                    >
+                      <span
+                        style={{
+                          fontSize: '11px',
+                          color: active ? 'var(--ink)' : 'var(--muted)',
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          whiteSpace: 'nowrap',
+                          flex: 1,
+                          fontWeight: 600,
+                          fontFamily: 'inherit',
+                        }}
+                      >
+                        {tab.name}
+                      </span>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          closeTab(tab.id);
+                        }}
+                        style={{
+                          background: 'none',
+                          border: 'none',
+                          color: 'var(--muted)',
+                          cursor: 'pointer',
+                          fontSize: '12px',
+                          marginLeft: '6px',
+                          padding: '1px',
+                          lineHeight: 1,
+                          flexShrink: 0,
+                          fontFamily: 'inherit',
+                        }}
+                      >
+                        ✕
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+            <div
+              style={{
+                flex: 1,
+                overflow: 'hidden',
+                display: 'flex',
+                flexDirection: 'column',
+                minHeight: 0,
+              }}
+            >
+              {view === 'file' && curTab ? (
+                <EditorPanel
+                  tabs={tabs}
+                  curTab={activeTab}
+                  setCurTab={(id) => {
+                    setActiveTab(id);
+                    setView('file');
+                  }}
+                  closeTab={closeTab}
+                  setTabContent={setTabContent}
+                  saveFile={saveFile}
+                />
+              ) : (
+                <ErrorBoundary>
+                  <PageRenderer
+                    page={page}
+                    prov={prov}
+                    setProv={setProv}
+                    model={model}
+                    setModel={setModel}
+                    mood={mood}
+                    setMood={setMood}
+                    temp={temp}
+                    setTemp={setTemp}
+                    sysPr={sysPr}
+                    setSysPr={setSysPr}
+                    snd={snd}
+                    setSnd={setSnd}
+                    bright={bright}
+                    setBright={setBright}
+                    fsize={fsize}
+                    setFsize={setFsize}
+                    apiKey={apiKey}
+                    setApiKey={setApiKey}
+                    orApiKey={orApiKey}
+                    setOrApiKey={setOrApiKey}
+                    groqApiKey={groqApiKey}
+                    setGroqApiKey={setGroqApiKey}
+                    openaiApiKey={openaiApiKey}
+                    setOpenaiApiKey={setOpenaiApiKey}
+                    geminiApiKey={geminiApiKey}
+                    setGeminiApiKey={setGeminiApiKey}
+                    mimoApiKey={mimoApiKey}
+                    setMimoApiKey={setMimoApiKey}
+                    oModels={oModels}
+                    orModels={orModels}
+                    customM={customM}
+                    setCustomM={setCustomM}
+                    showCust={showCust}
+                    setShowCust={setShowCust}
+                    voicePreset={voicePreset}
+                    setVoicePreset={setVoicePreset}
+                    jarvisRate={jarvisRate}
+                    setJarvisRate={setJarvisRate}
+                    voicePitch={voicePitch}
+                    setVoicePitch={setVoicePitch}
+                    ollSt={ollSt}
+                    knows={knows}
+                    setKnows={setKnows}
+                    expRoot={expRoot}
+                    accentTheme={accentTheme}
+                    setAccentTheme={setAccentTheme}
+                    gpuEnabled={gpuEnabled}
+                    setGpuEnabled={setGpuEnabled}
+                    checklistSteps={checklistSteps}
+                    loading={loading}
+                    thinking={thinking}
+                    thinkOn={thinkOn}
+                    thinkOpen={thinkOpen}
+                    setThinkOpen={setThinkOpen}
+                    toolLogs={toolLogs}
+                  />
+                </ErrorBoundary>
+              )}
+            </div>
+          </div>
+
+          {/* TERMINAL DRAG */}
+          <div
+            onMouseDown={drag('term')}
+            onClick={() => !termOpen && setTermOpen(true)}
+            style={{
+              height: termOpen ? 4 : 20,
+              flexShrink: 0,
+              background: termOpen ? 'var(--line)' : 'transparent',
+              cursor: 'row-resize',
+              position: 'relative',
+              zIndex: 20,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
+            onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--accent-line)')}
+            onMouseLeave={(e) =>
+              (e.currentTarget.style.background = termOpen ? 'var(--line)' : 'transparent')
+            }
+          >
+            {!termOpen && (
+              <span style={{ fontSize: 10, color: 'var(--muted)', letterSpacing: 1, userSelect: 'none' }}>
+                ⌨ ABRIR TERMINAL
+              </span>
+            )}
+          </div>
+
+          {termOpen && (
+            <div
+              style={{
+                height: termH,
+                flexShrink: 0,
+                display: 'flex',
+                flexDirection: 'column',
+                overflow: 'hidden',
+              }}
+            >
+              <TerminalPanel termOpen={termOpen} setTermOpen={setTermOpen} expRoot={expRoot} />
+            </div>
+          )}
+        </div>
+
+        {DragH('h', drag('chat'))}
+
+        {/* CHAT — wrapped for height control */}
+        <div
+          style={{
+            width: chatW,
+            minWidth: 280,
+            flexShrink: 0,
+            height: chatH > 0 ? chatH : undefined,
+            alignSelf: chatH > 0 ? 'flex-end' : undefined,
+            display: 'flex',
+            flexDirection: 'column',
+            borderLeft: '1px solid var(--line)',
+            background: 'var(--bg)',
+            overflow: 'hidden',
+          }}
+        >
+          {/* CHAT HEIGHT DRAG — top edge, drag upward to expand (terminal-style) */}
+          <div className="drag-handle-chat-h" onMouseDown={drag('chat-h')}>
+            <span className="grip-dot" />
+            <span className="grip-dot" />
+            <span className="grip-dot" />
+          </div>
+          <ChatPanel
+            msgs={msgs}
+            input={input}
+            setInput={setInput}
+            loading={loading}
+            stream={stream}
+            thinking={thinking}
+            thinkOn={thinkOn}
+            thinkOpen={thinkOpen}
+            setThinkOpen={setThinkOpen}
+            toolLogs={toolLogs}
+            prov={prov}
+            model={model}
+            setProv={setProv}
+            setModel={setModel}
+            oModels={oModels}
+            orModels={orModels}
+            curTab={curTab}
+            chatW={chatW}
+            send={send}
+            newChat={newChat}
+            stopGen={stopGen}
+            analyzeFile={analyzeFile}
+            voicePreset={voicePreset}
+            jarvisRate={jarvisRate}
+            voicePitch={voicePitch}
+            onConfirmPlan={handleApprovePlan}
+            onRejectPlan={handleRejectPlan}
+            pendingToolConfirm={pendingToolConfirm}
+            onApproveTool={handleApproveTool}
+            onRejectTool={handleRejectTool}
+            checklistSteps={checklistSteps}
+          />
+        </div>
+
+        {DragH('h', drag('process'))}
+
+        {/* PROCESSOS */}
+        <div
+          style={{
+            width: processW,
+            flexShrink: 0,
+            display: 'flex',
+            flexDirection: 'column',
+            borderLeft: '1px solid var(--line)',
+            background: 'var(--bg)',
+            overflow: 'hidden',
+            minHeight: 0,
+          }}
+        >
+          <ProcessPanel
+            loading={loading}
+            stream={stream}
+            thinking={thinking}
+            thinkOn={thinkOn}
+            toolLogs={toolLogs}
+            model={model}
+            prov={prov}
+          />
+        </div>
+      </div>
+
+      {/* STATUS BAR */}
+      <StatusBar
+        prov={prov}
+        model={model}
+        mood={mood}
+        termOpen={termOpen}
+        setTermOpen={setTermOpen}
+        ollSt={ollSt}
+        theme={theme}
+        toggleTheme={toggleTheme}
+      />
+
+      <ToastContainer />
+
+      {/* Media Play Dialog */}
+      {mediaPlayDialog && (
+        <MediaPlayDialog
+          fileName={mediaPlayDialog.fileName}
+          isVideo={mediaPlayDialog.isVideo}
+          onInternalPlay={handleMediaInternalPlay}
+          onExternalPlay={handleMediaExternalPlay}
+          onCancel={handleMediaCancel}
+        />
+      )}
+    </div>
+  );
+}

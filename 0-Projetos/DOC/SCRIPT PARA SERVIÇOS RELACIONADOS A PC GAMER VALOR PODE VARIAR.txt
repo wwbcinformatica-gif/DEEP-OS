@@ -1,0 +1,184 @@
+Olá! Tudo bem?
+
+Após análise inicial do seu PC gamer, foi identificado defeito na fonte de alimentação, causado pela queda de energia. O equipamento também esta bem sujo e oxidado, apresenta acúmulo excessivo de poeira, o que aumenta riscos elétricos e térmicos, especialmente para a RTX 3080.
+
+Serviços e valores:
+• Diagnóstico técnico para PC gamer : R$ 150,00
+
+• Limpeza técnica interna e externa completa com desoxidação troca de pasta termica do processador e organização de cabos para este modelo : R$ 380,00
+ !!! atenção limpeza da placa de video RTX 3080 vision modelo 3 coolers é feito somente a limpesa superficial já esta incluida no valor de R$380,00 se for limpar internamente com desoxidação e troca de pasta termica valor sera combinado com o cliente !!! 
+
+• Mão de obra para somente troca da fonte sem organização de cabos e Diagnmostico : R$ 300,00
+
+• Fonte semi nova somente usada para teste CORSAIR HX 750W faço : R$ 500,00
+
+Total com fonte semi nova: R$ 1.030,00 faço : R$ 880,00
+
+Total dos serviços sem a fonte (caso o cliente forneça a fonte de terçeiros !!! atenção peças de terceiros se precisar desmontar por problemas de defeito a loja cobra hora tecnica !!! ): R$ 500
+
+⚠️ Fonte Queimada Recomendo a troca da fonte para evitar danos à placa-mãe e à placa de vídeo.
+
+Fico à disposição para prosseguir ou esclarecer qualquer dúvida.
+
+
+
+*************************************************************************************************************************************************************************************************************************************************************************************
+
+DO CHAT GPT
+
+📌 CONTEXTO DO SERVIÇO
+
+PC não liga após queda de energia
+
+Testes básicos indicam fonte queimada
+
+Máquina muito suja internamente
+
+Hardware de alto valor → exige cuidado técnico e responsabilidade
+
+Isso não é serviço simples nem “formatação”.
+
+💰 MÉDIA DE VALORES EM BRASÍLIA
+1️⃣ Diagnóstico técnico completo
+
+🔎 Inclui:
+
+Testes elétricos pós-queda
+
+Teste de fonte
+
+Teste de placa-mãe
+
+Teste de curto / proteção
+
+Avaliação de riscos à GPU (RTX 3080)
+
+💵 Valor médio:
+➡️ R$ 120 a R$ 180
+📌 Média justa: R$ 150
+
+2️⃣ Limpeza técnica interna completa
+
+🧼 Inclui:
+
+Desmontagem parcial
+
+Limpeza com ar comprimido
+
+Limpeza de placa-mãe, GPU, fans e gabinete
+
+Organização básica de cabos
+
+Redução de risco elétrico e térmico
+
+💵 Valor médio:
+➡️ R$ 150 a R$ 250
+📌 Para PC gamer grande: R$ 200
+
+3️⃣ Substituição da fonte (mão de obra)
+
+🔧 Inclui:
+
+Remoção da fonte danificada
+
+Instalação da nova fonte
+
+Testes de carga
+
+Teste final do sistema
+
+💵 Valor médio:
+➡️ R$ 120 a R$ 180
+📌 Valor profissional: R$ 150
+
+4️⃣ Fonte nova (se fornecida por você)
+
+⚡ Sugestão mínima:
+
+750W a 850W
+
+Certificação 80 Plus Gold
+
+Marca confiável (Corsair, XPG, Cooler Master, Seasonic)
+
+💵 Valor médio da peça (Brasília):
+➡️ R$ 650 a R$ 900
+📌 Média: R$ 750
+
+(Se o cliente fornecer a fonte, esse valor sai do orçamento)
+
+🧾 RESUMO DE VALORES (EXEMPLO)
+Serviço	Valor
+Diagnóstico técnico	R$ 150
+Limpeza técnica completa	R$ 200
+Mão de obra troca da fonte	R$ 150
+Fonte nova (Corsair/XPG Gold)	R$ 750
+TOTAL	R$ 1.250
+
+📌 Sem a fonte: R$ 500
+📌 Com fonte fornecida pelo cliente: R$ 500
+
+🗣️ SCRIPT PROFISSIONAL PARA ENVIAR AO CLIENTE
+
+Você pode copiar e colar:
+
+Olá! Segue o orçamento detalhado do seu PC gamer:
+
+Após a queda de energia, o equipamento apresentou falha total de inicialização. Nos testes iniciais foi identificado defeito na fonte de alimentação, além de acúmulo excessivo de poeira, o que aumenta riscos elétricos e térmicos, principalmente para a placa de vídeo RTX 3080.
+
+Serviços necessários:
+
+Diagnóstico técnico completo: R$ 150
+
+Limpeza técnica interna completa: R$ 200
+
+Mão de obra para substituição da fonte: R$ 150
+
+Fonte nova 750W/850W 80 Plus Gold (marca confiável): R$ 750
+
+Total com peça: R$ 1.250
+Total sem a peça (caso o cliente forneça): R$ 500
+
+⚠️ Observação: Após quedas de energia, a substituição da fonte é essencial para evitar danos à placa-mãe e à placa de vídeo.
+
+Fico à disposição para qualquer dúvida ou ajuste no orçamento.
+
+⚠️ DICA IMPORTANTE (DE OURO)
+
+👉 Nunca cobre pouco nesse tipo de serviço.
+Esse PC vale mais de R$ 10.000.
+Seu preço transmite confiança, não exploração.
+
+Se quiser, posso:
+
+Ajustar o script para WhatsApp mais curto
+
+Criar versão mais técnica ou mais simples
+
+Montar orçamento em PDF
+
+Ajudar a justificar o valor caso o cliente questione
+
+É só dizer.
+
+FAÇA UM SCRIPT PARA WHATSAPP BEM PROFISSIONAL E MAIS CURTO
+
+Perfeito. Segue um script curto, direto e profissional, ideal para WhatsApp, sem “texto demais” e com linguagem que passa segurança:
+
+Olá! Tudo bem?
+
+Após análise inicial do seu PC gamer, foi identificado defeito na fonte de alimentação, causado pela queda de energia. O equipamento também apresenta acúmulo excessivo de poeira, o que aumenta riscos elétricos e térmicos, especialmente para a RTX 3080.
+
+Serviços e valores:
+• Diagnóstico técnico completo: R$ 150
+• Limpeza técnica interna completa: R$ 200
+• Mão de obra para troca da fonte: R$ 150
+• Fonte nova 750W/850W 80 Plus Gold: R$ 750
+
+Total com peça: R$ 1.250
+Total sem a fonte (caso forneça): R$ 500
+
+⚠️ Recomendo a troca da fonte para evitar danos à placa-mãe e à placa de vídeo.
+
+Fico à disposição para prosseguir ou esclarecer qualquer dúvida.
+
