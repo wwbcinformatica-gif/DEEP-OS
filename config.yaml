@@ -1,14 +1,14 @@
 agent:
   image_input_mode: image
-  max_tool_steps: 200
-  max_turns: 60
-  personality: jarvis
+  max_tool_steps: 100
+  max_turns: 40
+  personality: opencode
   system_prompt: 'Responda Sempre em Portugues
 
     '
   toolset: agent
 display:
-  accent_theme: dark
+  accent_theme: grafite
   compact: true
   language: pt-BR
   show_reasoning: true
@@ -21,8 +21,8 @@ server:
   port: 8000
 spiral_memory:
   enabled: true
-  interval: 4
-  keeper_model: qwen3.5:9b
+  interval: 6
+  keeper_model: qwen2.5-coder:7b
   keeper_provider: ollama
 terminal:
   allowed_commands:
@@ -50,6 +50,20 @@ terminal:
   backend: powershell
   cwd: .
   timeout: 600
+voice:
+  auto_send: true
+  auto_send_delay: 10
+  deep_mode_active: false
+  elevenlabs_voices: true
+  hybrid_mode: true
+  hybrid_voice: charon
+  jarvis_pitch: -15Hz
+  jarvis_rate: -5%
+  mic_active_on_start: false
+  tts_enabled: true
+  voice_pitch: -15Hz
+  voice_preset: dani-brandi
+  voice_rate: -5%
 watcher:
   ignore:
   - node_modules/**
@@ -57,26 +71,6 @@ watcher:
   - .git/**
 workspace:
   name: DEEP-AUREA
-  root: C:\DEEP-AUREA
 workspaces:
 - last_opened: ''
-  name: DEEP-AUREA 4.0
-  path: C:\DEEP-AUREA 4.0
-- last_opened: ''
-  name: CLAUDECODE
-  path: C:\CLAUDECODE
-- last_opened: ''
-  name: OPENCODE
-  path: C:\OPENCODE
-- last_opened: ''
-  name: WBC-PAD
-  path: D:\0-PROJETOS\WBC-PAD
-- last_opened: ''
   name: DEEP-AUREA
-  path: C:\DEEP-AUREA
-- last_opened: ''
-  name: WBC-ZERO-G 5.0
-  path: C:\WBC-ZERO-G 5.0
-- last_opened: ''
-  name: WBC-PDV 2.0
-  path: C:\WBC-PDV 2.0

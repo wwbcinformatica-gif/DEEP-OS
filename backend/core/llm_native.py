@@ -85,8 +85,8 @@ def convert_to_multimodal(messages: list) -> list:
     return messages
 
 
-def get_client(provider: str, api_key_override: str = "") -> AsyncOpenAI:
-    timeout = Timeout(connect=10.0, read=120.0, write=10.0, pool=10.0)
+def get_client(provider: str, api_key_override: str = "", timeout_read: float = 120.0) -> AsyncOpenAI:
+    timeout = Timeout(connect=10.0, read=timeout_read, write=10.0, pool=10.0)
     if provider == "ollama":
         return AsyncOpenAI(base_url="http://localhost:11434/v1", api_key="ollama", timeout=timeout)
     elif provider == "groq":
@@ -144,6 +144,8 @@ def get_client(provider: str, api_key_override: str = "") -> AsyncOpenAI:
             api_key=key,
             timeout=timeout,
         )
+    elif provider == "llamacpp":
+        return AsyncOpenAI(base_url="http://localhost:8080/v1", api_key="llamacpp", timeout=timeout)
     raise ValueError(f"Unknown provider: {provider}")
 
 
@@ -245,6 +247,12 @@ async def stream_chat(
     temperature: float = 0.7,
     api_key: str = "",
 ):
+    if provider == "llamacpp":
+        from routes.llamacpp_route import ensure_llamacpp_model
+        status = ensure_llamacpp_model(model)
+        if status.get("error"):
+            yield f"ERR: {status['error']}"
+            return
     messages = truncate_messages(messages)
     messages = convert_to_multimodal(messages)
     if provider == "ollama" and _is_multimodal(messages):
@@ -297,6 +305,11 @@ async def complete_chat(
     temperature: float = 0.7,
     api_key: str = "",
 ) -> str:
+    if provider == "llamacpp":
+        from routes.llamacpp_route import ensure_llamacpp_model
+        status = ensure_llamacpp_model(model)
+        if status.get("error"):
+            return f"ERR: {status['error']}"
     messages = truncate_messages(messages)
     messages = convert_to_multimodal(messages)
     if provider == "ollama" and _is_multimodal(messages):
@@ -527,8 +540,7 @@ def _normalize_text_tool(parsed: dict) -> dict | None:
                 action_input = json.loads(action_input)
             except json.JSONDecodeError:
                 action_input = {}
-        if action_name == "media_play":
-            return None
+        
         return {
             "id": f"txt_{abs(hash(str(parsed))) % 100000}",
             "type": "function",
@@ -536,9 +548,14 @@ def _normalize_text_tool(parsed: dict) -> dict | None:
         }
 
     # Formato: {"action": "media_play", "payload": {...}}
-    # Nao converte - o handler "done" em chat.py processa como evento action
     if "action" in parsed and "payload" in parsed:
-        return None
+        action_name = parsed["action"]
+        payload = parsed["payload"]
+        return {
+            "id": f"txt_{abs(hash(str(parsed))) % 100000}",
+            "type": "function",
+            "function": {"name": action_name, "arguments": json.dumps(payload)},
+        }
 
     return None
 
@@ -551,6 +568,12 @@ async def stream_chat_with_tools(
     temperature: float = 0.3,
     api_key: str = "",
 ):
+    if provider == "llamacpp":
+        from routes.llamacpp_route import ensure_llamacpp_model
+        status = ensure_llamacpp_model(model)
+        if status.get("error"):
+            yield {"type": "content", "data": f"ERR: {status['error']}"}
+            return
     messages = truncate_messages(messages)
     messages = convert_to_multimodal(messages)
     if provider == "ollama" and _is_multimodal(messages):
@@ -562,7 +585,7 @@ async def stream_chat_with_tools(
         yield {"type": "done", "content": full, "reasoning": ""}
         return
     client = get_client(provider, api_key)
-    kwargs = dict(model=model, messages=messages, temperature=temperature, max_tokens=2048, stream=True)
+    kwargs = dict(model=model, messages=messages, temperature=temperature, max_tokens=8192, stream=True)
     if tools:
         if provider == "ollama" and _is_vision_model(model):
             print(f"[LLM] VISION MODEL {model} - stripping tools")
@@ -658,6 +681,11 @@ async def complete_chat_with_tools(
     temperature: float = 0.3,
     api_key: str = "",
 ) -> dict:
+    if provider == "llamacpp":
+        from routes.llamacpp_route import ensure_llamacpp_model
+        status = ensure_llamacpp_model(model)
+        if status.get("error"):
+            return {"type": "content", "data": f"ERR: {status['error']}", "reasoning": ""}
     messages = truncate_messages(messages)
     messages = convert_to_multimodal(messages)
     if provider == "ollama" and _is_multimodal(messages):

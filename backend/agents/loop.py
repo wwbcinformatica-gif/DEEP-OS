@@ -35,19 +35,68 @@ AGENT_SYSTEM_PROMPT = """
 Voce e um agente autonomo de engenharia de software.
 
 REGRAS:
-1. Aja agora. Use as ferramentas diretamente â€” nao planeje, nao explique o que vai fazer.
+1. Aja agora. Use as ferramentas diretamente — nao planeje, nao explique o que vai fazer.
 2. Proibido usar formatacao de passos. Nunca escreva "[Passo X/Y]", "[Step 1]", "1/5" ou similar.
 3. Ferramentas executam em silencio em segundo plano. Nao anuncie cada acao.
 4. Quando a tarefa estiver completa, apresente direto: o resultado final + um breve resumo do que foi feito.
-5. Tom direto e agil â€” sem burocracia, sem explicacoes longas.
+5. Tom direto e agil — sem burocracia, sem explicacoes longas.
 6. Responda em portugues.
-7. Se um comando bash falhar ou retornar vazio, MUDE DE ESTRATEGIA imediatamente â€” nao repita o mesmo comando.
+7. Se um comando bash falhar ou retornar vazio, MUDE DE ESTRATEGIA imediatamente — nao repita o mesmo comando.
 8. Nunca execute o mesmo comando bash duas vezes seguidas. Se o comando ja foi executado no passo anterior, escolha outra abordagem.
+
+CONTEXTO DO PROJETO:
+{project_context}
 
 PERSONALIDADE: {personality}
 TAREFA: {task}
 {rag_context}
 """
+
+
+def _get_project_context() -> str:
+    """Get project context for system prompt - project structure and key files."""
+    from pathlib import Path
+    
+    try:
+        workspace = Path(__file__).resolve().parent.parent.parent
+        name = workspace.name
+        
+        # Get top-level structure
+        dirs = []
+        files = []
+        for item in workspace.iterdir():
+            if item.is_dir() and not item.name.startswith('.'):
+                dirs.append(f"  📁 {item.name}/")
+            elif item.is_file() and item.suffix in ('.md', '.yaml', '.json', '.py', '.ts', '.tsx', '.bat'):
+                files.append(f"  📄 {item.name}")
+        
+        # Get key config info
+        config_path = workspace / "config.yaml"
+        config_info = ""
+        if config_path.exists():
+            config_info = "\nConfig: config.yaml"
+        
+        context = f"""Projeto: {name}
+Diretorio: {workspace}
+
+Estrutura:
+{chr(10).join(dirs[:10])}
+{chr(10).join(files[:5])}
+
+O projeto DEEP-AUREA e um Sistema Operacional de Agentes de IA (backend Python FastAPI + frontend React/TypeScript).
+
+VOCÊ TEM ACESSO TOTAL A ESTE PROJETO!
+Use as ferramentas para navegar e manipular:
+- explorer(path="{workspace}") para ver pastas
+- read(path="{workspace}/arquivo.py") para ler arquivos
+- bash(command="dir {workspace}") para listar contents
+- bash(command="tree /F {workspace}") para ver árvore completa
+
+NÃO DIGA QUE NÃO TEM ACESSO - VOCÊ TEM! Use as ferramentas diretamente."""
+        
+        return context
+    except Exception as e:
+        return f"Projeto: DEEP-AUREA (erro ao carregar contexto: {e})"
 
 
 async def run_agent(
@@ -135,10 +184,14 @@ async def run_agent(
         on_spiral_refresh=spiral_refresh,
     )
 
+    # Get project context for system prompt
+    project_context = _get_project_context()
+
     messages = [
         {"role": "system", "content": AGENT_SYSTEM_PROMPT.format(
             personality=personality,
             task=task,
+            project_context=project_context,
             rag_context=rag_context_block,
         )},
         {"role": "user", "content": task},
