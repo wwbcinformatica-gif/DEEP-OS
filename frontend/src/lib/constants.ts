@@ -13,6 +13,7 @@ export type Mood = 'descontraido' | 'serio' | 'bravo' | 'jarvis' | 'opencode';
 export type Provider =
   | 'groq'
   | 'ollama'
+  | 'llamacpp'
   | 'openrouter'
   | 'openai'
   | 'gemini'
@@ -144,10 +145,19 @@ export const MODELS: Record<string, { value: string; label: string }[]> = {
   mimo: [
     { value: 'mimo-v2.5', label: 'MiMo V2.5 (gratis)' },
   ],
+  llamacpp: [
+    { value: 'bonsai-27b', label: 'Ternary-Bonsai 27B Q2_0' },
+    { value: 'bonsai-27b-1bit', label: 'Ternary-Bonsai 27B Q1_0' },
+    { value: 'bonsai-27b-dspark', label: 'Ternary-Bonsai 27B dspark Q4_1' },
+    { value: 'llama-3.2-3b-gguf', label: 'Llama 3.2 3B Q4_K_M' },
+    { value: 'nemomix-12b-gguf', label: 'NemoMix 12B Q4_K_M' },
+    { value: 'qwen2.5-7b-gguf', label: 'Qwen 2.5 7B Q4_K_M' },
+  ],
 };
 
 export const PROVIDERS = [
   'ollama',
+  'llamacpp',
   'openclaude',
   'opencode',
   'groq',
