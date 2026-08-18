@@ -1,0 +1,461 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GeoShield - Monitor Global de Desastres Naturais</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;600;700;900&family=Rajdhani:wght@300;400;500;600;700&family=Space+Grotesk:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+    <!-- Preloader -->
+    <div id="preloader">
+        <div class="loader-ring">
+            <div class="loader-ring-inner"></div>
+        </div>
+        <p class="loader-text">Inicializando Sistemas de Monitoramento...</p>
+    </div>
+
+    <!-- Particles Background -->
+    <canvas id="particles-canvas"></canvas>
+
+    <!-- Navigation -->
+    <nav class="navbar" id="navbar">
+        <div class="nav-container">
+            <a href="#" class="nav-logo">
+                <i class="fas fa-shield-halved"></i>
+                <span>GeoShield</span>
+            </a>
+            <div class="nav-links">
+                <a href="#dashboard" class="nav-link active"><i class="fas fa-chart-line"></i> Dashboard</a>
+                <a href="#map" class="nav-link"><i class="fas fa-globe-americas"></i> Mapa ao Vivo</a>
+                <a href="#alerts" class="nav-link"><i class="fas fa-triangle-exclamation"></i> Alertas</a>
+                <a href="#stats" class="nav-link"><i class="fas fa-chart-bar"></i> Estatísticas</a>
+                <a href="#api" class="nav-link"><i class="fas fa-code"></i> API</a>
+            </div>
+            <button class="nav-toggle" id="nav-toggle">
+                <span></span><span></span><span></span>
+            </button>
+        </div>
+    </nav>
+
+    <!-- Hero Section -->
+    <section class="hero" id="hero">
+        <div class="hero-content">
+            <div class="hero-badge">
+                <span class="pulse-dot"></span>
+                MONITORAMENTO EM TEMPO REAL
+            </div>
+            <h1 class="hero-title">
+                <span class="glitch" data-text="GeoShield">GeoShield</span>
+            </h1>
+            <p class="hero-subtitle">Sistema Global de Monitoramento de Desastres Naturais</p>
+            <p class="hero-desc">Acompanhe terremotos, tsunamis, vulcões, furacões, enchentes e outros desastres naturais em tempo real com dados de agências oficiais mundiais.</p>
+            <div class="hero-stats">
+                <div class="hero-stat">
+                    <span class="hero-stat-number" id="stat-earthquakes">0</span>
+                    <span class="hero-stat-label">Terremotos Hoje</span>
+                </div>
+                <div class="hero-stat">
+                    <span class="hero-stat-number" id="stat-active-volcanoes">0</span>
+                    <span class="hero-stat-label">Vulcões Ativos</span>
+                </div>
+                <div class="hero-stat">
+                    <span class="hero-stat-number" id="stat-active-alerts">0</span>
+                    <span class="hero-stat-label">Alertas Ativos</span>
+                </div>
+                <div class="hero-stat">
+                    <span class="hero-stat-number" id="stat-countries">0</span>
+                    <span class="hero-stat-label">Países Monitorados</span>
+                </div>
+            </div>
+            <div class="hero-actions">
+                <a href="#map" class="btn btn-primary">
+                    <i class="fas fa-satellite-dish"></i> Ver Mapa ao Vivo
+                </a>
+                <a href="#alerts" class="btn btn-secondary">
+                    <i class="fas fa-bell"></i> Alertas Recentes
+                </a>
+            </div>
+        </div>
+        <div class="hero-visual">
+            <div class="globe-container">
+                <div class="globe">
+                    <div class="globe-ring ring-1"></div>
+                    <div class="globe-ring ring-2"></div>
+                    <div class="globe-ring ring-3"></div>
+                    <div class="globe-core"></div>
+                    <div class="data-point point-1"></div>
+                    <div class="data-point point-2"></div>
+                    <div class="data-point point-3"></div>
+                    <div class="data-point point-4"></div>
+                    <div class="data-point point-5"></div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Dashboard Section -->
+    <section class="section" id="dashboard">
+        <div class="container">
+            <div class="section-header">
+                <h2 class="section-title"><i class="fas fa-chart-line"></i> Dashboard em Tempo Real</h2>
+                <p class="section-desc">Dados atualizados automaticamente das principais agências de monitoramento mundial</p>
+            </div>
+
+            <!-- Live Ticker -->
+            <div class="ticker-container">
+                <div class="ticker-label"><i class="fas fa-bolt"></i> AO VIVO</div>
+                <div class="ticker-wrap">
+                    <div class="ticker" id="live-ticker"></div>
+                </div>
+            </div>
+
+            <!-- Category Cards -->
+            <div class="category-grid">
+                <div class="category-card" data-category="earthquake" id="card-earthquake">
+                    <div class="card-icon"><i class="fas fa-house-crack"></i></div>
+                    <h3>Terremotos</h3>
+                    <p class="card-count" id="count-earthquake">0</p>
+                    <p class="card-label">Eventos nas últimas 24h</p>
+                    <div class="card-bar"><div class="card-bar-fill" id="bar-earthquake"></div></div>
+                    <span class="card-status status-loading">Carregando...</span>
+                </div>
+                <div class="category-card" data-category="volcano" id="card-volcano">
+                    <div class="card-icon"><i class="fas fa-fire"></i></div>
+                    <h3>Vulcões</h3>
+                    <p class="card-count" id="count-volcano">0</p>
+                    <p class="card-label">Erupções e atividade</p>
+                    <div class="card-bar"><div class="card-bar-fill" id="bar-volcano"></div></div>
+                    <span class="card-status status-loading">Carregando...</span>
+                </div>
+                <div class="category-card" data-category="storm" id="card-storm">
+                    <div class="card-icon"><i class="fas fa-wind"></i></div>
+                    <h3>Tempestades</h3>
+                    <p class="card-count" id="count-storm">0</p>
+                    <p class="card-label">Furacões e ciclones</p>
+                    <div class="card-bar"><div class="card-bar-fill" id="bar-storm"></div></div>
+                    <span class="card-status status-loading">Carregando...</span>
+                </div>
+                <div class="category-card" data-category="flood" id="card-flood">
+                    <div class="card-icon"><i class="fas fa-water"></i></div>
+                    <h3>Enchentes</h3>
+                    <p class="card-count" id="count-flood">0</p>
+                    <p class="card-label">Inundações ativas</p>
+                    <div class="card-bar"><div class="card-bar-fill" id="bar-flood"></div></div>
+                    <span class="card-status status-loading">Carregando...</span>
+                </div>
+                <div class="category-card" data-category="wildfire" id="card-wildfire">
+                    <div class="card-icon"><i class="fas fa-fire-flame-curved"></i></div>
+                    <h3>Incêndios</h3>
+                    <p class="card-count" id="count-wildfire">0</p>
+                    <p class="card-label">Fogos ativos no mundo</p>
+                    <div class="card-bar"><div class="card-bar-fill" id="bar-wildfire"></div></div>
+                    <span class="card-status status-loading">Carregando...</span>
+                </div>
+                <div class="category-card" data-category="tsunami" id="card-tsunami">
+                    <div class="card-icon"><i class="fas fa-waves"></i></div>
+                    <h3>Tsunamis</h3>
+                    <p class="card-count" id="count-tsunami">0</p>
+                    <p class="card-label">Alertas oceânicos</p>
+                    <div class="card-bar"><div class="card-bar-fill" id="bar-tsunami"></div></div>
+                    <span class="card-status status-loading">Carregando...</span>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Map Section -->
+    <section class="section section-dark" id="map">
+        <div class="container">
+            <div class="section-header">
+                <h2 class="section-title"><i class="fas fa-globe-americas"></i> Mapa de Desastres ao Vivo</h2>
+                <p class="section-desc">Visualização interativa de todos os eventos naturais detectados globalmente</p>
+            </div>
+
+            <!-- Map Filters -->
+            <div class="map-filters">
+                <button class="filter-btn active" data-filter="all"><i class="fas fa-globe"></i> Todos</button>
+                <button class="filter-btn" data-filter="earthquake"><i class="fas fa-house-crack"></i> Terremotos</button>
+                <button class="filter-btn" data-filter="volcano"><i class="fas fa-fire"></i> Vulcões</button>
+                <button class="filter-btn" data-filter="storm"><i class="fas fa-wind"></i> Tempestades</button>
+                <button class="filter-btn" data-filter="flood"><i class="fas fa-water"></i> Enchentes</button>
+                <button class="filter-btn" data-filter="wildfire"><i class="fas fa-fire-flame-curved"></i> Incêndios</button>
+                <button class="filter-btn" data-filter="sealake"><i class="fas fa-snowflake"></i> Gelo/Neve</button>
+            </div>
+
+            <div class="map-wrapper">
+                <!-- Search and Filters -->
+                <div class="map-toolbar">
+                    <div class="search-box map-search-box">
+                        <i class="fas fa-globe"></i>
+                        <input type="text" id="searchInput" placeholder="Buscar por país ou estado...">
+                    </div>
+                    <div class="map-toolbar-filters">
+                        <select id="map-type-filter">
+                            <option value="all">Todos os Tipos</option>
+                            <option value="earthquake">Terremotos</option>
+                            <option value="volcano">Vulcões</option>
+                            <option value="storm">Tempestades</option>
+                            <option value="flood">Enchentes</option>
+                            <option value="wildfire">Incêndios</option>
+                            <option value="sealake">Gelo/Neve</option>
+                        </select>
+                        <select id="map-magnitude-filter">
+                            <option value="all">Todas as Magnitudes</option>
+                            <option value="2">M 2.0+</option>
+                            <option value="3">M 3.0+</option>
+                            <option value="4">M 4.0+</option>
+                            <option value="5">M 5.0+</option>
+                            <option value="6">M 6.0+</option>
+                            <option value="7">M 7.0+</option>
+                        </select>
+                    </div>
+                </div>
+                <div id="main-map"></div>
+                <div class="map-legend">
+                    <h4>Legenda</h4>
+                    <div class="legend-item"><span class="legend-color" style="background:#ff4444"></span> Terremoto</div>
+                    <div class="legend-item"><span class="legend-color" style="background:#ff8800"></span> Vulcão</div>
+                    <div class="legend-item"><span class="legend-color" style="background:#aa44ff"></span> Tempestade</div>
+                    <div class="legend-item"><span class="legend-color" style="background:#4488ff"></span> Enchente</div>
+                    <div class="legend-item"><span class="legend-color" style="background:#ffcc00"></span> Incêndio</div>
+                    <div class="legend-item"><span class="legend-color" style="background:#00ccff"></span> Tsunami/Gelo</div>
+                </div>
+                <div class="map-coords" id="map-coords">Lat: 0.000 | Lng: 0.000</div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Alerts Section -->
+    <section class="section" id="alerts">
+        <div class="container">
+            <div class="section-header">
+                <h2 class="section-title"><i class="fas fa-triangle-exclamation"></i> Alertas e Eventos Recentes</h2>
+                <p class="section-desc">Últimos eventos detectados pelas redes de monitoramento global</p>
+            </div>
+
+            <div class="alerts-toolbar">
+                <div class="search-box">
+                    <i class="fas fa-search"></i>
+                    <input type="text" id="alert-search" placeholder="Buscar por local, tipo ou magnitude...">
+                </div>
+                <div class="alert-filters">
+                    <select id="alert-type-filter">
+                        <option value="all">Todos os Tipos</option>
+                        <option value="earthquake">Terremotos</option>
+                        <option value="volcano">Vulcões</option>
+                        <option value="storm">Tempestades</option>
+                        <option value="flood">Enchentes</option>
+                        <option value="wildfire">Incêndios</option>
+                    </select>
+                    <select id="alert-magnitude-filter">
+                        <option value="all">Todas as Magnitudes</option>
+                        <option value="5">M 5.0+</option>
+                        <option value="6">M 6.0+</option>
+                        <option value="7">M 7.0+</option>
+                        <option value="8">M 8.0+</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="alerts-list" id="alerts-list">
+                <div class="alerts-loading">
+                    <div class="spinner"></div>
+                    <p>Carregando alertas em tempo real...</p>
+                </div>
+            </div>
+
+            <div class="load-more-container">
+                <button class="btn btn-outline" id="load-more-alerts">
+                    <i class="fas fa-arrow-down"></i> Carregar Mais
+                </button>
+            </div>
+        </div>
+    </section>
+
+    <!-- Statistics Section -->
+    <section class="section section-dark" id="stats">
+        <div class="container">
+            <div class="section-header">
+                <h2 class="section-title"><i class="fas fa-chart-bar"></i> Estatísticas Globais</h2>
+                <p class="section-desc">Análise dos dados de desastres naturais coletados em tempo real</p>
+            </div>
+
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-card-header">
+                        <i class="fas fa-house-crack"></i>
+                        <h4>Terremotos por Magnitude</h4>
+                    </div>
+                    <canvas id="chart-magnitude"></canvas>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-card-header">
+                        <i class="fas fa-map-location-dot"></i>
+                        <h4>Eventos por Região</h4>
+                    </div>
+                    <canvas id="chart-region"></canvas>
+                </div>
+                <div class="stat-card stat-card-wide">
+                    <div class="stat-card-header">
+                        <i class="fas fa-clock-rotate-left"></i>
+                        <h4>Atividade nas Últimas 24h (Timeline)</h4>
+                    </div>
+                    <canvas id="chart-timeline"></canvas>
+                </div>
+            </div>
+
+            <!-- Data Sources -->
+            <div class="sources-grid">
+                <div class="source-card">
+                    <img src="https://www.usgs.gov/modules/custom/usgs_theme/images/logo.svg" alt="USGS" class="source-logo" onerror="this.style.display='none'">
+                    <h4>USGS</h4>
+                    <p>U.S. Geological Survey - Dados de terremotos e atividade sísmica</p>
+                    <span class="source-status online"><i class="fas fa-circle"></i> Online</span>
+                </div>
+                <div class="source-card">
+                    <div class="source-logo-placeholder"><i class="fas fa-satellite"></i></div>
+                    <h4>NASA EONET</h4>
+                    <p>Earth Observatory Natural Event Tracker - Eventos naturais globais</p>
+                    <span class="source-status online"><i class="fas fa-circle"></i> Online</span>
+                </div>
+                <div class="source-card">
+                    <div class="source-logo-placeholder"><i class="fas fa-globe-europe"></i></div>
+                    <h4>GDACS</h4>
+                    <p>Global Disaster Alert Coordination System - Alertas de desastres</p>
+                    <span class="source-status online"><i class="fas fa-circle"></i> Online</span>
+                </div>
+                <div class="source-card">
+                    <div class="source-logo-placeholder"><i class="fas fa-heart"></i></div>
+                    <h4>ReliefWeb</h4>
+                    <p>Informações humanitárias e relatórios de desastres</p>
+                    <span class="source-status online"><i class="fas fa-circle"></i> Online</span>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- API Section -->
+    <section class="section" id="api">
+        <div class="container">
+            <div class="section-header">
+                <h2 class="section-title"><i class="fas fa-code"></i> APIs Utilizadas</h2>
+                <p class="section-desc">Dados em tempo real provenientes das principais agências de monitoramento mundial</p>
+            </div>
+
+            <div class="api-grid">
+                <div class="api-card">
+                    <div class="api-card-header">
+                        <i class="fas fa-house-crack api-icon earthquake"></i>
+                        <h4>USGS Earthquake API</h4>
+                    </div>
+                    <p>Dados sísmicos em tempo real do Serviço Geológico dos EUA. Atualização contínua a cada minuto.</p>
+                    <div class="api-endpoints">
+                        <code>earthquake.usgs.gov/earthquakes/feed/v1.0/summary/all_day.geojson</code>
+                    </div>
+                    <div class="api-meta">
+                        <span><i class="fas fa-sync"></i> Real-time</span>
+                        <span><i class="fas fa-key"></i> Gratuita</span>
+                        <span><i class="fas fa-database"></i> GeoJSON</span>
+                    </div>
+                </div>
+                <div class="api-card">
+                    <div class="api-card-header">
+                        <i class="fas fa-satellite api-icon volcano"></i>
+                        <h4>NASA EONET</h4>
+                    </div>
+                    <p>Eventos naturais monitorados por satélites da NASA: vulcões, incêndios, tempestades e mais.</p>
+                    <div class="api-endpoints">
+                        <code>eonet.gsfc.nasa.gov/api/v3/events</code>
+                    </div>
+                    <div class="api-meta">
+                        <span><i class="fas fa-sync"></i> Near Real-time</span>
+                        <span><i class="fas fa-key"></i> Gratuita</span>
+                        <span><i class="fas fa-database"></i> JSON</span>
+                    </div>
+                </div>
+                <div class="api-card">
+                    <div class="api-card-header">
+                        <i class="fas fa-globe-europe api-icon storm"></i>
+                        <h4>GDACS</h4>
+                    </div>
+                    <p>Sistema de Coordenação de Alertas de Desastres Globais da ONU. Alertas de terremotos, ciclones, enchentes e vulcões.</p>
+                    <div class="api-endpoints">
+                        <code>www.gdacs.org/gdacsapi/api/events/getevent</code>
+                    </div>
+                    <div class="api-meta">
+                        <span><i class="fas fa-sync"></i> Real-time</span>
+                        <span><i class="fas fa-key"></i> Gratuita</span>
+                        <span><i class="fas fa-database"></i> JSON/XML</span>
+                    </div>
+                </div>
+                <div class="api-card">
+                    <div class="api-card-header">
+                        <i class="fas fa-heart api-icon flood"></i>
+                        <h4>ReliefWeb API</h4>
+                    </div>
+                    <p>Plataforma humanitária da ONU com relatórios e dados de desastres de fontes confiáveis mundiais.</p>
+                    <div class="api-endpoints">
+                        <code>api.reliefweb.int/v1/disasters</code>
+                    </div>
+                    <div class="api-meta">
+                        <span><i class="fas fa-sync"></i> Atualizado</span>
+                        <span><i class="fas fa-key"></i> Gratuita</span>
+                        <span><i class="fas fa-database"></i> JSON</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="container">
+            <div class="footer-content">
+                <div class="footer-brand">
+                    <h3><i class="fas fa-shield-halved"></i> GeoShield</h3>
+                    <p>Sistema Global de Monitoramento de Desastres Naturais</p>
+                    <p class="footer-update">Última atualização: <span id="last-update">--</span></p>
+                </div>
+                <div class="footer-links">
+                    <h4>Fontes de Dados</h4>
+                    <a href="https://earthquake.usgs.gov/" target="_blank"><i class="fas fa-external-link-alt"></i> USGS Earthquakes</a>
+                    <a href="https://eonet.gsfc.nasa.gov/" target="_blank"><i class="fas fa-external-link-alt"></i> NASA EONET</a>
+                    <a href="https://www.gdacs.org/" target="_blank"><i class="fas fa-external-link-alt"></i> GDACS</a>
+                    <a href="https://reliefweb.int/" target="_blank"><i class="fas fa-external-link-alt"></i> ReliefWeb</a>
+                </div>
+                <div class="footer-links">
+                    <h4>Recursos</h4>
+                    <a href="#map">Mapa ao Vivo</a>
+                    <a href="#alerts">Alertas</a>
+                    <a href="#stats">Estatísticas</a>
+                    <a href="#api">APIs</a>
+                </div>
+                <div class="footer-links">
+                    <h4>Preparação</h4>
+                    <a href="https://www.ready.gov/" target="_blank"><i class="fas fa-external-link-alt"></i> Ready.gov</a>
+                    <a href="https://www.ifrc.org/" target="_blank"><i class="fas fa-external-link-alt"></i> IFRC</a>
+                    <a href="https://www.unocha.org/" target="_blank"><i class="fas fa-external-link-alt"></i> OCHA</a>
+                </div>
+            </div>
+            <div class="footer-bottom">
+                <p>&copy; 2026 GeoShield - Dados fornecidos por agências públicas de monitoramento global</p>
+            </div>
+        </div>
+    </footer>
+
+    <!-- Back to Top -->
+    <button class="back-to-top" id="back-to-top">
+        <i class="fas fa-chevron-up"></i>
+    </button>
+
+    <!-- Scripts -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <script src="script.js"></script>
+</body>
+</html>

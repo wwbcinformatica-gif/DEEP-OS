@@ -274,9 +274,11 @@ async def run_lifecycle(
             state.messages.append({
                 "role": "system",
                 "content": (
-                    "[SISTEMA] Voce ja executou varias ferramentas seguidas sem apresentar resultado final. "
-                    "PARE de chamar ferramentas agora. Apresente DIRETAMENTE o resultado final "
-                    "do que foi feito ate aqui. FINALIZE."
+                    "[SISTEMA] Voce ja executou varias ferramentas seguidas. "
+                    "APRESENTE O RESUMO DO PROGRESSO ate aqui (o que ja foi feito, o que falta). "
+                    "DEPOIS, PERGUNTE AO USUARIO como ele deseja prosseguir. "
+                    "NÃO finalize a tarefa — apenas pouse e aguarde instruções. "
+                    "O contexto sera MANTIDO para a proxima mensagem."
                 ),
             })
             state.consecutive_tool_calls = 0
@@ -384,6 +386,12 @@ async def run_lifecycle(
             state.transition(State.API_ERROR, detail=str(api_error))
             yield {"type": "state_change", "state": State.API_ERROR.value, "step": state.step}
             yield {"type": "done", "answer": f"Erro na API: {api_error}", "steps": state.step}
+            return
+
+        if response is None:
+            state.transition(State.FAILED)
+            yield {"type": "state_change", "state": State.FAILED.value, "step": state.step}
+            yield {"type": "done", "answer": "Modelo nao retornou resposta. Verifique a conexao e a chave da API.", "steps": state.step, "status": "failed"}
             return
 
         state.transition(State.CHECK_RESPONSE, detail=f"type={response.type}")

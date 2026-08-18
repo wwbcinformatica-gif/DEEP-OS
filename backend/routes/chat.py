@@ -43,40 +43,12 @@ _INTERNAL_JSON_RE = re.compile(
     r'\{"type"\s*:\s*"(task_plan|task_progress)"[^}]*\}'
 )
 
-def _strip_english_thinking(text: str) -> str:
-    """Remove bloco de raciocinio em ingles que o MiMo V2.5 cola no content.
-
-    O MiMo V2.5 nao tem reasoning_content separado — ele cola o pensamento
-    em ingles + resposta em portugues tudo no mesmo campo 'content'.
-    O pensamento e sempre um paragrafo em ingles antes de uma linha em branco.
-    """
-    if not text:
-        return text
-    lines = text.split('\n')
-    # Encontrar a primeira linha em branco que separa thinking de resposta
-    for i, line in enumerate(lines):
-        if line.strip() == '' and i > 0:
-            # Verificar se as linhas ANTES parecem raciocinio em ingles
-            pre_block = '\n'.join(lines[:i]).strip()
-            if not pre_block:
-                continue
-            # Se o bloco anterior contem majoritariamente caracteres ASCII (ingles)
-            # e apos a linha branca comeca texto em portugues, e thinking
-            ascii_ratio = sum(1 for c in pre_block if ord(c) < 128) / max(len(pre_block), 1)
-            if ascii_ratio > 0.85:
-                post_block = '\n'.join(lines[i:]).strip()
-                if post_block:
-                    return post_block
-    return text
-
 def strip_internal_json(text: str) -> str:
-    """Remove JSON de protocolo interno e raciocinio interno do modelo."""
+    """Remove JSON de protocolo interno."""
     if not text:
         return text
     # Remove JSON de protocolo (task_plan, task_progress)
     cleaned = _INTERNAL_JSON_RE.sub("", text)
-    # Remove bloco de raciocinio em ingles (MiMo V2.5)
-    cleaned = _strip_english_thinking(cleaned)
     cleaned = cleaned.strip()
     cleaned = re.sub(r"\n{3,}", "\n\n", cleaned)
     return cleaned
@@ -133,23 +105,112 @@ def assess_tool_risk(tool_name: str, params: dict) -> dict:
     return {"needs_confirm": needs_confirm, "risk_level": risk_level, "reason": reason}
 
 
+URGENT_KEYWORDS = [
+    "para", "parar", "stop", "cancela", "cancelar", "aborta", "abortar",
+    "espera", "esperar", "aguarda", "aguardar",
+    "urgente", "urgencia", "rapido", "rapida", "agora", "imediato", "imediatamente",
+    "socorro", "ajuda", "erro", "bug", "crash", "travou", "travando",
+    "cancele", "interrompe", "interromper",
+    "fogo", "emergencia", "emergência",
+    "nao faca", "não faça", "nao execute", "não execute", "pare de",
+    "esquece", "deixa", "deixa pra la", "deixa pra lá",
+    "cancela isso", "cancela tudo", "para tudo",
+]
+
+NORMAL_KEYWORDS = [
+    "depois", "quando terminar", "no final", "no fim", "pode esperar",
+    "nao urgente", "não urgente", "sem pressa", "calma",
+    "adicione", "tambem", "lembre", "anote", "guarde",
+    "mais tarde", "depois de", "apos",
+]
+
+
+async def assess_urgency(new_message: str, current_task: str = "") -> dict:
+    """
+    Avalia se uma mensagem nova e urgente (deve interromper) ou normal (pode esperar).
+    Usa heuristica rapida primeiro; se incerto, usa LLM para decidir.
+    Retorna {urgent: bool, reason: str, method: str}.
+    """
+    msg_lower = new_message.lower().strip()
+
+    # 1. Heuristica rapida: palavras explicitas de parada/urgencia
+    for kw in URGENT_KEYWORDS:
+        if kw in msg_lower:
+            return {"urgent": True, "reason": f"Palavra de urgencia detectada: '{kw}'", "method": "heuristic"}
+
+    # 2. Heuristica rapida: palavras explicitas de "pode esperar"
+    for kw in NORMAL_KEYWORDS:
+        if kw in msg_lower:
+            return {"urgent": False, "reason": f"Palavra de baixa prioridade: '{kw}'", "method": "heuristic"}
+
+    # 3. Mensagens muito curtas (<15 chars) geralmente sao comandos urgentes
+    if len(msg_lower) < 15:
+        return {"urgent": True, "reason": "Mensagem curta — provavel comando rapido", "method": "heuristic"}
+
+    # 4. Mensagens longas (>150 chars) geralmente sao detalhamento/continuacao
+    if len(msg_lower) > 150:
+        return {"urgent": False, "reason": "Mensagem longa — provavel detalhamento ou continuacao", "method": "heuristic"}
+
+    # 5. Se ainda incerto, usa LLM para classificar (rapido, 1 chamada)
+    try:
+        urgency_prompt = [
+            {"role": "system", "content": (
+                "Voce e um classificador de urgencia. Avalie se a mensagem do usuario deve "
+                "INTERROMPER a tarefa atual do assistente ou se PODE ESPERAR ate o final.\n\n"
+                "Responda APENAS com 'URGENT' ou 'NORMAL' seguido de uma breve justificativa.\n"
+                "URGENT: erros, pedidos de parada, correcoes criticas, comandos curtos, perguntas diretas.\n"
+                "NORMAL: detalhamentos, informacoes adicionais, pedidos nao relacionados a tarefa atual."
+            )},
+            {"role": "user", "content": (
+                f"Tarefa atual em execucao: {current_task[:200] if current_task else '(desconhecida)'}\n\n"
+                f"Nova mensagem do usuario: {new_message[:500]}\n\n"
+                f"E URGENT ou NORMAL?"
+            )},
+        ]
+        from core.llm_native import complete_chat
+        response = await complete_chat("mimo", "mimo-v2.5", urgency_prompt, 0.3, api_key="")
+        response_upper = response.upper().strip()
+        if response_upper.startswith("URGENT"):
+            return {"urgent": True, "reason": f"LLM: {response[:100]}", "method": "llm"}
+        else:
+            return {"urgent": False, "reason": f"LLM: {response[:100]}", "method": "llm"}
+    except Exception as e:
+        # Em caso de erro no LLM, default: normal (nao interrompe)
+        return {"urgent": False, "reason": f"LLM falhou ({e}), default: normal", "method": "fallback"}
+
+
 def parse_slash_command(text: str) -> dict | None:
-    """Parse /comando ou +comando. Retorna {command, args} ou None."""
+    """Parse /comando, +comando, ou palavras-chave soltas. Retorna {command, args} ou None."""
     t = text.strip()
     if not t:
         return None
+    
+    # Com prefixo / ou +
     prefix = t[0] if t[0] in ("/", "+") else None
-    if not prefix:
+    if prefix:
+        parts = t[1:].split(maxsplit=1)
+        cmd = parts[0].lower() if parts else ""
+        args = parts[1] if len(parts) > 1 else ""
+        valid_commands = {
+            "goal", "run", "clear", "help", "status", "stop", "doctor",
+            "model", "provider", "theme", "voice", "debug",
+        }
+        if cmd in valid_commands:
+            return {"command": cmd, "args": args}
         return None
-    parts = t[1:].split(maxsplit=1)
-    cmd = parts[0].lower() if parts else ""
-    args = parts[1] if len(parts) > 1 else ""
-    valid_commands = {
-        "goal", "run", "clear", "help", "status", "stop",
-        "model", "provider", "theme", "voice", "debug",
+    
+    # Sem prefixo — reconhece palavras-chave isoladas
+    t_lower = t.lower()
+    standalone_commands = {
+        "doctor": "doctor",
+        "diagnostico": "doctor",
+        "diagnóstico": "doctor",
+        "diagnostico completo": "doctor",
     }
-    if cmd in valid_commands:
-        return {"command": cmd, "args": args}
+    for phrase, cmd in standalone_commands.items():
+        if t_lower == phrase:
+            return {"command": cmd, "args": ""}
+    
     return None
 
 
@@ -168,6 +229,9 @@ VOICE_ACTION_MAP = {
     "status": "status",
     "ajuda": "help",
     "help": "help",
+    "diagnostico": "doctor",
+    "diagnóstico": "doctor",
+    "doctor": "doctor",
     "fechar arquivo": "close_file",
     "fechar documento": "close_file",
     "fechar video": "close_file",
@@ -223,14 +287,23 @@ def parse_at_mentions(text: str) -> dict:
     skills = []
     clean = text
 
-    known_agents = {"coder", "writer", "helper", "planner", "reviewer", "debugger", "architect", "analyst"}
+    # Carrega agentes e skills do .opencode dinamicamente
+    from core.opencode_loader import load_opencode_agents, load_opencode_skills
+    oc_agents = set(load_opencode_agents().keys())
+    oc_skills = set(load_opencode_skills().keys())
+
+    known_agents = {"coder", "writer", "helper", "planner", "reviewer", "debugger", "architect", "analyst",
+                    "mimo", "general", "explore", "gemini"}
+    known_agents |= oc_agents
+
     known_skills = {
         "web_search", "file_picker", "terminal_run", "code_review",
         "test_runner", "doc_generator", "refactor", "deploy",
         "memory", "brain", "plan", "explore",
     }
+    known_skills |= oc_skills
 
-    for match in re.finditer(r'@(\w+)', text):
+    for match in re.finditer(r'@(\w[\w-]*)', text):
         tag = match.group(1).lower()
         if tag in known_agents:
             agents.append(tag)
@@ -308,7 +381,6 @@ NO_TOOL_MODELS = {"llava", "bakllava", "moondream", "minicpm-v", "qwen-vl", "qwe
 CLOUD_NO_TOOL_MODELS = {
     "nemotron-3-super-free",
     "gpt-5.1-codex", "nemotron-3-super",
-    "gemini-1.5-flash", "gemini-2.0-flash", "gemini-2.0-flash-001",
     "mixtral-8x7b-32768",
 }
 
@@ -483,7 +555,7 @@ def _load_config_system_prompt() -> str:
 
 
 def build_system_prompt(msg: Message) -> str:
-    instruction = msg.system_prompt or _load_config_system_prompt() or MOOD_INSTRUCTIONS.get(msg.mood, MOOD_INSTRUCTIONS["jarvis"])
+    instruction = msg.system_prompt or _load_config_system_prompt() or MOOD_INSTRUCTIONS.get(msg.mood, MOOD_INSTRUCTIONS["opencode"])
     user_root = msg.root.strip() if msg.root else ""
     user_path = msg.path.strip() if msg.path else ""
     if user_root:
@@ -499,11 +571,12 @@ def build_system_prompt(msg: Message) -> str:
         len(q) < 20
         and not any(w in q for w in ["criar", "fazer", "ler", "buscar", "executar",
             "arquivo", "pasta", "codigo", "mostrar", "explorar", "verificar",
-            "analisar", "crie", "liste", "abra", "abrir", "leia", "procure"])
+            "analisar", "crie", "liste", "abra", "abrir", "leia", "procure",
+            "ferramenta", "sistema", "projeto", "trocar", "mudar", "alterar"])
         and not any(c in q for c in [".py", ".ts", ".js", ".json", ".md", ".html"])
     )
 
-    if is_greeting:
+    if is_greeting and msg.mood != "opencode":
         return instruction
 
     from core.prompts import TASK_CHECKLIST_PROMPT
@@ -532,7 +605,7 @@ async def chat(request: Request, msg: Message):
 
     # Detecta comandos de voz em portugues
     voice_cmd = parse_voice_action(msg.user)
-    if voice_cmd and voice_cmd["command"] in ("clear", "stop", "help", "status"):
+    if voice_cmd and voice_cmd["command"] in ("clear", "stop", "help", "status", "doctor"):
         slash_cmd = {"command": voice_cmd["command"], "args": voice_cmd["args"]}
         events = []
         async for event in handle_slash_command(slash_cmd, msg):
@@ -804,11 +877,12 @@ async def handle_task_stream(msg: Message) -> AsyncGenerator[dict, None]:
             start_step = 0
             max_steps = msg.max_steps or 100
             history_pairs = []
+            
+            # SEMPRE carregar historico completo do banco primeiro
             try:
                 conn = get_conn()
                 cur = conn.cursor()
-                # Carrega mais historico (20 mensagens) e sem truncar
-                cur.execute("SELECT question, answer FROM history ORDER BY id DESC LIMIT 20")
+                cur.execute("SELECT question, answer FROM history ORDER BY id DESC LIMIT 50")
                 for row in reversed(list(cur.fetchall())):
                     ans = row["answer"]
                     if not ans:
@@ -820,11 +894,21 @@ async def handle_task_stream(msg: Message) -> AsyncGenerator[dict, None]:
                     except (json.JSONDecodeError, TypeError):
                         pass
                     history_pairs.append({"role": "user", "content": row["question"]})
-                    # NAO TRUNCAR - manter contexto completo (max 2000 chars por mensagem)
-                    history_pairs.append({"role": "assistant", "content": ans[:2000]})
+                    history_pairs.append({"role": "assistant", "content": ans[:8000]})
                 conn.close()
             except Exception:
                 pass
+
+            # Se tem contexto anterior (correcao/fila), adicionar ao final
+            if msg.previous_context:
+                for ctx_msg in msg.previous_context:
+                    role = ctx_msg.get("from", "user")
+                    content = ctx_msg.get("text", "")
+                    if role == "user":
+                        history_pairs.append({"role": "user", "content": content})
+                    elif role == "bot":
+                        history_pairs.append({"role": "assistant", "content": content[:8000]})
+            
             messages = [{"role": "system", "content": system_prompt}]
             for hp in history_pairs:
                 messages.append(hp)
@@ -843,6 +927,96 @@ async def handle_task_stream(msg: Message) -> AsyncGenerator[dict, None]:
         tool_temp = msg.temperature if msg.provider == "ollama" else 0.3
         recent_calls: list[str] = []
         checklist_steps: list[dict] = []
+
+        # ═══════════════════════════════════════════════════════════════
+        # MiMo EXECUTOR: provider=mimo usa mimo.exe com tool calling nativo
+        # ═══════════════════════════════════════════════════════════════
+        if msg.provider == "mimo" and not saved:
+            from tools.mimo_executor import stream_mimo_task
+
+            mimo_model = f"xiaomi/{msg.model}" if not msg.model.startswith("xiaomi/") else msg.model
+            if msg.model in ("mimo-v2.5", "mimo"):
+                mimo_model = "xiaomi/mimo-v2.5"
+
+            root_dir = msg.root or str(get_base_dir())
+
+            yield {"type": "thinking", "content": f"[MiMo Executor] Executando via mimo.exe (model={mimo_model})"}
+
+            full_answer = ""
+            tool_logs = []
+            step = 0
+
+            # Constroi historico para o mimo.exe
+            history_for_mimo = []
+            for hp in history_pairs[-20:]:  # ultimas 20 mensagens
+                history_for_mimo.append({"role": hp["role"], "content": hp["content"]})
+
+            async for event in stream_mimo_task(
+                message=msg.user,
+                model=mimo_model,
+                root=root_dir,
+                timeout=120,
+                history=history_for_mimo,
+            ):
+                etype = event.get("type", "")
+
+                if etype == "content":
+                    text = event.get("data", "")
+                    if text:
+                        full_answer += text
+                        yield {"type": "token", "content": text}
+
+                elif etype == "tool_start":
+                    tool_name = event.get("tool", "")
+                    tool_params = event.get("params", {})
+                    step += 1
+                    yield {"type": "thinking", "step": step, "content": f"[MiMo] Executando: {tool_name}"}
+                    yield {"type": "tool_start", "step": step, "tool": tool_name, "params": tool_params}
+
+                elif etype == "tool_end":
+                    tool_name = event.get("tool", "")
+                    tool_result = event.get("result", {})
+                    yield {"type": "tool_end", "step": step, "tool": tool_name, "result": tool_result}
+                    tool_logs.append({
+                        "step": step,
+                        "tool": tool_name,
+                        "params": event.get("params", {}),
+                        "result": tool_result,
+                    })
+
+                elif etype == "error":
+                    err_msg = event.get("message", "Erro desconhecido")
+                    yield {"type": "thinking", "content": f"[MiMo Erro] {err_msg}"}
+
+                elif etype == "done":
+                    content = event.get("content", "")
+                    if content and not full_answer:
+                        full_answer = content
+                        yield {"type": "token", "content": content}
+                    tc_events = event.get("tool_calls", [])
+                    if tc_events and not tool_logs:
+                        for tc in tc_events:
+                            step += 1
+                            tool_logs.append({
+                                "step": step,
+                                "tool": tc.get("tool", ""),
+                                "params": tc.get("params", {}),
+                                "result": tc.get("result", {}),
+                            })
+
+            if not full_answer:
+                full_answer = "Tarefa executada via MiMo Executor."
+
+            conn = get_conn()
+            cur = conn.cursor()
+            cur.execute("INSERT INTO history (question, answer) VALUES (?, ?)", (msg.user, full_answer))
+            conn.commit()
+            conn.close()
+            await save_llm_reflection(msg.user, full_answer)
+            learn_from_interaction(msg.user, full_answer, tool_logs)
+
+            yield {"type": "done", "answer": full_answer, "steps": step, "tool_logs": tool_logs}
+            return
         checklist_active = -1
         checklist_yielded_plan = False
         model_sends_explicit_progress = False
@@ -941,9 +1115,12 @@ async def handle_task_stream(msg: Message) -> AsyncGenerator[dict, None]:
             max_api_retries=3,
             max_think_only_loops=3,
             tool_timeout=60.0,
-            consecutive_tool_limit=10,
-            planning_enforced=msg.provider != "mimo",
+            consecutive_tool_limit=12,
+            planning_enforced=True,
         )
+
+        def should_force_final_fn(consecutive: int) -> bool:
+            return consecutive >= lifecycle_config.consecutive_tool_limit
 
         async def lifecycle_stream_wrapper(messages_inner: list) -> AsyncGenerator[dict, None]:
             async for chunk in call_model_stream(messages_inner):
@@ -958,6 +1135,7 @@ async def handle_task_stream(msg: Message) -> AsyncGenerator[dict, None]:
             on_stream_token=lambda t: None,
             on_tool_start=on_tool_start_fn,
             on_tool_end=on_tool_end_fn,
+            should_force_final=should_force_final_fn,
             supports_streaming=True,
         ):
             state_ref["step"] = event.get("step", state_ref["step"])
@@ -1251,6 +1429,7 @@ async def handle_slash_command(cmd: dict, msg: Message) -> AsyncGenerator[dict, 
             "| `/run <cmd>` | Executar comando no terminal |\n"
             "| `/clear` | Limpar contexto atual |\n"
             "| `/status` | Ver status do sistema |\n"
+            "| `/doctor` | Diagnostico completo do sistema |\n"
             "| `/stop` | Parar execucao atual |\n"
             "| `/help` | Mostrar esta ajuda |\n\n"
             "**Atalhos:**\n"
@@ -1267,6 +1446,151 @@ async def handle_slash_command(cmd: dict, msg: Message) -> AsyncGenerator[dict, 
     elif command == "stop":
         yield {"type": "done", "answer": "Execucao interrompida pelo usuario."}
 
+    elif command == "doctor":
+        import asyncio
+        import aiohttp
+        from pathlib import Path
+        yield {"type": "thinking", "content": "Rodando diagnostico completo do DEEP-AUREA..."}
+
+        checks = []
+        warnings = []
+        errors = []
+
+        # 1. Backend (self check)
+        checks.append(("Backend (esta instancia)", "OK", "green"))
+
+        # 2. Frontend
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.get("http://localhost:5175", timeout=aiohttp.ClientTimeout(total=3)) as resp:
+                    if resp.status == 200:
+                        checks.append(("Frontend (localhost:5175)", "OK", "green"))
+                    else:
+                        warnings.append(f"Frontend retornou status {resp.status}")
+                        checks.append(("Frontend (localhost:5175)", f"AVISO (status {resp.status})", "yellow"))
+        except Exception:
+            errors.append("Frontend não encontrado em localhost:5175")
+            checks.append(("Frontend (localhost:5175)", "ERRO - não responde", "red"))
+
+        # 3. Ollama
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.get("http://localhost:11434/api/tags", timeout=aiohttp.ClientTimeout(total=3)) as resp:
+                    if resp.status == 200:
+                        data = await resp.json()
+                        models = [m.get("name", "?") for m in data.get("models", [])]
+                        checks.append(("Ollama (localhost:11434)", f"OK - {len(models)} modelos", "green"))
+                        if not models:
+                            warnings.append("Ollama rodando mas sem modelos instalados")
+                    else:
+                        checks.append(("Ollama (localhost:11434)", f"AVISO (status {resp.status})", "yellow"))
+        except Exception:
+            warnings.append("Ollama não encontrado (necessario para modelos locais)")
+            checks.append(("Ollama (localhost:11434)", "OFFLINE", "yellow"))
+
+        # 4. MiMo Executor
+        mimo_path = Path(msg.root or ".") / "bin" / "mimo.exe"
+        mimo_path2 = Path(__file__).resolve().parent.parent.parent / "bin" / "mimo.exe"
+        if mimo_path.exists() or mimo_path2.exists():
+            checks.append(("MiMo Executor (mimo.exe)", "OK", "green"))
+        else:
+            warnings.append("mimo.exe não encontrado em bin/")
+            checks.append(("MiMo Executor (mimo.exe)", "NAO ENCONTRADO", "yellow"))
+
+        # 5. Config YAML
+        config_path = Path(msg.root or ".") / "config.yaml"
+        if config_path.exists():
+            checks.append(("config.yaml", "OK", "green"))
+        else:
+            errors.append("config.yaml não encontrado")
+            checks.append(("config.yaml", "ERRO - ausente", "red"))
+
+        # 6. Banco de dados
+        db_path = Path(msg.root or ".") / "data" / "deep_aurea.db"
+        if db_path.exists():
+            size_mb = db_path.stat().st_size / (1024 * 1024)
+            checks.append(("Banco de dados", f"OK ({size_mb:.1f} MB)", "green"))
+        else:
+            warnings.append("Banco de dados não encontrado (será criado)")
+            checks.append(("Banco de dados", "NÃO EXISTE (será criado)", "yellow"))
+
+        # 7. .opencode
+        opencode_dir = Path(msg.root or ".") / ".opencode"
+        if opencode_dir.exists():
+            agents = list((opencode_dir / "agent").glob("*.md")) if (opencode_dir / "agent").exists() else []
+            skills = list((opencode_dir / "skills").glob("*/SKILL.md")) if (opencode_dir / "skills").exists() else []
+            checks.append((".opencode (agentes/skills)", f"OK - {len(agents)} agentes, {len(skills)} skills", "green"))
+        else:
+            warnings.append("Pasta .opencode não encontrada")
+            checks.append((".opencode", "NAO ENCONTRADO", "yellow"))
+
+        # 8. API Keys
+        env_path = Path(msg.root or ".") / "backend" / ".env"
+        env_keys = []
+        if env_path.exists():
+            env_content = env_path.read_text()
+            if "ELEVENLABS_API_KEY" in env_content and not env_content.split("ELEVENLABS_API_KEY=")[-1].split("\n")[0].strip():
+                warnings.append("ELEVENLABS_API_KEY vazia no .env")
+                env_keys.append("ElevenLabs: VAZIA")
+            elif "ELEVENLABS_API_KEY" in env_content:
+                env_keys.append("ElevenLabs: configurada")
+            if "MIMO_API_KEY" in env_content:
+                env_keys.append("MiMo: configurada")
+        checks.append(("API Keys (.env)", ", ".join(env_keys) if env_keys else "nenhuma encontrada", "green" if env_keys else "yellow"))
+
+        # 9. Provider atual
+        checks.append(("Provider ativo", f"{msg.provider} / {msg.model}", "green"))
+
+        # 10. Memoria espiral
+        from core.agent_config import load_agent_config
+        try:
+            cfg = load_agent_config()
+            if cfg.spiral_memory.enabled:
+                checks.append(("Memoria Espiral", f"ATIVA (intervalo: {cfg.spiral_memory.interval} passos)", "green"))
+            else:
+                checks.append(("Memoria Espiral", "desativada", "yellow"))
+        except Exception:
+            checks.append(("Memoria Espiral", "config indisponivel", "yellow"))
+
+        # Monta relatorio
+        report = "# /doctor — Diagnostico DEEP-AUREA\n\n"
+
+        green_count = sum(1 for _, _, c in checks if c == "green")
+        yellow_count = sum(1 for _, _, c in checks if c == "yellow") + len(warnings)
+        red_count = sum(1 for _, _, c in checks if c == "red") + len(errors)
+
+        if red_count == 0 and yellow_count == 0:
+            status_emoji = "TUDO OK"
+            status_color = "verde"
+        elif red_count == 0:
+            status_emoji = "FUNCIONAL COM AVISOS"
+            status_color = "amarelo"
+        else:
+            status_emoji = "PROBLEMAS DETECTADOS"
+            status_color = "vermelho"
+
+        report += f"**Status geral:** {status_emoji}\n\n"
+        report += "## Checks\n\n"
+        report += "| Componente | Status |\n|---|---|\n"
+        for name, status, color in checks:
+            icon = "+" if color == "green" else ("!" if color == "yellow" else "X")
+            report += f"| {name} | {status} |\n"
+
+        if warnings:
+            report += "\n## Avisos\n\n"
+            for w in warnings:
+                report += f"- {w}\n"
+
+        if errors:
+            report += "\n## Erros\n\n"
+            for e in errors:
+                report += f"- {e}\n"
+
+        report += "\n---\n"
+        report += f"**Resumo:** {green_count} OK | {yellow_count} avisos | {red_count} erros\n"
+
+        yield {"type": "done", "answer": report}
+
     else:
         yield {"type": "done", "answer": f"Comando desconhecido: /{command}. Digite /help para ver comandos disponiveis."}
 
@@ -1274,6 +1598,8 @@ async def handle_slash_command(cmd: dict, msg: Message) -> AsyncGenerator[dict, 
 def inject_mention_context(msg: Message, mentions: dict) -> Message:
     extra_context = ""
     if mentions["agents"]:
+        from core.opencode_loader import load_opencode_agents
+        opencode_agents = load_opencode_agents()
         for agent in mentions["agents"]:
             cfg = AGENT_CONFIGS.get(agent, {})
             if cfg:
@@ -1284,10 +1610,21 @@ def inject_mention_context(msg: Message, mentions: dict) -> Message:
                     msg.provider = cfg["provider_override"]
                 if cfg.get("model_override"):
                     msg.model = cfg["model_override"]
+            # Tenta carregar prompt do .opencode/agent/
+            oc_agent = opencode_agents.get(agent)
+            if oc_agent and oc_agent.get("prompt"):
+                extra_context += f"\n{oc_agent['prompt']}"
     if mentions["skills"]:
+        from core.opencode_loader import load_opencode_skills
+        oc_skills = load_opencode_skills()
         for skill in mentions["skills"]:
-            desc = SKILL_DESCRIPTIONS.get(skill, skill)
-            extra_context += f"\n[SKILL: {skill}] Instrucao: {desc}"
+            # Tenta skill do .opencode primeiro
+            oc_skill = oc_skills.get(skill)
+            if oc_skill and oc_skill.get("content"):
+                extra_context += f"\n[SKILL: {skill}]\n{oc_skill['content'][:3000]}"
+            else:
+                desc = SKILL_DESCRIPTIONS.get(skill, skill)
+                extra_context += f"\n[SKILL: {skill}] Instrucao: {desc}"
     if extra_context:
         msg.system_prompt = (msg.system_prompt or "") + extra_context
     return msg
@@ -1299,7 +1636,12 @@ async def handle_question_stream(msg: Message) -> AsyncGenerator[dict, None]:
         is_code = any(x in q for x in [
             "arquivo", "file", "codigo", "code", "pasta", "folder",
             "readme", "abra", "abrir", "open", "mostre", "exiba",
-            "analise", "resuma", ".py", ".ts", ".js", ".json", ".md"
+            "analise", "resuma", ".py", ".ts", ".js", ".json", ".md",
+            "ferramenta", "ferramentas", "procurar", "buscar", "encontrar",
+            "explorar", "listar", "verificar", "acessar", "diretorio",
+            "sistema", "projeto", "codigo", "funcao", "função", "classe",
+            "modulo", "módulo", "config", "configurar", "instalar",
+            "executar", "rodar", "compilar", "testar", "depurar", "debug"
         ])
         is_greeting = (
             not is_code and len(q) < 20
@@ -1318,7 +1660,7 @@ async def handle_question_stream(msg: Message) -> AsyncGenerator[dict, None]:
         else:
             context = get_rag_context(msg.user)
 
-        instruction = msg.system_prompt if msg.system_prompt else MOOD_INSTRUCTIONS.get(msg.mood, MOOD_INSTRUCTIONS["serio"])
+        instruction = msg.system_prompt if msg.system_prompt else MOOD_INSTRUCTIONS.get(msg.mood, MOOD_INSTRUCTIONS["opencode"])
         context_rule = (
             "Responda naturalmente, sem se prender ao contexto."
             if is_greeting
@@ -1330,12 +1672,15 @@ async def handle_question_stream(msg: Message) -> AsyncGenerator[dict, None]:
 
         system = f"{instruction}\n\n{context_rule}\n\nContexto: {context}"
 
+        from core.prompts import TASK_CHECKLIST_PROMPT
         if is_code:
-            from core.prompts import TASK_CHECKLIST_PROMPT
             tool_info = build_compact_tool_prompt(user_root, user_path)
             system += f"\n\n{tool_info}"
             system += f"\n\n{TASK_CHECKLIST_PROMPT}"
             system += PLANNING_PROTOCOL_REMINDER
+        elif msg.mood == "opencode":
+            tool_info = build_compact_tool_prompt(user_root, user_path)
+            system += f"\n\n{tool_info}"
 
         # Carrega historico como pares de mensagens para manter contexto
         history_pairs = []
@@ -1403,32 +1748,118 @@ async def chat_stream(request: Request, msg: Message):
 
     # Check if session is already processing
     if message_queue.is_processing(session_id) and not msg.tool_confirmed:
-        # Add to queue
-        queued = QueuedMessage(
-            user=msg.user,
-            provider=msg.provider,
-            model=msg.model,
-            mood=msg.mood,
-            root=msg.root,
-            images=msg.images,
-            temperature=msg.temperature,
-            api_key=msg.api_key,
-            task_id=msg.task_id,
-        )
-        result = await message_queue.enqueue(session_id, queued)
+        # If this is a correction (user interrupted via abort), force-clear and proceed
+        if msg.is_correction:
+            message_queue.set_processing(session_id, False)
+            # Also clear any stuck queued messages for this session
+            try:
+                q = message_queue._get_queue(session_id)
+                while not q.empty():
+                    q.get_nowait()
+            except Exception:
+                pass
+        else:
+            # Safety: if stuck processing for >60s, force-clear
+            import time
+            cur_task = message_queue.get_current_task(session_id)
+            if cur_task and cur_task.timestamp and (time.time() - cur_task.timestamp > 60):
+                message_queue.set_processing(session_id, False)
+            else:
+                # ── Triagem de urgencia ──
+                # Avalia se a mensagem deve interromper a tarefa atual ou esperar na fila
+                cur_task_summary = cur_task.user if cur_task else ""
+                urgency = await assess_urgency(msg.user, cur_task_summary)
 
-        async def generate_queued():
-            yield json.dumps({
-                "type": "queued",
-                "position": result["position"],
-                "queue_size": message_queue.queue_size(session_id),
-                "message": result["message"]
-            }, ensure_ascii=False) + "\n"
+                if urgency["urgent"]:
+                    # Mensagem URGENTE: interrompe a tarefa atual, processa a nova, depois retoma
+                    message_queue.set_processing(session_id, False)
+                    # Salva a tarefa interrompida para retomar depois
+                    if cur_task:
+                        interrupted_msg = QueuedMessage(
+                            user=cur_task.user,
+                            provider=cur_task.provider,
+                            model=cur_task.model,
+                            mood=cur_task.mood,
+                            root=cur_task.root,
+                            images=cur_task.images,
+                            temperature=cur_task.temperature,
+                            api_key=cur_task.api_key,
+                            task_id=cur_task.task_id,
+                        )
+                        # Marca como tarefa interrompida para o frontend saber
+                        interrupted_msg.interrupted = True
+                        await message_queue.enqueue(session_id, interrupted_msg)
 
-        return StreamingResponse(generate_queued(), media_type="application/x-ndjson")
+                    async def generate_urgent():
+                        yield json.dumps({
+                            "type": "urgent_interrupt",
+                            "reason": urgency["reason"],
+                            "method": urgency["method"],
+                            "message": f"⚠️ Tarefa interrompida por mensagem urgente. Será retomada depois."
+                        }, ensure_ascii=False) + "\n"
+                        # Processa a mensagem urgente normalmente
+                        try:
+                            slash_cmd = parse_slash_command(msg.user)
+                            if slash_cmd:
+                                async for event in handle_slash_command(slash_cmd, msg):
+                                    if await request.is_disconnected():
+                                        return
+                                    yield json.dumps(event, ensure_ascii=False) + "\n"
+                                return
+                            is_code_or_task = is_task_message(msg.user) or msg.mood == "opencode"
+                            if is_code_or_task:
+                                async for event in handle_task_stream(msg):
+                                    if await request.is_disconnected():
+                                        return
+                                    yield json.dumps(event, ensure_ascii=False) + "\n"
+                            else:
+                                async for event in handle_question_stream(msg):
+                                    if await request.is_disconnected():
+                                        return
+                                    yield json.dumps(event, ensure_ascii=False) + "\n"
+                        except Exception as e:
+                            yield json.dumps({"type": "error", "message": str(e)}, ensure_ascii=False) + "\n"
+                        finally:
+                            message_queue.set_processing(session_id, False)
 
-    # Mark session as processing
+                    # Marca como processando antes de iniciar
+                    message_queue.set_processing(session_id, True)
+                    return StreamingResponse(generate_urgent(), media_type="application/x-ndjson")
+                else:
+                    # Mensagem NORMAL: enfileira para processar depois
+                    queued = QueuedMessage(
+                        user=msg.user,
+                        provider=msg.provider,
+                        model=msg.model,
+                        mood=msg.mood,
+                        root=msg.root,
+                        images=msg.images,
+                        temperature=msg.temperature,
+                        api_key=msg.api_key,
+                        task_id=msg.task_id,
+                    )
+                    result = await message_queue.enqueue(session_id, queued)
+
+                    async def generate_queued():
+                        yield json.dumps({
+                            "type": "queued",
+                            "position": result["position"],
+                            "queue_size": message_queue.queue_size(session_id),
+                            "message": result["message"],
+                            "urgency": urgency,
+                        }, ensure_ascii=False) + "\n"
+
+                    return StreamingResponse(generate_queued(), media_type="application/x-ndjson")
+
+    # Mark session as processing with timestamp for stuck detection
+    import time as _time
+    _start_ts = _time.time()
     message_queue.set_processing(session_id, True)
+    message_queue.set_current_task(session_id, QueuedMessage(
+        user=msg.user, provider=msg.provider, model=msg.model,
+        mood=msg.mood, root=msg.root, task_id=msg.task_id,
+        timestamp=_start_ts,
+    ))
 
     async def generate():
         try:
@@ -1704,7 +2135,7 @@ async def get_answer(
     else:
         context = get_rag_context(question)
 
-    instruction = system_prompt if system_prompt else MOOD_INSTRUCTIONS.get(mood, MOOD_INSTRUCTIONS["serio"])
+    instruction = system_prompt if system_prompt else MOOD_INSTRUCTIONS.get(mood, MOOD_INSTRUCTIONS["opencode"])
     context_rule = (
         "Responda naturalmente, sem se prender ao contexto."
         if is_greeting
@@ -1785,3 +2216,17 @@ async def get_queue_status(session_id: str):
         "queue_size": status["queue_size"],
         "has_pending": status["queue_size"] > 0 or status["is_processing"],
     }
+
+
+@router.get("/opencode/agents")
+async def list_opencode_agents():
+    """Lista agentes disponiveis na pasta .opencode/agent/."""
+    from core.opencode_loader import list_available_agents
+    return {"agents": list_available_agents()}
+
+
+@router.get("/opencode/skills")
+async def list_opencode_skills():
+    """Lista skills disponiveis na pasta .opencode/skills/."""
+    from core.opencode_loader import list_available_skills
+    return {"skills": list_available_skills()}

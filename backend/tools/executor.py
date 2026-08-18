@@ -1,4 +1,4 @@
-from fastapi import HTTPException
+﻿from fastapi import HTTPException
 
 from agents.fork import fork_subagent, get_subagent_result
 from agents.team import send_message, team_create, team_delete
@@ -18,6 +18,7 @@ from tools.system_tools import (
     tool_rename,
     tool_search,
     tool_write,
+    tool_open_app,
 )
 from tools.tool_search import tool_tool_search
 from tools.web_fetch import tool_web_fetch
@@ -49,6 +50,8 @@ TOOL_REGISTRY = {
     "tool_search": tool_tool_search,
     # Monitor
     "monitor_dashboard": lambda **kw: coletar_dashboard(),
+    # App launcher
+    "open_app": tool_open_app,
 }
 
 TOOL_METADATA = [
@@ -304,14 +307,55 @@ TOOL_REGISTRY["close_app"] = tool_close_app
 TOOL_METADATA.append({"name": "close_app", "description": "Fecha um processo ou arquivo aberto", "params": {"process_name": "string", "file_path": "string"}})
 
 
+def _validate_tool_params(tool_name: str, params: dict) -> str:
+    """Valida parametros obrigatorios antes de executar ferramenta."""
+    REQUIRED_PARAMS = {
+        "bash": ["command"],
+        "write": ["path", "content"],
+        "read": ["path"],
+        "explorer": [],
+        "explorer_read": ["path"],
+        "search": ["pattern"],
+        "grep": ["pattern"],
+        "execute_python": ["code"],
+        "install_package": ["package"],
+        "create_directory": ["path"],
+        "delete": ["path"],
+        "rename": ["old_path", "new_path"],
+        "web_search": ["query"],
+        "web_fetch": ["url"],
+        "read_document": ["path"],
+        "file_edit": ["path", "old_string", "new_string"],
+        "glob": ["pattern"],
+        "tool_search": ["query"],
+        "media_play": ["path"],
+        "fork_subagent": ["task"],
+        "team_create": ["name"],
+        "send_message": ["recipient", "message"],
+        "cron_create": ["expression", "task"],
+        "cron_delete": ["job_id"],
+    }
+    
+    required = REQUIRED_PARAMS.get(tool_name, [])
+    missing = [p for p in required if not params.get(p)]
+    if missing:
+        return f"Parametros obrigatorios ausentes: {', '.join(missing)}. Ferramenta '{tool_name}' requer: {required}"
+    return None
+
 async def execute_tool(tool: str, params: dict) -> dict:
     func = TOOL_REGISTRY.get(tool)
     if not func:
         valid = ", ".join(TOOL_REGISTRY.keys())
-        return {"error": f"Ferramenta desconhecida: '{tool}'. Ferramentas válidas: {valid}."}
+        return {"error": f"Ferramenta desconhecida: '{tool}'. Ferramentas validas: {valid}."}
+    
+    validation_error = _validate_tool_params(tool, params)
+    if validation_error:
+        return {"error": validation_error}
+    
     try:
         return await func(**params)
     except HTTPException as e:
         return {"error": e.detail}
     except Exception as e:
         return {"error": str(e)}
+

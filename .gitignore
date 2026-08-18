@@ -26,6 +26,9 @@ server_stdout.log
 .env
 .env.local
 
+# Pessoal (dados sensíveis)
+pessoal/
+
 # IDE
 .vscode/
 .idea/

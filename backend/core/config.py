@@ -59,7 +59,7 @@ ALLOWED_BASH = {
     "time", "python", "py", "node", "npm", "git", "ollama", "curl",
     "ver", "systeminfo", "cd", "mkdir", "copy", "move", "del",
     "ren", "find", "code", "start", "pip", "npx", "cargo", "go",
-    "rustc", "clang", "gcc", "make", "cmake"
+    "rustc", "clang", "gcc", "make", "cmake", "tree", "grep", "rg"
 }
 
 MODEL_ROUTING = {

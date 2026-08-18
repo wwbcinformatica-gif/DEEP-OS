@@ -69,7 +69,28 @@ Diga qualquer um destes comandos enquanto o microfone estiver ativo (botao ou ch
 
 ---
 
-## 3. Comandos de Voz - Midia
+## 3. Comandos de Voz - Navegador
+
+Controle o navegador real por voz (abrir sites, fechar abas, etc).
+
+| Comando de Voz | Acao |
+|----------------|------|
+| "abrir navegador" / "abrir chrome" | Abre o navegador padrao |
+| "fechar aba" / "fechar aba ativa" | Fecha apenas a aba atual (Ctrl+W) |
+| "fechar navegador" / "fechar todas as abas" | Fecha toda a janela do navegador (Alt+F4) |
+| "voltar" / "pagina anterior" | Volta para a pagina anterior |
+| "avançar" / "proxima pagina" | Avanca para a proxima pagina |
+| "recarregar" / "atualizar" | Recarrega a pagina atual |
+
+### Nota sobre atalhos
+
+- **Ctrl+W**: Fecha apenas a aba ativa (recomendado)
+- **Alt+F4**: Fecha toda a janela do navegador (usado quando o usuario pede "fechar navegador")
+- **Ctrl+Shift+W**: NAO recomendado (pode conflitar com atalhos do Windows)
+
+---
+
+## 4. Comandos de Voz - Midia
 
 Controle o player de midia integrado por voz.
 
@@ -89,7 +110,7 @@ Controle o player de midia integrado por voz.
 
 ---
 
-## 4. Ferramentas do Agente
+## 5. Ferramentas do Agente
 
 O agente tem acesso a ferramentas nativas de tool calling. Ele as usa automaticamente conforme a tarefa.
 
@@ -121,7 +142,7 @@ Quando o modelo tenta usar `bash(start "musica.mp3")`, o sistema converte automa
 
 ---
 
-## 5. Mencoes
+## 6. Mencoes
 
 Referenciam agentes especializados.
 
@@ -139,7 +160,7 @@ Referenciam agentes especializados.
 
 ---
 
-## 6. Confirmacoes de Risco
+## 7. Confirmacoes de Risco
 
 Mecanismo de protecao contra operacoes destrutivas.
 
@@ -161,7 +182,7 @@ Mecanismo de protecao contra operacoes destrutivas.
 
 ---
 
-## 7. Checklist Visual
+## 8. Checklist Visual
 
 Acompanhamento de progresso em tempo real com estilo terminal laranja.
 
@@ -182,7 +203,7 @@ Acompanhamento de progresso em tempo real com estilo terminal laranja.
 
 ---
 
-## 8. MEDIA Player
+## 9. MEDIA Player
 
 Player de midia integrado no topo do painel.
 
@@ -271,6 +292,11 @@ Verifique se o backend esta rodando na porta 8001. Execute `npm run dev:backend`
 
 ### Como fechar um arquivo por voz
 Diga "fechar arquivo", "fechar musica", "fechar video" ou "fechar tudo".
+
+### Como fechar abas do navegador por voz
+- **Fechar aba ativa**: Diga "fechar aba" (usa Ctrl+W)
+- **Fechar todas as abas**: Diga "fechar navegador" (usa Alt+F4)
+- **Nota**: O atalho Ctrl+Shift+W nao e mais usado por conflitar com o Windows
 
 ---
 

@@ -48,7 +48,7 @@ class AgentLoopConfig:
     toolset: str = "agent"  # default toolset name from toolsets.py
     image_input_mode: str = "text"  # "auto", "native", "text"
     system_prompt: str = ""
-    personality: str = "jarvis"
+    personality: str = "opencode"
     max_iterations: int = 10  # safety limit for internal loops
 
 

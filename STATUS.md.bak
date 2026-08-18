@@ -1,0 +1,398 @@
+﻿**ltima atualizao:** 2026-08-13 (Sesso 7) - CORREES DE ACESSO E TTS DO CHARON
+
+**Ãšltima atualizaÃ§Ã£o:** 2026-08-12 (SessÃ£o 6) â€” CHARON 20 FERRAMENTAS IMPLEMENTADO
+
+---
+
+## Estado Atual: FUNCIONAL + CHARON COM 20 FERRAMENTAS + ACESSO TOTAL A UNIDADES
+
+O sistema estÃ¡ operacional em `localhost:5175` (frontend) / `localhost:8001` (backend).
+
+**Provider ativo:** MiMo V2.5 (gratis) via `mimo` provider â†’ **mimo.exe executor + API cloud com native tool calling**
+
+
+
+**Acesso a unidades:** . Charon consegue acessar G:\, C:\, D:\ e qualquer unidade.
+
+**TTS do Charon:** . Listagem de pastas agora  resumida e amigvel para voz.
+
+**Como iniciar:** `G:\DEEP-AUREA\START-TOTAL.bat` (backend + frontend)
+
+---
+
+## SessÃ£o 2026-08-12 (6) â€” Charon: Todas as Ferramentas do WBC-Mark-L
+
+### Contexto
+
+O projeto original `G:\WBC-Mark-L` Ã© um assistente de voz desktop (PyQt) com **20 ferramentas** via Gemini Live API function calling. O DEEP-AUREA tem um voice endpoint (`/ws/voice`) que atualmente sÃ³ usa Google Search como ferramenta built-in. O objetivo Ã© portar **TODAS** as 20 ferramentas para o Charon do DEEP-AUREA.
+
+### Ferramentas a Implementar (20 total)
+
+| # | Tool Name | DescriÃ§Ã£o | Arquivo Origem | ParÃ¢metros |
+|---|-----------|-----------|----------------|------------|
+| 1 | `open_app` | Abrir qualquer aplicativo | `actions/open_app.py` | `app_name` (required) |
+| 2 | `web_search` | Busca web (search/news/research/price/compare) | `actions/web_search.py` | `query` (required), `mode`, `items`, `aspect` |
+| 3 | `system_status` | MÃ©tricas do sistema (CPU/RAM/GPU/Temp) | `actions/system_monitor.py` | *(nenhum)* |
+| 4 | `weather_report` | RelatÃ³rio do tempo por cidade | `actions/weather_report.py` | `city` (required) |
+| 5 | `send_message` | Enviar mensagem (WhatsApp/Telegram) | `actions/send_message.py` | `receiver`, `message_text`, `platform` (all required) |
+| 6 | `reminder` | Lembrete agendado via Task Scheduler | `actions/reminder.py` | `date`, `time`, `message` (all required) |
+| 7 | `youtube_video` | Controle YouTube (play/summarize/trending) | `actions/youtube_video.py` | `action`, `query`, `save`, `region`, `url` |
+| 8 | `screen_process` | Captura de tela ou webcam | `actions/screen_processor.py` | `angle` (screen/camera), `text` (required) |
+| 9 | `close_camera` | Fechar cÃ¢mera | *(inline)* | *(nenhum)* |
+| 10 | `computer_settings` | Controle do PC (volume/brightness/shortcuts) | `actions/computer_settings.py` | `action`, `description`, `value` |
+| 11 | `browser_control` | Controle completo do navegador | `actions/browser_control.py` | `action` (required), `browser`, `url`, `query`, `selector`, `text`, etc. |
+| 12 | `file_controller` | Gerenciar arquivos/pastas | `actions/file_controller.py` | `action` (required), `path`, `destination`, `content`, etc. |
+| 13 | `desktop_control` | Controle da Ã¡rea de trabalho | `actions/desktop.py` | `action` (required), `path`, `url`, `mode`, `task` |
+| 14 | `code_helper` | Escrever/editar/explicar/executar cÃ³digo | `actions/code_helper.py` | `action` (required), `description`, `language`, `file_path`, etc. |
+| 15 | `dev_agent` | Criar projetos completos multi-arquivo | `actions/dev_agent.py` | `description` (required), `language`, `project_name`, `timeout` |
+| 16 | `computer_control` | Controle direto (type/click/hotkeys/scroll) | `actions/computer_control.py` | `action` (required), `text`, `x`, `y`, `keys`, etc. |
+| 17 | `game_updater` | Steam/Epic Games (install/update/list) | `actions/game_updater.py` | `action`, `platform`, `game_name`, `app_id`, etc. |
+| 18 | `flight_finder` | Buscar voos no Google Flights | `actions/flight_finder.py` | `origin`, `destination`, `date` (all required), `return_date`, `passengers`, `cabin` |
+| 19 | `file_processor` | Processar arquivos (PDF/Word/CSV/imagem) | `actions/file_processor.py` | `file_path`, `action`, `params` |
+| 20 | `manage_monitor` | Monitoramento em background | `actions/background_monitor.py` | `action` (required), `topic` |
+
+### AdaptÃ§Ãµes NecessÃ¡rias
+
+O WBC-Mark-L Ã© desktop (PyQt), o DEEP-AUREA Ã© web. AdaptaÃ§Ãµes:
+
+| Aspecto | WBC-Mark-L | DEEP-AUREA (Charon) |
+|---------|-----------|---------------------|
+| UI | `self.ui` (Qt widgets) | Sem UI desktop â€” results retornados como texto |
+| PermissÃµes | `check_permission()` por tool | Simplificado â€” sem permissÃµes (ou adicionar depois) |
+| TTS | `self.speak()` via Qt | Via Ã¡udio Gemini Live API (jÃ¡ funciona) |
+| CÃ¢mera/Tela | `self.ui.start_camera_stream()` | Retornar resultado como texto (sem stream visual) |
+| Config OS | `from config import is_windows` | `platform.system()` direto |
+| Dependencies | psutil, sounddevice, playwright | Precisam estar no venv do DEEP-AUREA |
+
+### Estrutura de ImplementaÃ§Ã£o
+
+**1. Arquivo principal:** `backend/routes/voice_ws.py`
+
+```
+- TOOL_DECLARATIONS (copiado do WBC-Mark-L/main.py linhas 105-504)
+- Imports das actions (copiado do WBC-Mark-L/main.py linhas 37-59)
+- _execute_tool() (adaptado do WBC-Mark-L/main.py linhas 797-1046)
+- _receive_loop() atualizado para tratar response.tool_call
+- LiveConnectConfig com function_declarations em vez de google_search
+```
+
+**2. Receive Loop â€” handler de tool_call:**
+
+```python
+# Atual receive_loop sÃ³ trata server_content e data
+# Precisa adicionar:
+if response.tool_call:
+    fn_responses = []
+    for fc in response.tool_call.function_calls:
+        fr = await self._execute_tool(fc)
+        fn_responses.append(fr)
+    await self.session.send_tool_response(function_responses=fn_responses)
+```
+
+**3. _execute_tool â€” dispatch simplificado:**
+
+```python
+async def _execute_tool(self, fc) -> types.FunctionResponse:
+    name = fc.name
+    args = dict(fc.args or {})
+    loop = asyncio.get_event_loop()
+    result = "Done."
+    
+    try:
+        if name == "open_app":
+            r = await loop.run_in_executor(None, lambda: open_app(parameters=args))
+            result = r or f"Opened {args.get('app_name')}."
+        elif name == "web_search":
+            r = await loop.run_in_executor(None, lambda: web_search_action(parameters=args))
+            result = r or "Done."
+        # ... (20 tools)
+    except Exception as e:
+        result = f"Tool '{name}' failed: {e}"
+    
+    return types.FunctionResponse(id=fc.id, name=name, response={"result": result})
+```
+
+**4. LiveConnectConfig:**
+
+```python
+config = types.LiveConnectConfig(
+    response_modalities=["AUDIO"],
+    output_audio_transcription={},
+    input_audio_transcription={},
+    system_instruction=sys_instr,
+    tools=[types.Tool(function_declarations=TOOL_DECLARATIONS)],
+    session_resumption=types.SessionResumptionConfig(),
+    # ...
+)
+```
+
+### System Instruction Atualizada
+
+```
+"Voce e o Charon, assistente de voz do Deep-Aurea. 
+Fale em portugues brasileiro. Seja direto e util. 
+Voce tem acesso a 20 ferramentas para controlar o computador, 
+buscar na web, gerenciar arquivos, abrir apps, e muito mais. 
+Use as ferramentas sempre que o usuario pedir. 
+Nunca invente resultados â€” execute as ferramentas de verdade."
+```
+
+### DependÃªncias
+
+AÃ§Ãµes que requerem pacotes extras (verificar se estÃ£o no venv):
+
+| Pacote | Usado por | Status |
+|--------|-----------|--------|
+| `psutil` | system_monitor, open_app | âš ï¸ Verificar |
+| `sounddevice` | (nÃ£o usado no voice) | âŒ NÃ£o necessÃ¡rio |
+| `playwright` | browser_control | âš ï¸ Verificar |
+| `send2trash` | file_controller (delete) | âš ï¸ Verificar |
+| `numpy` | screen_processor | âš ï¸ Verificar |
+
+### Arquivos a Modificar
+
+| Arquivo | AÃ§Ã£o | Tamanho |
+|---------|------|---------|
+| `backend/routes/voice_ws.py` | **REESCREVER** â€” adicionar TOOL_DECLARATIONS, imports, _execute_tool, receive_loop handler | ~500 linhas novas |
+| `.memory/MEMORY-charon-voice-fix.md` | **ATUALIZAR** â€” documentar todas as 20 ferramentas |
+| `STATUS.md` | **ATUALIZAR** â€” documentar sessÃ£o 6 |
+
+### Fluxo de ExecuÃ§Ã£o
+
+```
+1. UsuÃ¡rio fala: "Abra o Chrome"
+2. Frontend envia Ã¡udio via WebSocket
+3. Backend envia para Gemini Live API
+4. Gemini responde com tool_call: { name: "open_app", args: { app_name: "Chrome" } }
+5. Receive_loop detecta response.tool_call
+6. _execute_tool executa open_app(parameters={app_name: "Chrome"})
+7. Resultado retornado para Gemini via send_tool_response()
+8. Gemini gera resposta em Ã¡udio: "Chrome aberto, senhor."
+9. Ãudio enviado de volta ao frontend via WebSocket
+```
+
+### PendÃªncias desta SessÃ£o
+
+- [x] Copiar TOOL_DECLARATIONS do WBC-Mark-L
+- [x] Copiar imports das actions
+- [x] Verificar dependÃªncias (psutil, playwright, send2trash, sounddevice)
+- [x] Instalar dependÃªncias faltantes (send2trash, playwright, sounddevice)
+- [x] Criar config.py para compatibilidade com actions
+- [x] Implementar _execute_tool adaptado (sem UI desktop)
+- [x] Atualizar receive_loop com handler de tool_call
+- [x] Trocar tools=[google_search] por tools=[function_declarations]
+- [x] Atualizar system instruction
+- [x] Documentar tudo no STATUS.md e .memory
+
+---
+
+## SessÃ£o 2026-08-08 (5) â€” Vozes ElevenLabs, Dani Brandi, Microfone, Ferramentas, .opencode
+
+### 1. Vozes ElevenLabs integradas (IMPLEMENTADO)
+- **Vozes adicionadas:** Natasha (sensual), Serafina (sedutora), Ivy (expressiva), Ingmar (masculina misteriosa)
+- **Backend:** `backend/routes/tts.py` â€” endpoint `/api/tts/elevenlabs` com streaming httpx â†’ ElevenLabs API
+- **Frontend:** `ChatPanel.tsx` â€” `ELEVEN_VOICES` map + streaming MediaSource + SourceBuffer
+- **VoicePreset type:** Atualizado em `App.tsx`, `ChatPanel.tsx`, `PageRenderer.tsx`, `SettingsPage.tsx`
+- **Settings UI:** BotÃµes para selecionar vozes ElevenLabs (agrupadas por categoria)
+- **API key:** Requer `ELEVENLABS_API_KEY` em `backend/.env` (ainda nÃ£o configurada)
+- **Voice IDs:** Natasha=`PB6BdkFkZLbI39GHdnbQ`, Serafina=`4tRn1lSkEn13EVTuqb0g`, Ivy=`hVcZZGM9Eziug8b1rHSa`, Ingmar=`xrNwYO0xeioXswMCcFNF`
+
+### 2. Dani Brandi â€” voz feminina brasileira (IMPLEMENTADO)
+- **Problema:** Dani Brandi tocava voz masculina (mesma do Jarvis) porque usava `rate="-5%" pitch="-15Hz"` hardcoded
+- **SoluÃ§Ã£o:** Adicionado `EDGE_VOICE_SETTINGS` no `ChatPanel.tsx` com rate/pitch por voz:
+  - Jarvis: `rate="-5%" pitch="-15Hz"` (grave masculino)
+  - Dani Brandi, Francisca, Thalita: `rate="+0%" pitch="+0Hz"` (natural feminino)
+- **Backend:** `tts.py` â€” `TTSRequest` agora aceita `rate` e `pitch` parametrizÃ¡veis
+- **Edge TTS voice:** `pt-BR-FranciscaNeural` (Dani Brandi mapeada para esta voz neural feminina)
+
+### 3. Microfone nÃ£o reinicia apÃ³s fala (CORRIGIDO)
+- **Problema:** ApÃ³s a primeira fala do TTS, o microfone nÃ£o reiniciava mais â€” comando de voz parava de funcionar
+- **Causa:** Todos os callbacks de fim de fala (`onended`, `onerror`, `catch`) chamavam `recognitionRef.current?.start()` diretamente com `isStartingRef.current = true`. Se o `start()` falhasse (ex: recognition ainda parando), `isStartingRef.current` ficava `true` para sempre, bloqueando `safeRestart()` em todas as chamadas futuras
+- **SoluÃ§Ã£o:** Todos os callbacks agora usam `safeRestart()` que:
+  1. Verifica se nÃ£o estÃ¡ jÃ¡ reiniciando/iniciando
+  2. Faz `stop()` primeiro, depois `start()` apÃ³s 250ms
+  3. Reseta `isRestartingRef` corretamente
+- **Arquivos afetados:** Edge TTS path, ElevenLabs path, browser speech synthesis path, catch block â€” todos em `ChatPanel.tsx`
+
+### 4. Tool calling em loop infinito (CORRIGIDO)
+- **Problema:** MiMo V2.5 chamava ferramentas em loop (20+ passos seguidos de bash/execute_python) sem nunca dar resposta final
+- **Causa 1:** `max_tokens=2048` truncava a resposta antes do modelo gerar a conclusÃ£o
+- **Causa 2:** `should_force_final` nÃ£o era passado para o lifecycle, permitindo loop infinito
+- **Causa 3:** `planning_enforced=False` para MiMo (pulava planejamento)
+- **SoluÃ§Ã£o:**
+  - `max_tokens` aumentado de 2048 â†’ 8192
+  - `consecutive_tool_limit` reduzido de 10 â†’ 8
+  - `should_force_final_fn` criada e passada para `run_lifecycle`
+  - `planning_enforced=True` para todos os providers (inclusive MiMo)
+- **Arquivos:** `backend/core/llm_native.py` (max_tokens), `backend/routes/chat.py` (lifecycle config)
+
+### 5. Sandbox do bash com path hardcoded (CORRIGIDO)
+- **Problema:** `tool_bash` lia config de `C:/DEEP-AUREA/config.yaml` (hardcoded), mas o projeto estÃ¡ em `G:\DEEP-AUREA`
+- **SoluÃ§Ã£o:** Agora busca `config.yaml` relativo ao backend primeiro, fallback para `C:/DEEP-AUREA`
+- **Arquivo:** `backend/tools/system_tools.py`
+
+### 6. MiMo Executor integrado no handle_task_stream (IMPLEMENTADO)
+- **Problema:** `mimo_executor.py` existia mas nÃ£o era usado em nenhum lugar do backend
+- **SoluÃ§Ã£o:** Reescrito `mimo_executor.py` com formato correto de eventos do mimo.exe (JSON linha por linha com `part` aninhado). Integrado no `handle_task_stream` â€” quando `provider == "mimo"`, roteia para `stream_mimo_task()` que chama `mimo.exe run --format json --model xiaomi/mimo-v2.5 --dangerously-skip-permissions --dir <root>`
+- **Fluxo:**
+  1. Frontend envia `provider: "mimo"` + mensagem
+  2. Backend detecta `provider == "mimo"` no `handle_task_stream`
+  3. `stream_mimo_task()` chama `mimo.exe` como subprocesso
+  4. Eventos JSON sÃ£o parseados: `text` â†’ `content`, `tool_use` â†’ `tool_start`/`tool_end`
+  5. Streaming para frontend: `token`, `tool_start`, `tool_end`, `done`
+  6. Resultado salvo no histÃ³rico do banco
+- **Arquivo:** `backend/tools/mimo_executor.py` (reescrito), `backend/routes/chat.py` (integraÃ§Ã£o)
+
+### 7. Agentes e Skills do .opencode integrados (IMPLEMENTADO)
+- **Recursos disponÃ­veis:** 27 agentes especializados + 39 skills em `G:\DEEP-AUREA\.opencode\`
+- **Loader:** `backend/core/opencode_loader.py` â€” carrega agentes (`agent/*.md`) e skills (`skills/*/SKILL.md`) com parser de frontmatter YAML
+- **IntegraÃ§Ã£o no chat:**
+  - `parse_at_mentions` agora reconhece todos os agentes e skills do `.opencode` dinamicamente
+  - `inject_mention_context` injeta o prompt completo do agente + conteÃºdo da skill no `system_prompt`
+  - Ex: `@coder` carrega o prompt do `coder.md`, `@powershell-windows` carrega os padrÃµes da skill
+- **Endpoints:**
+  - `GET /opencode/agents` â€” lista todos os agentes disponÃ­veis
+  - `GET /opencode/skills` â€” lista todas as skills disponÃ­veis
+- **Arquivos:** `backend/core/opencode_loader.py` (novo), `backend/routes/chat.py` (integraÃ§Ã£o)
+
+---
+
+## SessÃ£o 2026-08-07 (4) â€” Player Interno/Externo por Comando de Voz
+
+### 1. SeleÃ§Ã£o de player por comando de voz ou texto (IMPLEMENTADO)
+- **Problema:** O popup de mÃ­dia sempre aparecia para o usuÃ¡rio escolher entre player interno e externo, mesmo quando o usuÃ¡rio jÃ¡ havia especificado qual queria usar.
+- **SoluÃ§Ã£o:** O backend agora detecta a intenÃ§Ã£o do usuÃ¡rio na mensagem e envia a aÃ§Ã£o correta para o frontend:
+  - **"media interno" / "player interno" / "no media" / "tocar no media"** â†’ `media_play_internal`
+  - **"media externo" / "player externo" / "windows media"** â†’ `media_play_external`
+  - **Sem especificaÃ§Ã£o** â†’ `media_play` (abre o popup com reconhecimento de voz)
+- **Arquivos:** `backend/routes/chat.py`, `frontend/src/App.tsx`
+
+---
+
+## SessÃ£o 2026-08-07 (3) â€” MiMo Executor + Tool Calling Real + Voz no Dialog de MÃ­dia
+
+### 1. MiMo Executor â€” tool calling nativo via mimo.exe (IMPLEMENTADO)
+### 2. CorreÃ§Ã£o do bloqueio de media_play no llm_native.py (IMPLEMENTADO)
+### 3. DetecÃ§Ã£o de intenÃ§Ã£o de mÃ­dia no texto (IMPLEMENTADO)
+### 4. ReforÃ§o do system prompt contra execuÃ§Ã£o falsa (IMPLEMENTADO)
+### 5. Voz no dialog de mÃ­dia â€” escolha por comando de voz (IMPLEMENTADO)
+### 6. Plugin de Voz para OpenCode (IMPLEMENTADO)
+
+---
+
+## SessÃ£o 2026-08-07 (2) â€” Modo Voz, Wake Word "Deep" e Filtro de Idioma
+
+### 1. Modo Voz â€” resposta apenas em PT-BR (IMPLEMENTADO)
+### 2. Wake Word "Deep" â€” modo de escuta permanente (IMPLEMENTADO)
+### 3. Fuzzy Matching + Filtro FonÃ©tico (IMPLEMENTADO)
+### 4. MÃ¡quina de estados do modo Deep (IMPLEMENTADO)
+### 5. BotÃ£o microfone clÃ¡ssico restaurado (IMPLEMENTADO)
+
+---
+
+## SessÃ£o 2026-08-07 (1) â€” CorreÃ§Ã£o, Contexto e Jarvis TTS
+
+### 1. Fluxo de interrupÃ§Ã£o/correÃ§Ã£o (IMPLEMENTADO)
+### 2. PreservaÃ§Ã£o total de contexto (IMPLEMENTADO)
+### 3. RecuperaÃ§Ã£o de sessÃµes presas (IMPLEMENTADO)
+### 4. Jarvis TTS â€” correÃ§Ã£o de corte de Ã¡udio (IMPLEMENTADO)
+### 5. Auto-send toggle (IMPLEMENTADO)
+### 6. SecurityToggle como botÃ£o quadrado (IMPLEMENTADO)
+### 7. Limpeza de `_strip_english_thinking` (IMPLEMENTADO)
+
+---
+
+## Charon (Gemini Live API) â€” CorreÃ§Ãµes Anteriores
+
+### Ãudio Engasgando/Arranhando (CORRIGIDO)
+- **Ring buffer:** 24k â†’ 192k samples (8 segundos)
+- **Pre-buffer:** 12k samples (0.5s antes de tocar)
+- **Buffer intermediÃ¡rio:** Chunks acumulados por 20ms antes de enviar ao worklet
+- **NormalizaÃ§Ã£o:** `/ 32768` (PCM 16-bit correto)
+
+### BotÃ£o Interrupt (CORRIGIDO)
+- Limpa buffer de Ã¡udio
+- Fecha WebSocket (interrompe sessÃ£o Gemini)
+- Para microfone
+- NÃ£o reconecta automaticamente
+
+### CharonPanel â€” Painel de Contexto (IMPLEMENTADO)
+- Mostra transcripts em tempo real
+- Status do Charon (ouvindo/falando/inativo)
+- Toggle pelo botÃ£o "T" na status bar
+- Largura: 340px quando ativo
+- NÃ£o abre WebSocket prÃ³prio (herda do StatusBar)
+
+### Google Search (CONFIGURADO)
+- `tools=[types.Tool(google_search=types.GoogleSearch())]` â€” builtin do Gemini
+- **SERÃ SUBSTITUÃDO** por function_declarations nesta sessÃ£o
+
+---
+
+## Arquivos Modificados (todas as sessÃµes)
+
+### SessÃ£o 6 (2026-08-12) â€” EM IMPLEMENTAÃ‡ÃƒO
+
+| Arquivo | MudanÃ§a |
+|---------|---------|
+| `backend/routes/voice_ws.py` | **REESCREVER** â€” TOOL_DECLARATIONS (20 tools), imports, _execute_tool, receive_loop handler, function_declarations |
+| `.memory/MEMORY-charon-voice-fix.md` | **ATUALIZAR** â€” documentar 20 ferramentas |
+| `STATUS.md` | **ATUALIZAR** â€” documentar sessÃ£o 6 |
+
+### SessÃ£o 5 (2026-08-08)
+
+| Arquivo | MudanÃ§a |
+|---------|---------|
+| `backend/tools/mimo_executor.py` | **REESCRO** â€” formato correto de eventos do mimo.exe |
+| `backend/core/opencode_loader.py` | **NOVO** â€” loader de agentes (27) e skills (39) |
+| `backend/routes/chat.py` | Integracao mimo_executor, inject_mention_context, endpoints .opencode |
+| `backend/core/llm_native.py` | max_tokens 2048â†’8192 |
+| `backend/routes/tts.py` | TTSRequest com rate/pitch parametrizaveis |
+| `backend/tools/system_tools.py` | config.yaml path relativo + timeout 120s |
+| `frontend/src/App.tsx` | voicePreset type com 14 vozes |
+| `frontend/src/components/ChatPanel.tsx` | EDGE_VOICE_SETTINGS, ELEVEN_VOICES, safeRestart |
+| `frontend/src/components/PageRenderer.tsx` | VoicePreset type |
+| `frontend/src/components/SettingsPage.tsx` | VoicePreset type + VOICE_OPTIONS |
+
+---
+
+## Como Iniciar
+
+### DEEP-AUREA
+```bat
+G:\DEEP-AUREA\START-TOTAL.bat
+```
+- Backend: http://localhost:8001
+- Frontend: http://localhost:5175
+
+### Teste Charon (WebSocket direto)
+```python
+import asyncio, websockets, json
+async def test():
+    async with websockets.connect("ws://localhost:8001/ws/voice") as ws:
+        await ws.send(json.dumps({"type": "start", "voice": "Charon"}))
+        await ws.send(json.dumps({"type": "text", "text": "Abra o Chrome"}))
+        while True:
+            msg = await ws.recv()
+            if isinstance(msg, bytes):
+                print(f"[Audio: {len(msg)} bytes]")
+            else:
+                print(json.loads(msg))
+asyncio.run(test())
+```
+
+---
+
+## PendÃªncias
+
+### Charon â€” SessÃ£o 6
+- [ ] Implementar 20 ferramentas no voice_ws.py
+- [ ] Verificar dependÃªncias (psutil, playwright, send2trash) no venv
+- [ ] Testar cada ferramenta via WebSocket
+- [ ] Documentar resultado no .memory
+
+### Geral
+- **ElevenLabs:** Configurar `ELEVENLABS_API_KEY` em `backend/.env`
+- **MiMo Executor:** Implementar `--continue` para manter contexto entre mensagens
+- **web_fetch:** User-Agent precisa de upgrade (403 em sites com Cloudflare)
+- **Wake word:** Falsos positivos em ambientes barulhentos

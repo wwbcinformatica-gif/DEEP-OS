@@ -1,4 +1,4 @@
-import React, { useRef, useEffect, useState, useCallback } from 'react';
+﻿import React, { useRef, useEffect, useState, useCallback } from 'react';
 import type { Msg, TLog, FileTab, Provider, Mood } from '../lib/constants';
 import { API_BASE, MODELS, SETTINGS_KEY } from '../lib/constants';
 import MarkdownBlock from './MarkdownBlock';
@@ -7,6 +7,7 @@ import PermissionDialog from './PermissionDialog';
 import ActionCard, { parseActionCard } from './ActionCard';
 import StatusIndicator from './StatusIndicator';
 import TaskChecklist from './TaskChecklist';
+import CharonToolMessage from './CharonToolMessage';
 
 interface ChatPanelProps {
   msgs: Msg[];
@@ -25,6 +26,7 @@ interface ChatPanelProps {
   setModel: (v: string) => void;
   oModels: { value: string; label: string }[];
   orModels: { value: string; label: string }[];
+  llamacppModels: { value: string; label: string; available: boolean }[];
   curTab: FileTab | undefined;
   chatW: number;
   send: (text?: string, images?: string[]) => void;
@@ -40,9 +42,17 @@ interface ChatPanelProps {
     | 'daniel'
     | 'jarvis-cinematic'
     | 'edge-francisca'
-    | 'edge-thalita';
+    | 'edge-thalita'
+    | 'eleven-natasha'
+    | 'eleven-serafina'
+    | 'eleven-ivy'
+    | 'eleven-ingmar'
+    | 'dani-brandi';
   jarvisRate: number;
   voicePitch: number;
+  voiceMode: boolean;
+  setVoiceMode: (v: boolean) => void;
+  charonActive?: boolean;
   onConfirmPlan: (taskId: string) => void;
   onRejectPlan: (taskId: string) => void;
   pendingToolConfirm: {
@@ -75,6 +85,7 @@ export default function ChatPanel({
   setModel,
   oModels,
   orModels,
+  llamacppModels,
   curTab,
   chatW,
   send,
@@ -84,6 +95,9 @@ export default function ChatPanel({
   voicePreset,
   jarvisRate,
   voicePitch,
+  voiceMode,
+  setVoiceMode,
+  charonActive,
   onConfirmPlan,
   onRejectPlan,
   pendingToolConfirm,
@@ -102,11 +116,33 @@ export default function ChatPanel({
   const [copiedIdx, setCopiedIdx] = useState<number | null>(null);
   const [isListening, setIsListening] = useState(false);
   const [isJarvisVoice, setIsJarvisVoice] = useState(false);
+  const [isDeepMode, setIsDeepMode] = useState(false);
+  const [wakeWordActive, setWakeWordActive] = useState(false);
   const [speechSupported, setSpeechSupported] = useState(false);
+  const [autoSend, setAutoSend] = useState(() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem(SETTINGS_KEY) || '{}');
+      return saved.autoSend ?? true;
+    } catch { return true; }
+  });
+  const [autoSendCountdown, setAutoSendCountdown] = useState(0);
+
+  const autoSendRef = useRef(autoSend);
+  useEffect(() => { autoSendRef.current = autoSend; }, [autoSend]);
 
   const inputValueRef = useRef('');
-  const isSpeakingRef = useRef(false); // previne feedback loop: Jarvis não ouve a si mesmo
-  const lastSpokenTimeRef = useRef(0); // previne falar múltiplas vezes a mesma resposta
+  const isSpeakingRef = useRef(false);
+  const isDeepModeRef = useRef(false);
+  const userWantsListeningRef = useRef(false);
+  const deepAtivoRef = useRef(false);
+  const deepSessionTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const deepSilenceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const deepInputRef = useRef('');
+  const lastSpokenTimeRef = useRef(0);
+  const handleSendRef = useRef<(text?: string) => void>(() => {});
+  const isRestartingRef = useRef(false);
+  const isStartingRef = useRef(false);
+  const autoSendTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
 
 
@@ -147,6 +183,7 @@ export default function ChatPanel({
     { cmd: '/help', desc: 'Ver comandos disponiveis', icon: '?' },
     { cmd: '/status', desc: 'Status do sistema', icon: 'i' },
     { cmd: '/stop', desc: 'Parar execucao', icon: '!' },
+    { cmd: '/Charon', desc: 'Ativar/falar com o Charon (voz) - 20 ferramentas', icon: 'V' },
   ];
 
   const PLUS_ACTIONS = [
@@ -223,133 +260,306 @@ export default function ChatPanel({
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
   }, []);
+  // ── Wake word com fuzzy matching ──
+  const WAKE_WORDS = ['aurea', 'aureia', 'aure', 'auria', 'oreia', 'aureo', 'auria', 'aurea'];
 
-  // Inicializa o SpeechRecognition uma vez
-  useEffect(() => {
-    const SpeechRecognition =
-      (window as any).SpeechRecognition ||
-      (window as any).webkitSpeechRecognition ||
-      (window as any).mozSpeechRecognition ||
-      (window as any).msSpeechRecognition;
-    setSpeechSupported(!!SpeechRecognition);
-    if (!SpeechRecognition) return;
+  const normalizePhonetic = (word: string): string => {
+    let w = word.toLowerCase().trim()
+      .replace(/[áàâãä]/g, 'a').replace(/[éèêë]/g, 'e')
+      .replace(/[íìîï]/g, 'i').replace(/[óòôõö]/g, 'o')
+      .replace(/[úùûü]/g, 'u').replace(/[ç]/g, 'c')
+      .replace(/[^a-z0-9]/g, '');
+    const phoneticMap: Record<string, string> = {
+      'parei': 'pare', 'pár': 'pare', 'pári': 'pare', 'párê': 'pare', 'pae': 'pare',
+      'pára': 'para', 'stope': 'stop', 'estope': 'stop', 'estop': 'stop',
+      'cansela': 'cancela', 'kansela': 'cancela',
+      'dipi': 'aurea', 'depe': 'aurea', 'deap': 'aurea', 'deepa': 'aurea', 'diep': 'aurea',
+      'jeep': 'aurea', 'drip': 'aurea',
+      'aureia': 'aurea', 'auria': 'aurea', 'oreia': 'aurea', 'aure': 'aurea', 'aureo': 'aurea',
+      'auréa': 'aurea', 'aureía': 'aurea', 'áurea': 'aurea', 'áureia': 'aurea',
+    };
+    return phoneticMap[w] || w;
+  };
 
-    const recognition = new SpeechRecognition();
-    recognition.lang = 'pt-BR';
-    recognition.continuous = true;
-    recognition.interimResults = true;
+  const levenshtein = (a: string, b: string): number => {
+    const m = a.length, n = b.length;
+    if (m === 0) return n; if (n === 0) return m;
+    const dp: number[][] = Array.from({ length: m + 1 }, () => new Array(n + 1).fill(0));
+    for (let i = 0; i <= m; i++) dp[i][0] = i;
+    for (let j = 0; j <= n; j++) dp[0][j] = j;
+    for (let i = 1; i <= m; i++)
+      for (let j = 1; j <= n; j++)
+        dp[i][j] = Math.min(dp[i-1][j]+1, dp[i][j-1]+1, dp[i-1][j-1]+(a[i-1]===b[j-1]?0:1));
+    return dp[m][n];
+  };
 
-    recognition.onresult = (event: SpeechRecognitionEvent) => {
-      // Acumula todos os resultados (interim + final) para não cortar frases longas
-      let finalTranscript = '';
-      for (let i = 0; i < event.results.length; i++) {
-        finalTranscript += event.results[i][0].transcript;
+  const fuzzyMatch = (word: string, candidates: string[], cutoff = 0.6): boolean => {
+    const w = normalizePhonetic(word);
+    if (!w) return false;
+    for (const c of candidates) {
+      if (w === c) return true;
+      const dist = levenshtein(w, c);
+      const maxLen = Math.max(w.length, c.length);
+      if (maxLen === 0) continue;
+      if (1 - dist / maxLen >= cutoff) return true;
+    }
+    return false;
+  };
+
+  const detectWakeWord = (transcript: string): boolean => {
+    for (const word of transcript.toLowerCase().split(/\s+/))
+      if (fuzzyMatch(word, WAKE_WORDS, 0.65)) return true;
+    return false;
+  };
+
+  const STOP_WORDS = ['stop', 'pare', 'para', 'parar', 'cancela', 'cancelar', 'parou', 'chega'];
+
+  const detectStopWord = (transcript: string): boolean => {
+    for (const word of transcript.toLowerCase().split(/\s+/))
+      if (fuzzyMatch(word, STOP_WORDS, 0.75)) return true;
+    return false;
+  };
+
+  const safeRestart = () => {
+    if (isRestartingRef.current || isStartingRef.current) return;
+    if (!userWantsListeningRef.current) return;
+    isRestartingRef.current = true;
+    try { recognitionRef.current?.stop(); } catch {}
+    setTimeout(() => {
+      isRestartingRef.current = false;
+      if (userWantsListeningRef.current) {
+        try { isStartingRef.current = true; recognitionRef.current?.start(); } catch {}
       }
-      const transcript = finalTranscript.trim();
-      if (!transcript) return;
-      setInput(transcript);
-      inputValueRef.current = transcript;
-      // Para de ouvir quando todos os resultados são finais e envia após 4s
-      const allFinal = Array.from(event.results).every((r) => r.isFinal);
-      if (allFinal) {
-        try { recognitionRef.current?.stop(); } catch {}
-        setIsListening(false);
-        setTimeout(() => {
-          if (inputValueRef.current.trim()) {
-            handleSend(inputValueRef.current);
-          }
-        }, 4000);
-      }
-    };
+    }, 250);
+  };
 
-    recognition.onerror = () => {
-      setIsListening(false);
-    };
-    recognition.onend = () => {
-      setIsListening(false);
-    };
+  const deepDesativar = () => {
+    deepAtivoRef.current = false;
+    setWakeWordActive(false);
+    deepInputRef.current = '';
+    setInput('');
+    inputValueRef.current = '';
+    if (deepSilenceTimerRef.current) { clearTimeout(deepSilenceTimerRef.current); deepSilenceTimerRef.current = null; }
+    if (deepSessionTimerRef.current) { clearTimeout(deepSessionTimerRef.current); deepSessionTimerRef.current = null; }
+    safeRestart();
+  };
 
-    recognitionRef.current = recognition;
-    return () => {
-      try {
-        recognition.abort();
-      } catch {}
-    };
-  }, [setInput]);
+  const deepEnviarComando = () => {
+    if (deepSilenceTimerRef.current) { clearTimeout(deepSilenceTimerRef.current); deepSilenceTimerRef.current = null; }
+    if (deepSessionTimerRef.current) { clearTimeout(deepSessionTimerRef.current); deepSessionTimerRef.current = null; }
+    const text = deepInputRef.current.trim();
+    if (text) handleSendRef.current(text);
+    deepAtivoRef.current = false;
+    setWakeWordActive(false);
+    deepInputRef.current = '';
+    safeRestart();
+  };
 
-  const toggleMic = () => {
-    const SpeechRecognition =
-      (window as any).SpeechRecognition ||
-      (window as any).webkitSpeechRecognition ||
-      (window as any).mozSpeechRecognition ||
-      (window as any).msSpeechRecognition;
-    if (!SpeechRecognition) {
-      // Não há suporte ao Web Speech API neste navegador
-      setSpeechSupported(false);
-      setIsListening(false);
+  const deepAtivar = (comandoInicial?: string) => {
+    deepAtivoRef.current = true;
+    setWakeWordActive(true);
+    deepInputRef.current = comandoInicial || '';
+    if (deepSilenceTimerRef.current) { clearTimeout(deepSilenceTimerRef.current); deepSilenceTimerRef.current = null; }
+    if (deepSessionTimerRef.current) clearTimeout(deepSessionTimerRef.current);
+    deepSessionTimerRef.current = setTimeout(() => deepDesativar(), 30000);
+    if (comandoInicial) {
+      setInput(comandoInicial);
+      inputValueRef.current = comandoInicial;
+      deepSilenceTimerRef.current = setTimeout(() => deepEnviarComando(), 5000);
+    }
+  };
+
+  const handleDeepResult = (event: SpeechRecognitionEvent) => {
+    let finalTranscript = '';
+    for (let i = event.resultIndex; i < event.results.length; i++)
+      if (event.results[i].isFinal) finalTranscript += event.results[i][0].transcript;
+    const transcript = finalTranscript.trim();
+    if (!transcript) return;
+
+    const lower = transcript.toLowerCase();
+
+    // Comando: parar leitura
+    if (lower.includes('parar leitura') || lower.includes('para leitura') || lower.includes('cala boca') || lower.includes('silencio')) {
+      stopJarvis();
+      if (isDeepModeRef.current) deepDesativar();
       return;
     }
 
-    // Inicializa sob demanda se ainda não houver instância
-    if (!recognitionRef.current) {
-      try {
-        const r = new SpeechRecognition();
-        r.lang = 'pt-BR';
-        r.continuous = true;
-        r.interimResults = true;
-        r.onresult = (event: SpeechRecognitionEvent) => {
-          let finalTranscript = '';
-          for (let i = 0; i < event.results.length; i++) {
-            finalTranscript += event.results[i][0].transcript;
-          }
-          const transcript = finalTranscript.trim();
-          if (!transcript) return;
-          setInput(transcript);
-          inputValueRef.current = transcript;
-          const allFinal = Array.from(event.results).every((r) => r.isFinal);
-          if (allFinal) {
-            try { r.stop(); } catch {}
-            setIsListening(false);
-            setTimeout(() => {
-              if (inputValueRef.current.trim()) {
-                handleSend(inputValueRef.current);
-              }
-            }, 4000);
-          }
-        };
-        r.onerror = () => {
-          setIsListening(false);
-        };
-        r.onend = () => {
-          setIsListening(false);
-        };
-        recognitionRef.current = r;
-      } catch (e) {
-        console.warn('Falha ao inicializar SpeechRecognition:', e);
-        setIsListening(false);
-        return;
-      }
+    // Comando: repetir leitura
+    const REPEAT_WORDS = ['ler novamente', 'repetir', 'repete', 'leia de novo', 'repita', 'fala de novo'];
+    if (REPEAT_WORDS.some(w => lower.includes(w)) && lower.length < 60) {
+      const lastBotMsg = [...msgs].reverse().find(m => m.from === 'bot');
+      if (lastBotMsg?.text) { lastSpokenMsgRef.current = ''; speakText(lastBotMsg.text); }
+      if (isDeepModeRef.current) deepDesativar();
+      return;
     }
 
+    // Modo Aurea
+    if (isDeepModeRef.current) {
+      if (!deepAtivoRef.current) {
+        if (detectWakeWord(transcript)) {
+          if (detectStopWord(transcript)) { deepDesativar(); return; }
+          const words = transcript.toLowerCase().split(/\s+/);
+          const wakeIdx = words.findIndex(w => fuzzyMatch(w, WAKE_WORDS, 0.6));
+          const afterDeep = wakeIdx >= 0 ? words.slice(wakeIdx + 1).join(' ') : '';
+          const cleanCmd = afterDeep ? transcript.replace(/^.*?(aurea|aureia|auria|oreia|áurea)\s*/i, '').trim() : '';
+          deepAtivar(cleanCmd || undefined);
+        }
+        return;
+      }
+      // Estado ativo: capturando comando
+      const words = transcript.toLowerCase().split(/\s+/).filter(w => w.length > 0);
+      const lastWord = words[words.length - 1] || '';
+      if (detectStopWord(transcript) && (words.length <= 3 || fuzzyMatch(lastWord, STOP_WORDS, 0.75))) {
+        deepDesativar(); return;
+      }
+      const prev = deepInputRef.current;
+      const newPart = prev ? prev + ' ' + transcript : transcript;
+      deepInputRef.current = newPart;
+      setInput(newPart);
+      inputValueRef.current = newPart;
+      if (deepSilenceTimerRef.current) clearTimeout(deepSilenceTimerRef.current);
+      deepSilenceTimerRef.current = setTimeout(() => deepEnviarComando(), 5000);
+      if (deepSessionTimerRef.current) clearTimeout(deepSessionTimerRef.current);
+      deepSessionTimerRef.current = setTimeout(() => deepDesativar(), 30000);
+      return;
+    }
+
+    // Modo normal
+    setInput(transcript);
+    inputValueRef.current = transcript;
+
+    const PAUSE_WORDS = ['pause', 'pausa', 'aguarde', 'espere', 'espera', 'pera', 'perai', 'wait'];
+    const pauseLower = transcript.toLowerCase().trim();
+    if (PAUSE_WORDS.some(w => pauseLower === w || pauseLower.startsWith(w + ' ') || pauseLower.endsWith(' ' + w))) {
+      if (autoSendTimerRef.current) { clearTimeout(autoSendTimerRef.current); autoSendTimerRef.current = null; }
+      setAutoSendCountdown(0);
+      if (userWantsListeningRef.current) setTimeout(() => { safeRestart(); }, 300);
+      return;
+    }
+
+    const CANCEL_WORDS = ['cancela', 'cancelar', 'cancel', 'pare', 'parar', 'stop', 'para', 'esquece', 'ignora'];
+    const cancelLower = transcript.toLowerCase().trim();
+    if (CANCEL_WORDS.some(w => cancelLower === w || cancelLower.startsWith(w + ' ') || cancelLower.endsWith(' ' + w))) {
+      if (autoSendTimerRef.current) { clearTimeout(autoSendTimerRef.current); autoSendTimerRef.current = null; }
+      setAutoSendCountdown(0);
+      setInput(''); inputValueRef.current = '';
+      if (userWantsListeningRef.current) setTimeout(() => { safeRestart(); }, 300);
+      return;
+    }
+
+    if (autoSendRef.current) {
+      if (autoSendTimerRef.current) clearTimeout(autoSendTimerRef.current);
+      setAutoSendCountdown(10);
+      const countdownInterval = setInterval(() => {
+        setAutoSendCountdown(prev => { if (prev <= 1) { clearInterval(countdownInterval); return 0; } return prev - 1; });
+      }, 1000);
+      autoSendTimerRef.current = setTimeout(() => {
+        autoSendTimerRef.current = null;
+        clearInterval(countdownInterval);
+        setAutoSendCountdown(0);
+        const text = inputValueRef.current.trim();
+        if (text) handleSendRef.current(text);
+      }, 10000);
+    }
+  };
+
+  const buildRecognition = () => {
+    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition || (window as any).mozSpeechRecognition || (window as any).msSpeechRecognition;
+    if (!SpeechRecognition) return null;
+    const r = new SpeechRecognition();
+    r.lang = 'pt-BR';
+    r.continuous = false;
+    r.interimResults = false;
+    r.onresult = (event: SpeechRecognitionEvent) => handleDeepResult(event);
+    r.onerror = () => { if (userWantsListeningRef.current) setTimeout(() => { safeRestart(); }, 500); else setIsListening(false); };
+    r.onend = () => { isStartingRef.current = false; if (userWantsListeningRef.current) setTimeout(() => { safeRestart(); }, 200); else setIsListening(false); };
+    return r;
+  };
+
+  const toggleDeepMode = () => {
+    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition || (window as any).mozSpeechRecognition || (window as any).msSpeechRecognition;
+    if (!SpeechRecognition) { setSpeechSupported(false); return; }
+    if (!recognitionRef.current) {
+      const r = buildRecognition();
+      if (!r) return;
+      recognitionRef.current = r;
+    }
     const recognition = recognitionRef.current as any;
-    if (isListening) {
-      try {
-        recognition.stop();
-      } catch {}
+    if (isDeepMode) {
+      userWantsListeningRef.current = false;
+      isDeepModeRef.current = false;
+      setIsDeepMode(false);
+      deepAtivoRef.current = false;
+      setWakeWordActive(false);
+      if (deepSilenceTimerRef.current) { clearTimeout(deepSilenceTimerRef.current); deepSilenceTimerRef.current = null; }
+      if (deepSessionTimerRef.current) { clearTimeout(deepSessionTimerRef.current); deepSessionTimerRef.current = null; }
+      try { recognition.stop(); } catch {}
       setIsListening(false);
     } else {
-      try {
-        recognition.start();
-        setIsListening(true);
-      } catch (e) {
+      userWantsListeningRef.current = true;
+      isDeepModeRef.current = true;
+      setIsDeepMode(true);
+      deepAtivoRef.current = false;
+      setWakeWordActive(false);
+      try { recognition.start(); setIsListening(true); } catch (e) {
+        console.warn('Erro ao iniciar modo aurea:', e);
+        setIsDeepMode(false); isDeepModeRef.current = false;
+      }
+    }
+    try { window.speechSynthesis?.cancel?.(); } catch {}
+  };
+
+  useEffect(() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem(SETTINGS_KEY) || '{}');
+      saved.autoSend = autoSend;
+      localStorage.setItem(SETTINGS_KEY, JSON.stringify(saved));
+    } catch {}
+  }, [autoSend]);
+
+  // Inicializa SpeechRecognition
+  useEffect(() => {
+    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition || (window as any).mozSpeechRecognition || (window as any).msSpeechRecognition;
+    setSpeechSupported(!!SpeechRecognition);
+    if (!SpeechRecognition) return;
+    const r = buildRecognition();
+    if (r) recognitionRef.current = r;
+    return () => { try { recognitionRef.current?.abort(); } catch {} };
+  }, []);
+
+  // Atualiza handleSendRef sempre que handleSend mudar
+  useEffect(() => {
+    handleSendRef.current = handleSend;
+  });
+
+  const toggleMic = () => {
+    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition || (window as any).mozSpeechRecognition || (window as any).msSpeechRecognition;
+    if (!SpeechRecognition) { setSpeechSupported(false); setIsListening(false); return; }
+    if (!recognitionRef.current) {
+      const r = buildRecognition();
+      if (!r) { setIsListening(false); return; }
+      recognitionRef.current = r;
+    }
+    const recognition = recognitionRef.current as any;
+    if (isListening) {
+      userWantsListeningRef.current = false;
+      isDeepModeRef.current = false;
+      setIsDeepMode(false);
+      deepAtivoRef.current = false;
+      setWakeWordActive(false);
+      if (deepSilenceTimerRef.current) { clearTimeout(deepSilenceTimerRef.current); deepSilenceTimerRef.current = null; }
+      if (deepSessionTimerRef.current) { clearTimeout(deepSessionTimerRef.current); deepSessionTimerRef.current = null; }
+      try { recognition.stop(); } catch {}
+      setIsListening(false);
+    } else {
+      userWantsListeningRef.current = true;
+      try { recognition.start(); setIsListening(true); } catch (e) {
         console.warn('Erro ao iniciar reconhecimento:', e);
         setIsListening(false);
       }
     }
-    // Cancela fala atual se usuário for falar
-    try {
-      window.speechSynthesis?.cancel?.();
-    } catch {}
+    try { window.speechSynthesis?.cancel?.(); } catch {}
   };
 
   const SpeechRecognitionCtor =
@@ -384,6 +594,7 @@ export default function ChatPanel({
     'jarvis-cinematic': 'pt-BR-AntonioNeural',
     'edge-francisca': 'pt-BR-FranciscaNeural',
     'edge-thalita': 'pt-BR-ThalitaMultilingualNeural',
+    'dani-brandi': 'pt-BR-FranciscaNeural',
   };
 
   // Fala o texto INTEIRO (sem resumir) - mantem todo o contexto
@@ -558,11 +769,11 @@ export default function ChatPanel({
   };
 
   const toggleJarvis = () => {
-    if (isJarvisVoice) {
+    if (voiceMode) {
       stopJarvis();
-      setIsJarvisVoice(false);
+      setVoiceMode(false);
     } else {
-      setIsJarvisVoice(true);
+      setVoiceMode(true);
     }
   };
 
@@ -571,7 +782,7 @@ export default function ChatPanel({
   const lastSpokenMsgRef = useRef(''); // texto da última mensagem falada
   useEffect(() => {
     const finished = prevStreamRef.current && !stream;
-    if (finished && isJarvisVoice && stream === '' && msgs.length > 0) {
+    if (finished && voiceMode && !charonActive && stream === '' && msgs.length > 0) {
       const lastBotMsg = [...msgs].reverse().find((m) => m.from === 'bot');
       if (lastBotMsg) {
         const now = Date.now();
@@ -586,12 +797,14 @@ export default function ChatPanel({
       }
     }
     prevStreamRef.current = stream;
-  }, [stream, isJarvisVoice, msgs, speakText]);
+  }, [stream, voiceMode, msgs, speakText]);
 
   // Cancela fala ao enviar nova mensagem
   const handleSend = (text?: string) => {
     lastSpeakId.current++;
     lastSpokenMsgRef.current = ''; // reseta guard para próxima resposta ser falada
+    if (autoSendTimerRef.current) { clearTimeout(autoSendTimerRef.current); autoSendTimerRef.current = null; }
+    setAutoSendCountdown(0);
     try {
       window.speechSynthesis?.cancel?.();
     } catch {}
@@ -726,9 +939,14 @@ export default function ChatPanel({
   const loadedModels =
     prov === 'ollama' && oModels.length
       ? oModels
-      : prov === 'openrouter' && orModels.length
-        ? orModels
-        : MODELS[prov] || [];
+      : prov === 'llamacpp' && llamacppModels.length
+        ? llamacppModels.map(m => ({
+            value: m.value,
+            label: m.available ? m.label : `${m.label} (indisponível)`,
+          }))
+        : prov === 'openrouter' && orModels.length
+          ? orModels
+          : MODELS[prov] || [];
 
   const models = loadedModels.some((m) => m.value === model)
     ? loadedModels
@@ -782,7 +1000,7 @@ export default function ChatPanel({
           className="select-input"
           style={{ flex: 1, padding: '3px 5px', fontSize: '11px' }}
         >
-          {['ollama', 'openclaude', 'opencode', 'groq', 'openrouter', 'openai', 'gemini', 'mimo'].map(
+          {['ollama', 'llamacpp', 'openclaude', 'opencode', 'groq', 'openrouter', 'openai', 'gemini', 'mimo'].map(
             (p) => (
               <option key={p} value={p}>
                 {p}
@@ -875,6 +1093,22 @@ export default function ChatPanel({
                 />
               ) : m.planData ? (
                 <PlanMessage msg={m} onConfirm={onConfirmPlan} onReject={onRejectPlan} />
+              ) : m.text.startsWith('charon_tool:') ? (
+                (() => {
+                  const parts = m.text.split(':');
+                  const icon = parts[1];
+                  const label = parts[2];
+                  const color = parts[3];
+                  const content = parts.slice(4).join(':');
+                  return (
+                    <CharonToolMessage
+                      icon={icon}
+                      label={label}
+                      color={color}
+                      content={content}
+                    />
+                  );
+                })()
               ) : (() => {
                 const actionCardData = parseActionCard(m.text);
                 if (actionCardData) {
@@ -1441,7 +1675,7 @@ export default function ChatPanel({
               onDragOver={handleDragOver}
               onDrop={handleDrop}
               onContextMenu={(e) => e.stopPropagation()}
-              placeholder="Digite ou use Superwhisper (Ctrl+Espaço) para falar..."
+              placeholder="Digite sua mensagem..."
               disabled={false}
               style={{
                 width: '100%',
@@ -1462,7 +1696,7 @@ export default function ChatPanel({
 
           {/* Botões embaixo */}
           <div style={{ display: 'flex', gap: '6px', alignItems: 'center', justifyContent: 'space-between' }}>
-            {/* Esquerda: Jarvis + Mic */}
+            {/* Esquerda: Jarvis + Mic + Aurea */}
             <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
               {/* TOGGLE JARVIS VOICE */}
               <button
@@ -1471,25 +1705,21 @@ export default function ChatPanel({
                   width: 36,
                   height: 36,
                   borderRadius: 4,
-                  border: `1px solid ${isJarvisVoice ? 'var(--accent)' : 'var(--line)'}`,
+                  border: `1px solid ${voiceMode ? 'var(--accent)' : 'var(--line)'}`,
                   cursor: 'pointer',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
                   flexShrink: 0,
-                  background: isJarvisVoice ? 'var(--accent)' : 'transparent',
-                  color: isJarvisVoice ? 'var(--selection-fg)' : 'var(--muted)',
+                  background: voiceMode ? 'var(--accent)' : 'transparent',
+                  color: voiceMode ? 'var(--selection-fg)' : 'var(--muted)',
                   fontFamily: 'var(--font-ui)',
                   fontSize: '12px',
                   transition: 'all 0.2s ease',
                 }}
-                title={
-                  isJarvisVoice
-                    ? 'Jarvis Ativo - clique para desligar (velocidade em Configurações)'
-                    : 'Jarvis Desligado - clique para ativar (ajuste em Configurações)'
-                }
+                title={voiceMode ? 'Jarvis Ativo - clique para desligar' : 'Jarvis Desligado - clique para ativar'}
               >
-                {isJarvisVoice ? '🔊' : '🔇'}
+                {voiceMode ? '🔊' : '🔇'}
               </button>
 
               {/* MICROFONE */}
@@ -1505,31 +1735,74 @@ export default function ChatPanel({
                   alignItems: 'center',
                   justifyContent: 'center',
                   flexShrink: 0,
-                  background: isListening
+                  background: isListening && !isDeepMode
                     ? '#e53e3e'
-                    : SpeechRecognitionCtor
-                      ? 'transparent'
-                      : 'rgba(255, 122, 26, 0.12)',
-                  color: isListening ? '#fff' : SpeechRecognitionCtor ? 'var(--muted)' : '#999',
+                    : SpeechRecognitionCtor ? 'transparent' : 'rgba(255, 122, 26, 0.12)',
+                  color: isListening && !isDeepMode ? '#fff' : SpeechRecognitionCtor ? 'var(--muted)' : '#999',
                   fontFamily: 'var(--font-ui)',
                   fontSize: '16px',
                   transition: 'all 0.2s ease',
                 }}
-                title={
-                  !SpeechRecognitionCtor
-                    ? 'Reconhecimento de voz não suportado aqui'
-                    : isListening
-                      ? 'Gravando... clique para parar'
-                      : 'Clique para falar'
-                }
+                title={!SpeechRecognitionCtor ? 'Reconhecimento de voz não suportado' : isListening && !isDeepMode ? 'Gravando... clique para parar' : 'Clique para falar'}
                 disabled={!SpeechRecognitionCtor}
               >
-                {isListening ? '🔴' : '🎙️'}
+                {isListening && !isDeepMode ? '🔴' : '🎙️'}
+              </button>
+
+              {/* MODO AUREA (wake word) */}
+              <button
+                onClick={toggleDeepMode}
+                style={{
+                  width: 36,
+                  height: 36,
+                  borderRadius: 4,
+                  border: `1px solid ${isDeepMode ? 'var(--accent)' : 'var(--line)'}`,
+                  cursor: SpeechRecognitionCtor ? 'pointer' : 'not-allowed',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  flexShrink: 0,
+                  background: isDeepMode ? (wakeWordActive ? '#e53e3e' : '#2d8659') : 'transparent',
+                  color: isDeepMode ? '#fff' : 'var(--muted)',
+                  fontFamily: 'var(--font-ui)',
+                  fontSize: '11px',
+                  fontWeight: 700,
+                  letterSpacing: '-0.5px',
+                  transition: 'all 0.2s ease',
+                }}
+                title={!SpeechRecognitionCtor ? 'Reconhecimento de voz não suportado' : isDeepMode ? (wakeWordActive ? 'Ouvindo comando... (fale sua tarefa)' : 'Aguardando palavra "aurea"...') : 'Modo Aurea — escuta permanente, diga "aurea" para comandar'}
+                disabled={!SpeechRecognitionCtor}
+              >
+                {isDeepMode ? (wakeWordActive ? '🔴' : '👂') : 'A'}
               </button>
 
             </div>
-            {/* Direita: Plus + Enviar */}
+            {/* Direita: Auto-send + Plus + Enviar */}
             <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+              {/* AUTO-SEND TOGGLE */}
+              <button
+                onClick={() => setAutoSend(!autoSend)}
+                style={{
+                  width: 36,
+                  height: 36,
+                  borderRadius: 4,
+                  border: `1px solid ${autoSend ? 'var(--accent)' : 'var(--line)'}`,
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  flexShrink: 0,
+                  background: autoSend ? 'var(--accent)' : 'transparent',
+                  color: autoSend ? 'var(--selection-fg)' : 'var(--muted)',
+                  fontFamily: 'var(--font-ui)',
+                  fontSize: '12px',
+                  transition: 'all 0.2s ease',
+                }}
+                title={autoSend ? 'Envio Automatico ATIVO - voz envia apos 10s de silencio' : 'Envio Automatico DESATIVADO - voz so preenche o campo'}
+              >
+                {autoSend ? '⚡' : '✋'}
+              </button>
+
               <button
                 data-popover
                 onClick={() => setShowPlusMenu(!showPlusMenu)}

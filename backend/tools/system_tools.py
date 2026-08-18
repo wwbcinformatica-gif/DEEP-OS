@@ -80,35 +80,7 @@ async def tool_bash(command: str, workdir: str = "") -> dict:
     if not command.strip():
         return {"error": "Comando vazio"}
     # ── Verifica Modo Restrito (Sandbox) ──────────────────────────────
-    try:
-        import yaml
-        config_path = Path("C:/DEEP-AUREA/config.yaml")
-        if config_path.exists():
-            with open(config_path, encoding="utf-8") as f:
-                data = yaml.safe_load(f)
-            if data and data.get("security", {}).get("sandbox_enabled", False):
-                cmd_lower = command.strip().lower()
-                project_root = str(get_base_dir()).lower()
-                drives_blocked = [r"d:", r"d:\\", r"i:", r"i:\\", r"e:", r"e:\\",
-                                  r"f:", r"f:\\", r"g:", r"g:\\", r"h:", r"h:\\",
-                                  r"j:", r"j:\\", r"k:", r"k:\\", r"l:", r"l:\\",
-                                  r"m:", r"m:\\", r"n:", r"n:\\", r"o:", r"o:\\",
-                                  r"p:", r"p:\\", r"q:", r"q:\\", r"r:", r"r:\\",
-                                  r"s:", r"s:\\", r"t:", r"t:\\", r"u:", r"u:\\",
-                                  r"v:", r"v:\\", r"x:", r"x:\\", r"y:", r"y:\\",
-                                  r"z:", r"z:\\"]
-                for blocked in drives_blocked:
-                    if blocked in cmd_lower:
-                        if not cmd_lower.startswith(project_root[:2]):
-                            return {"error": "Acesso Negado: O terminal está bloqueado pelo Modo Restrito."}
-                if "\\" in cmd_lower:
-                    import re
-                    abs_paths = re.findall(r'[a-zA-Z]:\\\\[^\\\s]+', cmd_lower)
-                    for p in abs_paths:
-                        if not p.lower().startswith(project_root[:2]):
-                            return {"error": "Acesso Negado: O terminal está bloqueado pelo Modo Restrito."}
-    except Exception:
-        pass  # Se erro ao ler config, permite execução normal
+    # Sandbox desativado — acesso total ao sistema
     # ───────────────────────────────────────────────────────────────────
     try:
         wd = workdir or str(get_base_dir())
@@ -116,15 +88,18 @@ async def tool_bash(command: str, workdir: str = "") -> dict:
         from pathlib import Path as _P
         if not _P(wd).exists():
             wd = str(get_base_dir())
+        # No Windows, usar cmd /c para melhor compatibilidade com comandos multi-linha
         r = subprocess.run(
             command, shell=True, capture_output=True,
-            text=True, timeout=300, cwd=wd,
+            text=True, timeout=120, cwd=wd,
             encoding="utf-8", errors="replace",
             stdin=subprocess.DEVNULL,
         )
+        stdout = strip_ansi(r.stdout[-5000:])
+        stderr = strip_ansi(r.stderr[-2000:])
         return {
-            "stdout": strip_ansi(r.stdout[-5000:]),
-            "stderr": strip_ansi(r.stderr[-2000:]),
+            "stdout": stdout,
+            "stderr": stderr,
             "returncode": r.returncode,
         }
     except subprocess.TimeoutExpired:
@@ -135,9 +110,17 @@ async def tool_bash(command: str, workdir: str = "") -> dict:
 async def tool_search(pattern: str, path: str = "", include: str = "") -> dict:
     try:
         _base = get_base_dir()
-        search_root = Path(_base / path).resolve() if path else _base
-        if not str(search_root).startswith(str(_base)):
-            return {"error": "Acesso negado"}
+        if path:
+            # Se o path é absoluto (C:/, D:/, etc), usa direto
+            if len(path) >= 2 and path[1] == ':':
+                search_root = Path(path).resolve()
+            else:
+                search_root = Path(_base / path).resolve()
+        else:
+            search_root = _base
+        # Garante que o path existe
+        if not search_root.exists():
+            return {"error": f"Caminho nao encontrado: {search_root}"}
         import subprocess
         cmd = ["rg", "-n", pattern, str(search_root)]
         if include:
@@ -233,3 +216,148 @@ async def tool_install_package(package: str) -> dict:
         }
     except Exception as e:
         return {"error": str(e)}
+
+
+async def tool_open_app(app_name: str, path: str = "", args: str = "") -> dict:
+    """Abre um programa/executável no sistema.
+
+    Procura em:
+      1. Caminho fornecido (se path for informado)
+      2. PATH do sistema (where/which)
+      3. C:\\Program Files\\*, C:\\Program Files (x86)\\*
+      4. %LOCALAPPDATA%\\Programs\\*
+      5. Start Menu (atalhos .lnk)
+      6. Apps do Windows (calc, notepad, explorer, etc.)
+    """
+    import os
+    import shutil
+
+    app = app_name.strip()
+    if not app:
+        return {"error": "Nome do app não fornecido"}
+
+    # Se path fornecido, tenta abrir direto
+    if path:
+        try:
+            full = path.strip('"')
+            if args:
+                subprocess.Popen([full, args], shell=False)
+            else:
+                subprocess.Popen(full, shell=True)
+            return {"status": "ok", "app": app, "path": full}
+        except Exception as e:
+            return {"error": f"Não foi possível abrir {path}: {e}"}
+
+    # 1. Procura no PATH do sistema
+    found = shutil.which(app)
+    if found:
+        try:
+            if args:
+                subprocess.Popen([found, args])
+            else:
+                subprocess.Popen(found)
+            return {"status": "ok", "app": app, "path": found}
+        except Exception as e:
+            return {"error": f"Encontrei {found} mas não consegui abrir: {e}"}
+
+    # 2. Procura com where no Windows
+    if sys.platform == "win32":
+        try:
+            r = subprocess.run(
+                f"where {app}", shell=True, capture_output=True,
+                text=True, timeout=5, encoding="utf-8", errors="replace",
+            )
+            if r.returncode == 0 and r.stdout.strip():
+                found_path = r.stdout.strip().split("\n")[0].strip()
+                if args:
+                    subprocess.Popen([found_path, args])
+                else:
+                    subprocess.Popen(found_path, shell=True)
+                return {"status": "ok", "app": app, "path": found_path}
+        except Exception:
+            pass
+
+    # 3. Procura em Program Files
+    search_dirs = [
+        r"C:\Program Files",
+        r"C:\Program Files (x86)",
+        os.path.join(os.environ.get("LOCALAPPDATA", ""), "Programs"),
+        os.path.join(os.environ.get("APPDATA", ""), "Microsoft", "Windows", "Start Menu", "Programs"),
+        os.path.join(os.environ.get("ProgramData", ""), "Microsoft", "Windows", "Start Menu", "Programs"),
+    ]
+
+    # Variações de extensão
+    exts = [".exe", ".lnk", ".bat", ".cmd", ""] if sys.platform == "win32" else [""]
+
+    for search_dir in search_dirs:
+        if not os.path.isdir(search_dir):
+            continue
+        try:
+            for root, dirs, files in os.walk(search_dir, topdown=True):
+                # Limita profundidade
+                depth = root[len(search_dir):].count(os.sep)
+                if depth > 2:
+                    dirs.clear()
+                    continue
+                for f in files:
+                    fname_lower = f.lower()
+                    app_lower = app.lower()
+                    # Match por nome (com ou sem extensão)
+                    for ext in exts:
+                        if fname_lower == app_lower + ext.lower():
+                            full_path = os.path.join(root, f)
+                            try:
+                                if args:
+                                    subprocess.Popen([full_path, args])
+                                else:
+                                    subprocess.Popen(full_path, shell=True)
+                                return {"status": "ok", "app": app, "path": full_path}
+                            except Exception as e:
+                                return {"error": f"Encontrei {full_path} mas não consegui abrir: {e}"}
+                    # Match parcial (nome contém o app)
+                    if app_lower in fname_lower and any(fname_lower.endswith(e) for e in [".exe", ".lnk"]):
+                        full_path = os.path.join(root, f)
+                        try:
+                            if args:
+                                subprocess.Popen([full_path, args])
+                            else:
+                                subprocess.Popen(full_path, shell=True)
+                            return {"status": "ok", "app": app, "path": full_path}
+                        except Exception:
+                            pass
+        except (PermissionError, OSError):
+            continue
+
+    # 4. Apps nativos do Windows
+    win_apps = {
+        "calc": "calc",
+        "calculadora": "calc",
+        "notepad": "notepad",
+        "bloco de notas": "notepad",
+        "explorer": "explorer",
+        "gerenciador de arquivos": "explorer",
+        "taskmgr": "taskmgr",
+        "gerenciador de tarefas": "taskmgr",
+        "cmd": "cmd",
+        "prompt de comando": "cmd",
+        "powershell": "powershell",
+        "paint": "mspaint",
+        "snipping": "snippingtool",
+        "config": "ms-settings:",
+        "configurações": "ms-settings:",
+        "control": "control",
+        "painel de controle": "control",
+        "magnifier": "magnify",
+        "lupa": "magnify",
+        "narrator": "narrator",
+        "wordpad": "write",
+    }
+    cmd = win_apps.get(app.lower())
+    if cmd:
+        try:
+            subprocess.Popen(cmd, shell=True)
+            return {"status": "ok", "app": app, "path": cmd}
+        except Exception as e:
+            return {"error": f"Não consegui abrir {cmd}: {e}"}
+
+    return {"error": f"Não encontrei '{app}' no sistema. Tente informar o caminho completo com o parâmetro path."}

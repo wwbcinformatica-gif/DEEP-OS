@@ -51,7 +51,7 @@ def extract_tool(text: str) -> dict | None:
 @router.post("/agent/chat")
 async def agent_chat(msg: Message):
     try:
-        instruction = msg.system_prompt if msg.system_prompt else MOOD_INSTRUCTIONS.get(msg.mood, MOOD_INSTRUCTIONS["serio"])
+        instruction = msg.system_prompt if msg.system_prompt else MOOD_INSTRUCTIONS.get(msg.mood, MOOD_INSTRUCTIONS["opencode"])
         context = get_rag_context(msg.user)
         is_code = any(x in msg.user.lower() for x in ["arquivo", "file", "codigo", "abra", "open"])
 

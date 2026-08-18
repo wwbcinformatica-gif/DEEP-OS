@@ -20,6 +20,7 @@ class QueuedMessage:
     api_key: str = ""
     task_id: str = ""
     timestamp: float = 0.0
+    interrupted: bool = False  # True se foi interrompida por mensagem urgente
 
 
 class MessageQueue:

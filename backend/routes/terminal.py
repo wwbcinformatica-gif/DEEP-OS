@@ -1,4 +1,4 @@
-"""
+﻿"""
 WBC Terminal — WebSocket-based real terminal with persistent shell sessions
 Suporta powershell.exe e cmd.exe com sessão persistente.
 """

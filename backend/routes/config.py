@@ -57,6 +57,21 @@ class SandboxConfig(BaseModel):
 class AccentThemeConfig(BaseModel):
     theme: str
 
+class VoiceConfig(BaseModel):
+    auto_send: bool | None = None
+    mic_active_on_start: bool | None = None
+    deep_mode_active: bool | None = None
+    voice_preset: str | None = None
+    voice_rate: str | None = None
+    voice_pitch: str | None = None
+    jarvis_rate: str | None = None
+    jarvis_pitch: str | None = None
+    tts_enabled: bool | None = None
+    elevenlabs_voices: bool | None = None
+    auto_send_delay: int | None = None
+    hybrid_mode: bool | None = None
+    hybrid_voice: str | None = None
+
 class ConfigUpdatePayload(BaseModel):
     section: str
     values: dict
@@ -86,6 +101,22 @@ async def update_sandbox_config(config: SandboxConfig):
         data["security"] = {}
     data["security"]["sandbox_enabled"] = config.enabled
     _write_config(data)
+    
+    # Atualizar permissoes do agente baseado no modo
+    from core.permissions import set_full_access, load_perms, save_perms
+    from core.permissions import ALL_CATEGORIES, _SENSITIVE
+    
+    if not config.enabled:
+        # Modo Desenvolvedor: acesso total
+        set_full_access(True)
+    else:
+        # Modo Restrito: permissoes padrao
+        perms = load_perms()
+        perms["full_access"] = False
+        for c in ALL_CATEGORIES:
+            perms["categories"][c] = "ask" if c in _SENSITIVE else "allow"
+        save_perms(perms)
+    
     return {"status": "success", "sandbox_enabled": config.enabled}
 
 @router.post("/accent-theme")
@@ -102,6 +133,23 @@ async def get_accent_theme():
     data = _read_config()
     theme = _deep_get(data, "display.accent_theme", "azul-claro")
     return {"accent_theme": theme}
+
+@router.get("/voice")
+async def get_voice_config():
+    data = _read_config()
+    voice = data.get("voice", {})
+    return voice
+
+@router.post("/voice")
+async def update_voice_config(config: VoiceConfig):
+    data = _read_config()
+    if "voice" not in data:
+        data["voice"] = {}
+    update_data = config.model_dump(exclude_none=True)
+    data["voice"].update(update_data)
+    _write_config(data)
+    reset_config_cache()
+    return {"status": "success", "voice": data["voice"]}
 
 # ─── MCP Server CRUD ─────────────────────────────────────────────
 

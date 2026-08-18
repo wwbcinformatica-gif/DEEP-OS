@@ -1,45 +1,15 @@
-97 arquivos Python OK, zero erros. DEEP-AUREA está no ar! 🎉
-Resumo do que foi feito:
-🌀 Sistema Deep-Aurea (Spiral Memory)
-- backend/core/spiral_memory.py — Módulo completo do Keeper (Modelo B):
-- extrair_snapshot() — Extração rule-based do contexto (arquivo atual, erros, decisões)
-- formatar_snapshot_para_prompt() — Formata como system message compacta
-- gerar_snapshot_com_llm() — Usa Modelo B (ex: deepseek-r1:7b) para sumarização semântica
-- deve_refrescar() — Decide quando refrescar (a cada 4 passos)
-- backend/core/lifecycle.py — Adicionado on_spiral_refresh callback no loop principal
-- backend/agents/loop.py — Integrado: a cada 4 passos, Keeper extrai contexto e injeta no Worker
-- backend/core/agent_config.py — Suporte a SpiralMemoryConfig lido do config.yaml
-- config.yaml — Seção spiral_memory: com keeper_model: deepseek-r1:7b
-🏷️ Renomeação completa
-- 📁 Pasta: C:\WBC-ZERO-G 5.0 → C:\DEEP-AUREA
-- 📄 ~50 arquivos atualizados (log prefixes, docstrings, títulos, paths)
-- 🧹 Referências WBC-PDV removidas do config.yaml e manual
-🚀 Como usar
-O spiral memory já está ativo por padrão. O Keeper usa deepseek-r1:7b (Ollama) pra sumarizar, mas se não estiver disponível, cai pra regras deterministicas. Configurável em config.yaml:
-spiral_memory:
-  enabled: true
-  interval: 4
-  keeper_provider: "ollama"
-  keeper_model: "deepseek-r1:7b"
-ℹ️ O venv antigo pode não funcionar após o rename — rode python -m venv venv pra recriar.
-▣  Build · DeepSeek V4 Flash Free · 11m 38s
-ok maravilha muito bom agora vou testar todo o contexto desta conversa em relação a este projeto deica organizado aqui por favor  C:\WBC-PDV 2.0\README.md
-+ Thought: 12.4s
-→Read README.md 
-+ Thought: 5.4s
-# Wrote README.md
 # 🧠 DEEP-AUREA
 
 **Sistema Operacional de Agentes de IA** — antigo WBC-ZERO-G 5.0
 
-Plataforma full-stack que orquestra múltiplos agentes de IA especializados para automatizar tarefas de engenharia de software. Opera 100% local com suporte a múltiplos provedores de LLM.
+Plataforma full-stack que orquestra múltiplos agentes de IA especializados para automatizar tarefas de engenharia de software. Opera 100% local com suporte a múltiplos provedores de LLM. Inclui o **Charon**, assistente de voz com 20 ferramentas via Gemini Live.
 
 ---
 
 ## 📁 Localização
 
 ```
-C:\DEEP-AUREA\
+G:\DEEP-AUREA\
 ```
 
 ---
@@ -138,12 +108,12 @@ C:\DEEP-AUREA\
 
 ### Iniciar
 ```bash
-C:\DEEP-AUREA\START-TOTAL.bat
+G:\DEEP-AUREA\START-TOTAL.bat
 ```
 
 ### Menu rápido
 ```bash
-C:\DEEP-AUREA\run.bat
+G:\DEEP-AUREA\run.bat
 ```
 
 ### Acessos
@@ -180,6 +150,39 @@ Clean Code, Architecture, Database Design, i18n, Vulnerability Scanner, WebApp T
 
 ---
 
+## 🎙️ Charon — Assistente de Voz
+
+O **Charon** é o assistente de voz do DEEP-AUREA, baseado no **Gemini Live** (audio nativo) com **20 ferramentas** de função.
+
+### Como usar
+- **Falar:** clique no microfone e fale diretamente com o Charon (ou diga "aurea" para ativar o modo de voz do chat central).
+- **Digitar:** abra o painel Charon (botão "T" na barra de status) e digite — o texto entra no contexto e o Charon responde por voz.
+- **Ligar/desligar:** botão "⚡ Charon" na barra de status.
+- **Interromper:** botão ⏹ no HUD de voz, ou fale "para", "silencio", "cala boca".
+
+### Ferramentas principais
+| Ferramenta | O que faz |
+|-----------|-----------|
+| `file_controller` | Criar/listar/deletar/mover arquivos e pastas, abrir documentos e imagens |
+| `computer_control` | Mouse, teclado, cliques, hotkeys, screenshot |
+| `browser_control` | Navegar, buscar, clicar, digitar no navegador |
+| `open_app` | Abrir qualquer aplicativo |
+| `file_processor` | OCR, resumos, conversões de PDF/docx/xlsx, transcrições |
+| `web_search` / `web_fetch` | Pesquisar e baixar conteúdo da web |
+
+### Comandos de voz úteis
+| Fale | O que acontece |
+|------|----------------|
+| "criar pasta X" | Cria pasta em Documents/Desktop |
+| "tira print da tela" | Screenshot com data/hora (nunca sobrescreve) |
+| "abre o arquivo config.py" | Abre arquivos no aplicativo padrão |
+| "para de ler" / "cala boca" | Interrompe a fala atual |
+| "repetir" / "ler novamente" | Repete a última resposta |
+
+> **Nota:** screenshots e resultados de processamento usam nomes com data/hora (`AAAAMMDD_HHMMSS`) para nunca sobrescrever arquivos anteriores. A listagem de pastas mostra sempre todas as pastas, limitando apenas os arquivos (até 100).
+
+---
+
 ## 🔄 Fluxo do Spiral Memory (implementado em Jul/2026)
 
 1. Worker inicia tarefa com ferramentas
@@ -199,19 +202,14 @@ Clean Code, Architecture, Database Design, i18n, Vulnerability Scanner, WebApp T
 
 ---
 
-© 2026 DEEP-AUREA. Todos os direitos reservados.
+---
 
-+ Thought: 606ms
-Pronto! README.md completo em C:\WBC-PDV 2.0\README.md com:
-- Visão geral do DEEP-AUREA
-- Arquitetura completa
-- Spiral Memory — explicação, arquivos, configuração, 3 níveis de sumarização
-- Fluxo do Keeper (Modelo B) em espiral
-- Todos os agentes, skills, provedores
-- Notas pós-rename
-Pode testar o sistema agora que está tudo documentado! 🚀
-▣  Build · DeepSeek V4 Flash Free · 3m 0s
-top de mais muito obrigado]
-+ Thought: 432ms
-Por nada! Foi um prazer criar o Deep-Aurea com você. O sistema de memória espiral é uma ideia genuinely inovadora — dois modelos trabalhando em sincronia é algo que pouca gente pensou em fazer.
-Se precisar de algo mais é só chamar. Boa sorte com os testes! 🚀🌀
+## 👨‍💻 Desenvolvedor
+
+| Campo | Valor |
+|-------|-------|
+| **Nome** | Wilson Barbosa Coimbra |
+| **Empresa** | WBC |
+| **Projeto** | DEEP-AUREA |
+
+© 2026 DEEP-AUREA — Desenvolvido por **Wilson Barbosa Coimbra** (empresa **WBC**). Todos os direitos reservados.

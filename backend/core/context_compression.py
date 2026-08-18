@@ -39,8 +39,8 @@ def _extract_blocks_to_compress(messages: list[dict]) -> tuple[list[dict], list[
     if len(non_system) <= 6:
         return messages, []
 
-    # Mantém as últimas 50% das mensagens não-sistema + todo system
-    keep_count = max(6, int(len(non_system) * 0.5))
+    # Mantém as últimas 70% das mensagens não-sistema + todo system
+    keep_count = max(8, int(len(non_system) * 0.70))
     keep_non_system = non_system[-keep_count:]
     compress_non_system = non_system[:-keep_count]
 

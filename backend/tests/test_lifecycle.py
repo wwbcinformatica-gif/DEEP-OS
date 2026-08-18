@@ -1,6 +1,7 @@
 """Quick integration test for state machine + lifecycle."""
 import sys
-sys.path.insert(0, r"C:\DEEP-AUREA\backend")
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from core.state_machine import (
     State, FinishReason, ContentCategory, ModelResponse,

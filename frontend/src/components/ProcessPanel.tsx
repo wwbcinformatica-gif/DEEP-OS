@@ -5,7 +5,9 @@ interface ProcessPanelProps {
   loading: boolean;
   stream: string;
   thinking: string;
+  thinkingLog: string[];
   thinkOn: boolean;
+  showThoughts: boolean;
   toolLogs: TLog[];
   model?: string;
   prov?: string;
@@ -24,7 +26,9 @@ export default function ProcessPanel({
   loading,
   stream,
   thinking,
+  thinkingLog,
   thinkOn,
+  showThoughts,
   toolLogs,
   model,
   prov,
@@ -38,6 +42,7 @@ export default function ProcessPanel({
   const [expandedLogs, setExpandedLogs] = useState<Record<number, boolean>>({});
   const [elapsed, setElapsed] = useState(0);
   const startTimeRef = useRef<number>(0);
+  const lastThinkingRef = useRef('');
 
   // Timer real enquanto está processando
   useEffect(() => {
@@ -57,6 +62,10 @@ export default function ProcessPanel({
     logEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [toolLogs, stream, thinking]);
 
+  useEffect(() => {
+    if (thinking) lastThinkingRef.current = thinking;
+  }, [thinking]);
+
   const toggle = (key: string) =>
     setOpenSections((p) => ({ ...p, [key]: !p[key] }));
 
@@ -72,7 +81,7 @@ export default function ProcessPanel({
         display: 'flex',
         flexDirection: 'column',
         height: '100%',
-        background: '#1e1e1e',
+        background: '#000000',
         fontFamily: 'var(--font-mono), "Cascadia Code", "Fira Code", Consolas, monospace',
         fontSize: 13,
         overflowX: 'auto',
@@ -94,7 +103,7 @@ export default function ProcessPanel({
       {/* Header com tempo real */}
       <div style={{
         padding: '8px 14px',
-        borderBottom: '1px solid #2d2d2d',
+        borderBottom: '1px solid #333333',
         display: 'flex',
         justifyContent: 'space-between',
         alignItems: 'center',
@@ -226,7 +235,7 @@ export default function ProcessPanel({
                     marginLeft: 22,
                     marginTop: 4,
                     padding: '6px 8px',
-                    background: '#141414',
+                    background: '#0a0a0a',
                     borderRadius: 4,
                     border: '1px solid #2a2a2a',
                     fontSize: 11,
@@ -259,23 +268,25 @@ export default function ProcessPanel({
             );
           })}
 
-          {/* Thinking em tempo real */}
-          {loading && thinkOn && thinking && (
-            <div style={{
-              display: 'flex',
-              alignItems: 'flex-start',
-              gap: 6,
-              padding: '3px 0',
-              marginTop: 4,
-            }}>
-              <span style={{ color: '#569cd6', fontSize: 12, flexShrink: 0, width: 16, textAlign: 'center' }}>
-                {"\u25B6"}
-              </span>
-              <div style={{ flex: 1 }}>
-                <span style={{ color: '#569cd6', fontSize: 11, fontStyle: 'italic' }}>
-                  {thinking}
-                </span>
-              </div>
+          {/* Thinking em tempo real — log acumulado */}
+          {showThoughts && thinkingLog.length > 0 && (
+            <div style={{ marginTop: 4 }}>
+              {thinkingLog.map((entry, i) => (
+                <div key={i} style={{
+                  display: 'flex',
+                  alignItems: 'flex-start',
+                  gap: 6,
+                  padding: '2px 0',
+                  opacity: i < thinkingLog.length - 1 ? 0.5 : 1,
+                }}>
+                  <span style={{ color: '#569cd6', fontSize: 11, flexShrink: 0, width: 16, textAlign: 'center' }}>
+                    {"\u25B6"}
+                  </span>
+                  <span style={{ color: '#569cd6', fontSize: 11, fontStyle: 'italic' }}>
+                    {entry}
+                  </span>
+                </div>
+              ))}
             </div>
           )}
 
@@ -343,7 +354,7 @@ function Section({
           padding: '6px 14px',
           cursor: 'pointer',
           userSelect: 'none',
-          borderBottom: '1px solid #2d2d2d',
+          borderBottom: '1px solid #333333',
         }}
       >
         <span

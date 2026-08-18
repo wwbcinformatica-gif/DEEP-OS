@@ -12,7 +12,7 @@ const StatusIndicator: React.FC<StatusIndicatorProps> = ({
   size = 10,
 }) => {
   const getColor = () => {
-    if (provider === 'ollama') {
+    if (provider === 'ollama' || provider === 'llamacpp') {
       return ollamaRunning ? '#89d185' : '#f44747';
     }
     return '#89d185';

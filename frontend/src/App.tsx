@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+﻿import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useTheme } from './hooks/useTheme';
 import { setSoundEnabled, playSound } from './lib/soundFx';
 import { showToast } from './components/Toast';
@@ -22,6 +22,7 @@ import ChatPanel from './components/ChatPanel';
 import StatusBar from './components/StatusBar';
 import TerminalPanel from './components/TerminalPanel';
 import ProcessPanel from './components/ProcessPanel';
+import CharonPanel from './components/CharonPanel';
 import ErrorBoundary from './components/ErrorBoundary';
 import PageRenderer from './components/PageRenderer';
 import MusicPlayer, { type MusicPlayerHandle } from './components/MusicPlayer';
@@ -113,6 +114,77 @@ export default function App() {
   const [thinking, setThink] = useState('');
   const [thinkOn, setThinkOn] = useState(false);
   const [thinkOpen, setThinkOpen] = useState(true);
+  const [charonPanel, setCharonPanel] = useState(true);
+  const [charonTranscripts, setCharonTranscripts] = useState<{speaker: string; text: string; time: string}[]>([]);
+  const [voiceMode, setVoiceMode] = useState(false);
+  const [deepSilenceSec, setDeepSilenceSec] = useState(30);
+  const [charonActive, setCharonActive] = useState(false);
+  const [charonVoiceStatus, setCharonVoiceStatus] = useState<string>('idle');
+  const charonSendTextRef = useRef<((text: string) => void) | null>(null);
+  const savedProvRef = useRef<{ prov: Provider; model: string } | null>(null);
+
+  // Quando WBC liga: troca provider local por cloud
+  // Quando WBC desliga: restaura provider local
+  useEffect(() => {
+    const LOCAL_PROVIDERS: Provider[] = ['ollama', 'llamacpp'];
+    if (charonActive && LOCAL_PROVIDERS.includes(prov)) {
+      savedProvRef.current = { prov, model };
+      setProv('opencode');
+      setModel('deepseek-v4-flash-free');
+    } else if (!charonActive && savedProvRef.current) {
+      setProv(savedProvRef.current.prov);
+      setModel(savedProvRef.current.model);
+      savedProvRef.current = null;
+    }
+  }, [charonActive]);
+
+  // Handler para resultados de tools do Charon
+  const handleCharonToolResult = (tool: string, result: string) => {
+    const toolConfig: Record<string, { label: string; icon: string; color: string }> = {
+      'file_controller': { label: 'Gerenciador de Arquivos', icon: '📁', color: '#4fc3f7' },
+      'web_search': { label: 'Busca Web', icon: '🔍', color: '#81c784' },
+      'open_app': { label: 'Aplicativo', icon: '🚀', color: '#ffb74d' },
+      'computer_control': { label: 'Controle do PC', icon: '💻', color: '#e57373' },
+      'browser_control': { label: 'Navegador', icon: '🌐', color: '#64b5f6' },
+      'code_helper': { label: 'Código', icon: '📝', color: '#ba68c8' },
+      'send_message': { label: 'Mensagem', icon: '💬', color: '#4db6ac' },
+      'system_status': { label: 'Sistema', icon: '⚙️', color: '#90a4ae' },
+      'weather_report': { label: 'Tempo', icon: '🌤️', color: '#ffd54f' },
+      'reminder': { label: 'Lembrete', icon: '⏰', color: '#ff8a65' },
+      'desktop_control': { label: 'Área de Trabalho', icon: '🖥️', color: '#a1887f' },
+      'computer_settings': { label: 'Configurações', icon: '🔧', color: '#78909c' },
+      'youtube_video': { label: 'YouTube', icon: '🎬', color: '#ef5350' },
+      'game_updater': { label: 'Jogos', icon: '🎮', color: '#7e57c2' },
+      'flight_finder': { label: 'Voos', icon: '✈️', color: '#29b6f6' },
+      'file_processor': { label: 'Processador', icon: '📋', color: '#66bb6a' },
+    };
+
+    const config = toolConfig[tool] || { label: tool, icon: '⚡', color: '#b478ff' };
+    
+    // Formata o resultado baseado no conteúdo
+    let formattedResult = result;
+    
+    // Se for listagem de arquivos, formata como lista
+    if (tool === 'file_controller' && result.includes('itens')) {
+      formattedResult = result
+        .replace(/Pastas:\s*/, '**Pastas:**\n')
+        .replace(/Arquivos:\s*/, '\n**Arquivos:**\n')
+        .replace(/,\s*/g, '\n');
+    }
+    
+    // Se for status do sistema, formata melhor
+    if (tool === 'system_status') {
+      formattedResult = result.replace(/CPU|RAM|GPU/g, (match) => `**${match}**`);
+    }
+
+    const msg = {
+      from: 'bot' as const,
+      text: `charon_tool:${config.icon}:${config.label}:${config.color}:${formattedResult}`,
+      time: Date.now(),
+    };
+    
+    setMsgs(prev => [...prev, msg]);
+  };
   const [toolLogs, setLogs] = useState<TLog[]>([]);
   const [checklistSteps, setChecklistSteps] = useState<{ label: string; status: string; error?: string }[]>([]);
   const abortRef = useRef<AbortController | null>(null);
@@ -137,6 +209,7 @@ export default function App() {
   const [model, setModel] = useState('mimo-v2.5');
   const [oModels, setOModels] = useState<{ value: string; label: string }[]>([]);
   const [orModels, setOrModels] = useState<{ value: string; label: string }[]>([]);
+  const [llamacppModels, setLlamacppModels] = useState<{ value: string; label: string; available: boolean }[]>([]);
   const [ollSt, setOllSt] = useState<{ running: boolean; models: string[] } | undefined>(undefined);
   const [customM, setCustomM] = useState('');
   const [showCust, setShowCust] = useState(false);
@@ -165,6 +238,11 @@ export default function App() {
     | 'jarvis-cinematic'
     | 'edge-francisca'
     | 'edge-thalita'
+    | 'eleven-natasha'
+    | 'eleven-serafina'
+    | 'eleven-ivy'
+    | 'eleven-ingmar'
+    | 'dani-brandi'
   >('jarvis-cinematic');
   const [jarvisRate, setJarvisRate] = useState(50);
   const [voicePitch, setVoicePitch] = useState(50);
@@ -462,8 +540,24 @@ export default function App() {
         .then((r) => r.json())
         .then((d) => {
           setOllSt(d);
-          if (d.running && d.models?.length)
+          // Apenas modelos Ollama instalados
+          if (d.running && d.models?.length) {
             setOModels(d.models.map((m: string) => ({ value: m, label: m })));
+          }
+        })
+        .catch(() => {});
+    }
+    if (prov === 'llamacpp') {
+      fetch(`${API_BASE}/llamacpp/models`)
+        .then((r) => r.json())
+        .then((d) => {
+          if (d.models?.length) {
+            setLlamacppModels(d.models.map((m: any) => ({
+              value: m.id,
+              label: m.available ? m.label : `${m.label} (não encontrado)`,
+              available: m.available,
+            })));
+          }
         })
         .catch(() => {});
     }
@@ -663,6 +757,7 @@ export default function App() {
   };
 
   const stopGen = () => {
+    console.log('[App] stopGen called, abortRef:', abortRef.current);
     abortRef.current?.abort();
     setLoading(false);
   };
@@ -1431,6 +1526,33 @@ export default function App() {
                   </div>
                 ))}
 
+                {/* Charon - Assistente de Voz */}
+                <div style={{ fontWeight: 700, fontSize: 12, color: 'var(--purple, #b478ff)', marginTop: 12, marginBottom: 6 }}>
+                  Charon - ASSISTENTE DE VOZ
+                </div>
+                <div style={{ fontSize: 11, color: 'var(--muted)', lineHeight: 1.5, marginBottom: 8 }}>
+                  o Charon e o assistente de voz do DEEP-AUREA (voz natural Gemini Live). Fale com ele pelo microfone ou digite no painel Charon (botao "T" na barra de status).
+                </div>
+                {[
+                  ['"aurea ..." (palavra de ativacao)', 'Diga "aurea" antes de um comando para ativar o modo de voz do chat central'],
+                  ['Falar normalmente', 'Converse direto com o Charon — ele executa ferramentas de verdade (arquivos, pastas, apps, web, computador)'],
+                  ['"criar pasta X"', 'Cria pasta em Documents/Desktop via file_controller'],
+                  ['"tira print da tela"', 'Salva screenshot com data/hora no Desktop (nunca sobrescreve)'],
+                  ['"abre o arquivo config.py"', 'Abre arquivos (img, pdf, doc, txt, html, xml) no aplicativo padrao'],
+                  ['"para de ler" / "cala boca" / "silencio"', 'Interrompe a leitura/fala atual'],
+                  ['"repetir" / "ler novamente"', 'Repete a ultima resposta falada'],
+                  ['"fechar aba" / "fechar aba ativa"', 'Fecha apenas a aba atual do navegador (Ctrl+W)'],
+                  ['"fechar navegador" / "fechar todas as abas"', 'Fecha toda a janela do navegador (Alt+F4)'],
+                  ['Digitar no painel Charon', 'Envia texto direto para o Charon; aparece no contexto e ele responde por voz'],
+                  ['Botao "charon" (⚡)', 'Liga/desliga o Charon na barra de status'],
+                  ['Botao "T"', 'Abre/fecha o painel de contexto do Charon (voce pode redimensionar)'],
+                ].map(([cmd, desc]) => (
+                  <div key={cmd} style={{ marginBottom: 3, display: 'flex', gap: 8 }}>
+                    <code style={{ color: 'var(--purple, #b478ff)', fontFamily: 'monospace', fontSize: 11, minWidth: 190, whiteSpace: 'nowrap' }}>{cmd}</code>
+                    <span style={{ color: 'var(--muted)' }}>{desc}</span>
+                  </div>
+                ))}
+
                 {/* Ferramentas do Agente */}
                 <div style={{ fontWeight: 700, fontSize: 12, color: 'var(--cyan)', marginTop: 12, marginBottom: 6 }}>
                   FERRAMENTAS DO AGENTE
@@ -1617,7 +1739,7 @@ export default function App() {
                     <b style={{ color: 'var(--ink)' }}>DEEP-AUREA v2.2</b> — Agent OS
                   </div>
                   <div>Desenvolvedor: Wilson Barbosa Coimbra</div>
-                  <div>Copyright {'\u00a9'} Empresa: WBC 2026</div>
+                  <div>Copyright \u00a9 Empresa: WBC 2026</div>
                 </div>
               </div>
             )}
@@ -1946,6 +2068,7 @@ export default function App() {
                     setMimoApiKey={setMimoApiKey}
                     oModels={oModels}
                     orModels={orModels}
+                    llamacppModels={llamacppModels}
                     customM={customM}
                     setCustomM={setCustomM}
                     showCust={showCust}
@@ -1956,6 +2079,8 @@ export default function App() {
                     setJarvisRate={setJarvisRate}
                     voicePitch={voicePitch}
                     setVoicePitch={setVoicePitch}
+                    deepSilenceSec={deepSilenceSec}
+                    setDeepSilenceSec={setDeepSilenceSec}
                     ollSt={ollSt}
                     knows={knows}
                     setKnows={setKnows}
@@ -2059,6 +2184,7 @@ export default function App() {
             setModel={setModel}
             oModels={oModels}
             orModels={orModels}
+            llamacppModels={llamacppModels}
             curTab={curTab}
             chatW={chatW}
             send={send}
@@ -2068,6 +2194,9 @@ export default function App() {
             voicePreset={voicePreset}
             jarvisRate={jarvisRate}
             voicePitch={voicePitch}
+            voiceMode={voiceMode}
+            setVoiceMode={setVoiceMode}
+            charonActive={charonActive}
             onConfirmPlan={handleApprovePlan}
             onRejectPlan={handleRejectPlan}
             pendingToolConfirm={pendingToolConfirm}
@@ -2079,7 +2208,7 @@ export default function App() {
 
         {DragH('h', drag('process'))}
 
-        {/* PROCESSOS */}
+        {/* PROCESSOS / WBC */}
         <div
           style={{
             width: processW,
@@ -2092,15 +2221,31 @@ export default function App() {
             minHeight: 0,
           }}
         >
-          <ProcessPanel
-            loading={loading}
-            stream={stream}
-            thinking={thinking}
-            thinkOn={thinkOn}
-            toolLogs={toolLogs}
-            model={model}
-            prov={prov}
-          />
+          {charonPanel ? (
+            <CharonPanel
+              visible={charonPanel}
+              onClose={() => setCharonPanel(false)}
+              transcripts={charonTranscripts}
+              voiceName="Charon"
+              voiceStatus={charonVoiceStatus}
+              onSendText={(text) => {
+                setCharonTranscripts(prev => [...prev, { speaker: 'user', text, time: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) }]);
+                charonSendTextRef.current?.(text);
+              }}
+            />
+          ) : (
+            <ProcessPanel
+              loading={loading}
+              stream={stream}
+              thinking={thinking}
+              thinkOn={thinkOn}
+              toolLogs={toolLogs}
+              model={model}
+              prov={prov}
+              thinkingLog={[]}
+              showThoughts={false}
+            />
+          )}
         </div>
       </div>
 
@@ -2109,9 +2254,22 @@ export default function App() {
         prov={prov}
         model={model}
         mood={mood}
+        ollSt={ollSt}
         termOpen={termOpen}
         setTermOpen={setTermOpen}
-        ollSt={ollSt}
+        thinkOpen={thinkOpen}
+        setThinkOpen={setThinkOpen}
+        charonPanel={charonPanel}
+        setCharonPanel={setCharonPanel}
+        onCharonActive={setCharonActive}
+        onCharonVoiceStatus={setCharonVoiceStatus}
+        onCharonToolResult={handleCharonToolResult}
+        onCharonTranscriptFull={(speaker, text) => {
+          setCharonTranscripts(prev => [...prev, { speaker, text, time: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) }]);
+        }}
+        onCharonSendText={(fn) => { charonSendTextRef.current = fn; }}
+        stopGen={stopGen}
+        loading={loading}
         theme={theme}
         toggleTheme={toggleTheme}
       />

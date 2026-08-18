@@ -62,7 +62,7 @@ def test_imports():
 
 def test_file_operations():
     try:
-        test_path = "C:\\DEEP-AUREA\\.test_write"
+        test_path = os.path.join(os.path.dirname(__file__), ".test_write")
         with open(test_path, "w") as f:
             f.write("test")
         with open(test_path, "r") as f:

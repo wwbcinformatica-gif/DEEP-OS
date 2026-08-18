@@ -1,4 +1,4 @@
-"""
+﻿"""
 DEEP-AUREA WebSocket Terminal â€” endpoint /ws/terminal
 Shell: powershell.exe com sessÃ£o persistente.
 """
@@ -76,7 +76,7 @@ async def ws_terminal(websocket: WebSocket, session_id: str = "", root: str = ""
 
         # Bootstrap apenas na primeira conexão desta sessão
         if not session.get("bootstrapped"):
-            proc.stdin.write(b"$function:prompt = { 'WBC:' + (Get-Location).Path + '> ' }\r\n")
+            proc.stdin.write(b"$function:prompt = { 'WBC:' ++ (Get-Location).Path + '> ' }\r\n")
             proc.stdin.write(b"cd '" + workspace_root.encode("utf-8") + b"'\r\n")
             proc.stdin.write(b"Write-Host 'WBC_TERMINAL_READY'\r\n")
             await proc.stdin.drain()
@@ -99,19 +99,23 @@ async def ws_terminal(websocket: WebSocket, session_id: str = "", root: str = ""
                     if "WBC_TERMINAL_READY" in text or "$function:prompt" in text or "function prompt" in text:
                         continue
                     # Detecta cwd a partir do prompt: "WBC:C:\path>"
-                    m = re.match(r"WBC:(.+?)>\s*$", text.strip())
+                    m = re.match(r"WBC:\s*$", text.strip())
                     if m:
                         cwd = m.group(1).strip()
                         try:
                             await websocket.send_json({"type": "cwd", "path": cwd})
                         except Exception:
-                            pass
+                            break
                     try:
                         await websocket.send_json({"type": "output", "data": strip_ansi(text)})
                     except Exception:
                         break
                     session["last_active"] = time.time()
                 except asyncio.TimeoutError:
+                    continue
+                except RuntimeError:
+                    # Another coroutine is already reading — wait and retry
+                    await asyncio.sleep(0.1)
                     continue
 
         async def write_stdin():

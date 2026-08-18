@@ -122,6 +122,8 @@ from routes.tts import router as tts_router
 from routes.stt import router as stt_router
 from routes.workspace import router as workspace_router
 from routes.ws_terminal import router as ws_terminal_router
+from routes.voice_ws import router as voice_router
+from routes.llamacpp_route import router as llamacpp_router
 
 # ─── WorkspaceManager: carrega workspace persistido ─────────────────
 WorkspaceManager.get_instance().load_workspace()
@@ -130,6 +132,7 @@ app.include_router(chat_router)
 app.include_router(explorer_router)
 app.include_router(terminal_router)
 app.include_router(ws_terminal_router)
+app.include_router(voice_router)
 app.include_router(history_router)
 app.include_router(knowledge_router)
 app.include_router(brain_router)
@@ -155,6 +158,7 @@ app.include_router(stt_router)
 app.include_router(config_router)
 app.include_router(workspace_router)
 app.include_router(agent_diagnostics_router)
+app.include_router(llamacpp_router)
 
 
 @app.get("/")
@@ -208,6 +212,16 @@ async def health():
     return {"status": "healthy"}
 
 
+@app.get("/api/license")
+async def license_status():
+    """Verifica o status da licença da instância."""
+    try:
+        from core.license import check_license
+        return await check_license()
+    except Exception as e:
+        return {"valid": False, "error": str(e)}
+
+
 @app.on_event("startup")
 async def startup():
     log = get_logger("startup")
@@ -218,6 +232,17 @@ async def startup():
     from core.secrets import init_secrets
     init_secrets()
     log.info("Secrets manager inicializado")
+
+    # Verifica licença
+    try:
+        from core.license import check_license
+        license_status = await check_license()
+        if license_status.get("valid"):
+            log.info("Licença válida. Expira: %s", license_status.get("expires", "N/A"))
+        else:
+            log.warning("Licença inválida ou ausente. Funcionalidades podem ser limitadas.")
+    except Exception as e:
+        log.warning("Erro ao verificar licença: %s", e)
 
 @app.on_event("shutdown")
 async def shutdown():

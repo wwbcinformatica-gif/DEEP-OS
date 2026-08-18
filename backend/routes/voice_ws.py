@@ -1,0 +1,820 @@
+﻿"""
+WBC — WebSocket de voz com Gemini Live API.
+Todas as 20 ferramentas do WBC-Mark-L portadas para voice.
+"""
+import asyncio
+import json
+import os
+import sys
+import traceback
+from datetime import datetime
+from pathlib import Path
+
+from fastapi import APIRouter, WebSocket, WebSocketDisconnect
+from google import genai
+from google.genai import types
+
+router = APIRouter()
+
+LIVE_MODEL = "models/gemini-2.5-flash-native-audio-preview-12-2025"
+
+_root = str(Path(__file__).resolve().parent.parent.parent)
+if _root not in sys.path:
+    sys.path.insert(0, _root)
+
+GEMINI_VOICES = {
+    "charon": "Charon", "puck": "Puck", "sage": "Sage",
+    "achird": "Achird", "kore": "Kore", "fenrir": "Fenrir",
+    "leda": "Leda", "orus": "Orus",
+}
+
+
+def _get_gemini_key() -> str:
+    key = os.environ.get("GEMINI_API_KEY", "")
+    if key and key != "cole_sua_chave_aqui":
+        return key
+    try:
+        cfg_path = Path(__file__).resolve().parent.parent / "config" / "api_keys.json"
+        if cfg_path.exists():
+            return json.loads(cfg_path.read_text(encoding="utf-8")).get("gemini_api_key", "")
+    except Exception:
+        pass
+    return ""
+
+
+# ── Imports das Actions ───────────────────────────────────────────────────────
+_ACTIONS_OK = False
+try:
+    from actions.open_app import open_app
+    from actions.web_search import web_search as web_search_action
+    from actions.weather_report import weather_action
+    from actions.send_message import send_message
+    from actions.reminder import reminder
+    from actions.youtube_video import youtube_video
+    from actions.screen_processor import _capture_camera, _capture_screen
+    from actions.computer_settings import computer_settings
+    from actions.browser_control import browser_control
+    from actions.file_controller import file_controller
+    from actions.desktop import desktop_control
+    from actions.code_helper import code_helper
+    from actions.dev_agent import dev_agent
+    from actions.computer_control import computer_control
+    from actions.game_updater import game_updater
+    from actions.flight_finder import flight_finder
+    from actions.file_processor import file_processor
+    from actions.system_monitor import get_system_status
+    from actions.background_monitor import add_monitor, remove_monitor, list_monitors
+    _ACTIONS_OK = True
+    print("[VoiceWS] Todas as 20 actions importadas com sucesso")
+except ImportError as e:
+    print(f"[VoiceWS] Aviso: nem todas as actions foram importadas: {e}")
+
+
+# ── TOOL DECLARATIONS (20 ferramentas) ────────────────────────────────────────
+TOOL_DECLARATIONS = [
+    {
+        "name": "open_app",
+        "description": "Abre qualquer aplicativo no computador. Use quando o usuario pedir para abrir, iniciar ou lancar qualquer app, site ou programa.",
+        "parameters": {
+            "type": "OBJECT",
+            "properties": {
+                "app_name": {"type": "STRING", "description": "Nome do aplicativo (ex: 'WhatsApp', 'Chrome', 'Spotify')"}
+            },
+            "required": ["app_name"]
+        }
+    },
+    {
+        "name": "web_search",
+        "description": "Busca na web. Use para qualquer pergunta sobre fatos atuais, eventos, precos ou topicos. Modos: search (padrao), news (noticias), research (profundo), price (preco), compare (comparacao).",
+        "parameters": {
+            "type": "OBJECT",
+            "properties": {
+                "query":  {"type": "STRING", "description": "Consulta de busca"},
+                "mode":   {"type": "STRING", "description": "search | news | research | price | compare"},
+                "items":  {"type": "ARRAY", "items": {"type": "STRING"}, "description": "Itens para comparar (modo compare)"},
+                "aspect": {"type": "STRING", "description": "Aspecto da comparacao: price | specs | reviews | features"},
+            },
+            "required": ["query"]
+        }
+    },
+    {
+        "name": "system_status",
+        "description": "Retorna metricas do sistema em tempo real: uso de CPU, RAM, GPU, temperatura, uptime e numero de processos.",
+        "parameters": {"type": "OBJECT", "properties": {}}
+    },
+    {
+        "name": "weather_report",
+        "description": "Retorna o relatorio do tempo para uma cidade.",
+        "parameters": {
+            "type": "OBJECT",
+            "properties": {
+                "city": {"type": "STRING", "description": "Nome da cidade"}
+            },
+            "required": ["city"]
+        }
+    },
+    {
+        "name": "send_message",
+        "description": "Envia uma mensagem de texto via WhatsApp, Telegram ou outra plataforma.",
+        "parameters": {
+            "type": "OBJECT",
+            "properties": {
+                "receiver":     {"type": "STRING", "description": "Nome do destinatario"},
+                "message_text": {"type": "STRING", "description": "Texto da mensagem"},
+                "platform":     {"type": "STRING", "description": "Plataforma: WhatsApp, Telegram, etc."}
+            },
+            "required": ["receiver", "message_text", "platform"]
+        }
+    },
+    {
+        "name": "reminder",
+        "description": "Agenda um lembrete.",
+        "parameters": {
+            "type": "OBJECT",
+            "properties": {
+                "date":    {"type": "STRING", "description": "Data no formato YYYY-MM-DD"},
+                "time":    {"type": "STRING", "description": "Hora no formato HH:MM (24h)"},
+                "message": {"type": "STRING", "description": "Texto do lembrete"}
+            },
+            "required": ["date", "time", "message"]
+        }
+    },
+    {
+        "name": "youtube_video",
+        "description": "Controla YouTube: reproduzir videos, resumir, obter info ou mostrar trending.",
+        "parameters": {
+            "type": "OBJECT",
+            "properties": {
+                "action": {"type": "STRING", "description": "play | summarize | get_info | trending"},
+                "query":  {"type": "STRING", "description": "Busca para play"},
+                "save":   {"type": "BOOLEAN", "description": "Salvar resumo no Notepad"},
+                "region": {"type": "STRING", "description": "Codigo do pais para trending (ex: BR, US)"},
+                "url":    {"type": "STRING", "description": "URL do video para get_info"},
+            },
+            "required": []
+        }
+    },
+    {
+        "name": "screen_process",
+        "description": "Captura a tela ou webcam e analisa. Use quando o usuario perguntar o que esta na tela ou quiser que voce veja algo.",
+        "parameters": {
+            "type": "OBJECT",
+            "properties": {
+                "angle": {"type": "STRING", "description": "screen para capturar display, camera para webcam"},
+                "text":  {"type": "STRING", "description": "Pergunta ou instrucao sobre a imagem"}
+            },
+            "required": ["text"]
+        }
+    },
+    {
+        "name": "close_camera",
+        "description": "Fecha a visao da camera.",
+        "parameters": {"type": "OBJECT", "properties": {}}
+    },
+    {
+        "name": "computer_settings",
+        "description": "Controla o computador: volume, brilho, atalhos de teclado, fechar apps, fullscreen, WiFi, reiniciar, desligar, etc.",
+        "parameters": {
+            "type": "OBJECT",
+            "properties": {
+                "action":      {"type": "STRING", "description": "Acao a executar"},
+                "description": {"type": "STRING", "description": "Descricao em linguagem natural"},
+                "value":       {"type": "STRING", "description": "Valor opcional: nivel de volume, texto, etc."}
+            },
+            "required": []
+        }
+    },
+    {
+        "name": "browser_control",
+        "description": "Controla navegadores web: abrir sites, buscar, clicar, preencher, scroll, screenshot, navegacao.",
+        "parameters": {
+            "type": "OBJECT",
+            "properties": {
+                "action":    {"type": "STRING", "description": "go_to | search | click | type | scroll | fill_form | screenshot | back | forward | reload | close"},
+                "browser":   {"type": "STRING", "description": "chrome | edge | firefox | opera | brave"},
+                "url":       {"type": "STRING", "description": "URL para go_to"},
+                "query":     {"type": "STRING", "description": "Busca para search"},
+                "selector":  {"type": "STRING", "description": "CSS selector para click/type"},
+                "text":      {"type": "STRING", "description": "Texto para digitar ou clicar"},
+                "direction": {"type": "STRING", "description": "up | down para scroll"},
+                "amount":    {"type": "INTEGER", "description": "Quantidade de scroll (default: 500)"},
+                "key":       {"type": "STRING", "description": "Tecla para press (ex: Enter, F5)"},
+                "path":      {"type": "STRING", "description": "Caminho para salvar screenshot"},
+            },
+            "required": ["action"]
+        }
+    },
+    {
+        "name": "file_controller",
+        "description": "Gerencia arquivos e pastas: listar, criar, deletar, mover, copiar, renomear, ler, escrever, buscar, abrir arquivos (imagens, documentos, pdf, html, txt, xml, doc, etc) com o aplicativo padrao, espaco em disco.",
+        "parameters": {
+            "type": "OBJECT",
+            "properties": {
+                "action":      {"type": "STRING", "description": "list | create_file | create_folder | delete | move | copy | rename | read | write | find | largest | disk_usage | info | open"},
+                "path":        {"type": "STRING", "description": "Caminho do arquivo/pasta ou atalho: desktop, downloads, documents, home. Para abrir use o caminho completo ou atalho + name"},
+                "destination": {"type": "STRING", "description": "Destino para move/copy"},
+                "new_name":    {"type": "STRING", "description": "Novo nome para rename"},
+                "content":     {"type": "STRING", "description": "Conteudo para create_file/write"},
+                "name":        {"type": "STRING", "description": "Nome do arquivo para buscar ou abrir"},
+                "extension":   {"type": "STRING", "description": "Extensao para buscar (ex: .pdf)"},
+                "count":       {"type": "INTEGER", "description": "Numero de resultados para largest"},
+            },
+            "required": ["action"]
+        }
+    },
+    {
+        "name": "desktop_control",
+        "description": "Controla a area de trabalho: papel de parede, organizar, limpar, listar, estatisticas.",
+        "parameters": {
+            "type": "OBJECT",
+            "properties": {
+                "action": {"type": "STRING", "description": "wallpaper | wallpaper_url | organize | clean | list | stats | task"},
+                "path":   {"type": "STRING", "description": "Caminho da imagem para wallpaper"},
+                "url":    {"type": "STRING", "description": "URL da imagem para wallpaper_url"},
+                "mode":   {"type": "STRING", "description": "by_type ou by_date para organize"},
+                "task":   {"type": "STRING", "description": "Tarefa da area de trabalho em linguagem natural"},
+            },
+            "required": ["action"]
+        }
+    },
+    {
+        "name": "code_helper",
+        "description": "Escreve, edita, explica, executa ou compila arquivos de codigo.",
+        "parameters": {
+            "type": "OBJECT",
+            "properties": {
+                "action":      {"type": "STRING", "description": "write | edit | explain | run | build | auto"},
+                "description": {"type": "STRING", "description": "O que o codigo deve fazer ou que mudanca fazer"},
+                "language":    {"type": "STRING", "description": "Linguagem de programacao (default: python)"},
+                "output_path": {"type": "STRING", "description": "Onde salvar o arquivo"},
+                "file_path":   {"type": "STRING", "description": "Caminho de arquivo existente"},
+                "code":        {"type": "STRING", "description": "Codigo bruto para explain"},
+                "args":        {"type": "STRING", "description": "Argumentos CLI para run/build"},
+                "timeout":     {"type": "INTEGER", "description": "Timeout em segundos (default: 30)"},
+            },
+            "required": ["action"]
+        }
+    },
+    {
+        "name": "dev_agent",
+        "description": "Cria projetos completos multi-arquivo do zero: planeja, escreve arquivos, instala deps, executa e corrige erros.",
+        "parameters": {
+            "type": "OBJECT",
+            "properties": {
+                "description":  {"type": "STRING", "description": "O que o projeto deve fazer"},
+                "language":     {"type": "STRING", "description": "Linguagem (default: python)"},
+                "project_name": {"type": "STRING", "description": "Nome da pasta do projeto"},
+                "timeout":      {"type": "INTEGER", "description": "Timeout de execucao em segundos (default: 30)"},
+            },
+            "required": ["description"]
+        }
+    },
+    {
+        "name": "computer_control",
+        "description": "Controle direto do computador: digitar, clicar, atalhos, scroll, mover mouse, screenshots, encontrar elementos.",
+        "parameters": {
+            "type": "OBJECT",
+            "properties": {
+                "action":      {"type": "STRING", "description": "type | click | double_click | right_click | hotkey | press | scroll | move | copy | paste | screenshot | wait | focus_window | screen_find | screen_click"},
+                "text":        {"type": "STRING", "description": "Texto para digitar ou colar"},
+                "x":           {"type": "INTEGER", "description": "Coordenada X"},
+                "y":           {"type": "INTEGER", "description": "Coordenada Y"},
+                "keys":        {"type": "STRING", "description": "Combinacao de teclas (ex: ctrl+c)"},
+                "key":         {"type": "STRING", "description": "Tecla unica (ex: enter)"},
+                "direction":   {"type": "STRING", "description": "up | down | left | right"},
+                "amount":      {"type": "INTEGER", "description": "Quantidade de scroll (default: 3)"},
+                "seconds":     {"type": "NUMBER",  "description": "Segundos para wait"},
+                "title":       {"type": "STRING",  "description": "Titulo da janela para focus_window"},
+                "description": {"type": "STRING",  "description": "Descricao do elemento para screen_find/screen_click"},
+                "path":        {"type": "STRING",  "description": "Caminho para salvar screenshot"},
+            },
+            "required": ["action"]
+        }
+    },
+    {
+        "name": "game_updater",
+        "description": "Ferramenta para Steam/Epic Games: instalar, baixar, atualizar, listar jogos, status de download.",
+        "parameters": {
+            "type": "OBJECT",
+            "properties": {
+                "action":    {"type": "STRING",  "description": "update | install | list | download_status | schedule | cancel_schedule | schedule_status"},
+                "platform":  {"type": "STRING",  "description": "steam | epic | both (default: both)"},
+                "game_name": {"type": "STRING",  "description": "Nome do jogo"},
+                "app_id":    {"type": "STRING",  "description": "Steam AppID para install"},
+                "hour":      {"type": "INTEGER", "description": "Hora para update agendado 0-23 (default: 3)"},
+                "minute":    {"type": "INTEGER", "description": "Minuto para update agendado 0-59 (default: 0)"},
+                "shutdown_when_done": {"type": "BOOLEAN", "description": "Desligar PC quando download finalizar"},
+            },
+            "required": []
+        }
+    },
+    {
+        "name": "flight_finder",
+        "description": "Busca passagens de aviao no Google Flights. Use quando o usuario quiser comprar voos, buscar passagens, ver precos de voos, ou planejar viagem de aviao. SEMPRE use esta ferramenta para qualquer coisa relacionada a voos ou passagens aereas.",
+        "parameters": {
+            "type": "OBJECT",
+            "properties": {
+                "origin":      {"type": "STRING",  "description": "Cidade ou aeroporto de origem (ex: Sao Paulo, GRU, Rio de Janeiro)"},
+                "destination": {"type": "STRING",  "description": "Cidade ou aeroporto de destino (ex: Paris, CDG, Madrid)"},
+                "date":        {"type": "STRING",  "description": "Data de saida (ex: 2026-09-15, 15 de setembro)"},
+                "return_date": {"type": "STRING",  "description": "Data de volta para ida e volta (opcional)"},
+                "passengers":  {"type": "INTEGER", "description": "Numero de passageiros (default: 1)"},
+                "cabin":       {"type": "STRING",  "description": "Classe: economy | premium | business | first"},
+                "save":        {"type": "BOOLEAN", "description": "Salvar resultado no Notepad"},
+            },
+            "required": ["origin", "destination", "date"]
+        }
+    },
+    {
+        "name": "manage_monitor",
+        "description": "Adiciona, remove ou lista topicos de monitoramento em background.",
+        "parameters": {
+            "type": "OBJECT",
+            "properties": {
+                "action": {"type": "STRING", "description": "add | remove | list"},
+                "topic":  {"type": "STRING", "description": "Topico para monitorar ou parar de monitorar"},
+            },
+            "required": ["action"]
+        }
+    },
+    {
+        "name": "file_processor",
+        "description": "Processa arquivos: imagens, PDFs, Word, CSV, JSON, codigo, audio, video, archives. Use quando o usuario quiser processar um arquivo.",
+        "parameters": {
+            "type": "OBJECT",
+            "properties": {
+                "file_path":   {"type": "STRING", "description": "Caminho completo do arquivo"},
+                "action":      {"type": "STRING", "description": "Acao: describe | ocr | summarize | extract_text | analyze | explain | review | fix | run | transcribe | info"},
+                "instruction": {"type": "STRING", "description": "Instrucao livre adicional"},
+                "format":      {"type": "STRING", "description": "Formato de destino para conversao"},
+                "save":        {"type": "BOOLEAN", "description": "Salvar resultado em arquivo"},
+            },
+            "required": []
+        }
+    },
+]
+
+
+# ── System Instruction ────────────────────────────────────────────────────────
+_PROJECT_CONTEXT_CACHE: dict = {"mtime": 0.0, "text": ""}
+
+
+def _load_project_context() -> str:
+    """Carrega o CHARON_CONTEXT.md (conhecimento do projeto + desenvolvedor)."""
+    try:
+        ctx_path = Path(__file__).resolve().parent.parent.parent / "CHARON_CONTEXT.md"
+        mtime = ctx_path.stat().st_mtime if ctx_path.exists() else 0.0
+        if mtime != _PROJECT_CONTEXT_CACHE["mtime"]:
+            _PROJECT_CONTEXT_CACHE["mtime"] = mtime
+            _PROJECT_CONTEXT_CACHE["text"] = ctx_path.read_text(encoding="utf-8")
+        return _PROJECT_CONTEXT_CACHE["text"]
+    except Exception:
+        return ""
+
+
+def _build_system_instruction() -> str:
+    project_ctx = _load_project_context()
+    context_block = f"\n\n--- CONTEXTO DO PROJETO (use estas informacoes) ---\n{project_ctx}" if project_ctx else ""
+
+    return (
+        "Voce e o Charon, assistente de voz do Wilson. "
+        "Fale em portugues brasileiro. Seja direto e util. "
+        "O usuario e o Wilson Barbosa Coimbra, o desenvolvedor do projeto. "
+        "Voce tem acesso a 20 ferramentas para controlar o computador, "
+        "buscar na web, gerenciar arquivos, abrir apps, e muito mais. "
+        "Use as ferramentas SEMPRE que o usuario pedir. "
+        "Nunca invente resultados — execute as ferramentas de verdade. "
+        "Se o usuario pedir para abrir um app, use open_app. "
+        "Se o usuario pedir para pesquisar, use web_search. "
+        "Responda de forma concisa e natural. "
+        "Length: short."
+        f"{context_block}"
+    )
+
+
+# ── VoiceSession ──────────────────────────────────────────────────────────────
+class VoiceSession:
+    def __init__(self, ws: WebSocket):
+        self.ws = ws
+        self.client = None
+        self.session = None
+        self._cm = None
+        self._running = False
+        self._voice = "Charon"
+        self._turn_done_event = asyncio.Event()
+
+    async def start(self, voice: str = "Charon"):
+        if self._running:
+            return False
+
+        api_key = _get_gemini_key()
+        if not api_key or api_key == "cole_sua_chave_aqui":
+            await self.ws.send_json({"type": "error", "message": "GEMINI_API_KEY nao configurada"})
+            return False
+
+        self._voice = GEMINI_VOICES.get(voice, voice)
+        sys_instr = _build_system_instruction()
+
+        try:
+            self.client = genai.Client(api_key=api_key)
+            config = types.LiveConnectConfig(
+                response_modalities=["AUDIO"],
+                output_audio_transcription={},
+                input_audio_transcription={},
+                system_instruction=sys_instr,
+                tools=[types.Tool(function_declarations=TOOL_DECLARATIONS)],
+                session_resumption=types.SessionResumptionConfig(),
+                speech_config=types.SpeechConfig(
+                    voice_config=types.VoiceConfig(
+                        prebuilt_voice_config=types.PrebuiltVoiceConfig(voice_name=self._voice)
+                    )
+                ),
+            )
+            print(f"[VoiceWS] Conectando ao Gemini Live com {len(TOOL_DECLARATIONS)} ferramentas...")
+            self._cm = self.client.aio.live.connect(model=LIVE_MODEL, config=config)
+            self.session = await self._cm.__aenter__()
+            self._running = True
+            print(f"[VoiceWS] Conectado! Voz: {self._voice} | Actions OK: {_ACTIONS_OK}")
+
+            asyncio.create_task(self._receive_loop())
+            asyncio.create_task(self._send_startup_briefing())
+
+            await self.ws.send_json({
+                "type": "connected",
+                "voice": self._voice,
+                "preset": voice,
+                "tools": len(TOOL_DECLARATIONS),
+            })
+            return True
+        except Exception as e:
+            print(f"[VoiceWS] ERRO ao conectar: {e}")
+            traceback.print_exc()
+            await self.ws.send_json({"type": "error", "message": str(e)})
+            return False
+
+    async def send_audio(self, audio_data: bytes):
+        if not self.session or not self._running:
+            return
+        try:
+            await self.session.send_realtime_input(
+                media={"data": audio_data, "mime_type": "audio/pcm;rate=16000"}
+            )
+        except Exception:
+            pass
+
+    async def _execute_tool(self, fc) -> types.FunctionResponse:
+        name = fc.name
+        args = dict(fc.args or {})
+        print(f"[VoiceWS] Tool call: {name} {args}")
+
+        loop = asyncio.get_event_loop()
+        result = "Done."
+
+        try:
+            if name == "open_app":
+                r = await loop.run_in_executor(None, lambda: open_app(parameters=args, response=None, player=None))
+                result = r or f"Opened {args.get('app_name')}."
+
+            elif name == "web_search":
+                r = await loop.run_in_executor(None, lambda: web_search_action(parameters=args, player=None))
+                result = r or "Done."
+
+            elif name == "system_status":
+                r = await loop.run_in_executor(None, get_system_status)
+                result = str(r)
+
+            elif name == "weather_report":
+                r = await loop.run_in_executor(None, lambda: weather_action(parameters=args, player=None))
+                result = r or "Weather delivered."
+
+            elif name == "send_message":
+                r = await loop.run_in_executor(None, lambda: send_message(parameters=args, response=None, player=None, session_memory=None))
+                result = r or f"Message sent to {args.get('receiver')}."
+
+            elif name == "reminder":
+                r = await loop.run_in_executor(None, lambda: reminder(parameters=args, response=None, player=None))
+                result = r or "Reminder set."
+
+            elif name == "youtube_video":
+                r = await loop.run_in_executor(None, lambda: youtube_video(parameters=args, response=None, player=None))
+                result = r or "Done."
+
+            elif name == "screen_process":
+                angle = args.get("angle", "screen").lower()
+                if angle == "camera":
+                    img_b, mime_t = await loop.run_in_executor(None, _capture_camera)
+                    result = f"Camera captured: {len(img_b)} bytes. Image sent for analysis."
+                else:
+                    img_b, mime_t = await loop.run_in_executor(None, _capture_screen)
+                    result = f"Screen captured: {len(img_b)} bytes. Image sent for analysis."
+
+            elif name == "close_camera":
+                result = "Camera closed."
+
+            elif name == "computer_settings":
+                r = await loop.run_in_executor(None, lambda: computer_settings(parameters=args, response=None, player=None))
+                result = r or "Done."
+
+            elif name == "browser_control":
+                r = await loop.run_in_executor(None, lambda: browser_control(parameters=args, player=None))
+                result = r or "Done."
+
+            elif name == "file_controller":
+                r = await loop.run_in_executor(None, lambda: file_controller(parameters=args, player=None))
+                result = r or "Done."
+
+            elif name == "desktop_control":
+                r = await loop.run_in_executor(None, lambda: desktop_control(parameters=args, player=None))
+                result = r or "Done."
+
+            elif name == "code_helper":
+                r = await loop.run_in_executor(None, lambda: code_helper(parameters=args, player=None, speak=None))
+                result = r or "Done."
+
+            elif name == "dev_agent":
+                r = await loop.run_in_executor(None, lambda: dev_agent(parameters=args, player=None, speak=None))
+                result = r or "Done."
+
+            elif name == "computer_control":
+                r = await loop.run_in_executor(None, lambda: computer_control(parameters=args, player=None))
+                result = r or "Done."
+
+            elif name == "game_updater":
+                r = await loop.run_in_executor(None, lambda: game_updater(parameters=args, player=None, speak=None))
+                result = r or "Done."
+
+            elif name == "flight_finder":
+                r = await loop.run_in_executor(None, lambda: flight_finder(parameters=args, player=None))
+                result = r or "Done."
+
+            elif name == "manage_monitor":
+                action = args.get("action", "").lower().strip()
+                topic = args.get("topic", "").strip()
+                if action == "add" and topic:
+                    result = await asyncio.to_thread(add_monitor, topic)
+                elif action == "remove" and topic:
+                    result = await asyncio.to_thread(remove_monitor, topic)
+                elif action == "list":
+                    topics = await asyncio.to_thread(list_monitors)
+                    result = ("Monitoring: " + ", ".join(topics)) if topics else "No topics monitored."
+                else:
+                    result = "Specify action (add/remove/list) and a topic."
+
+            elif name == "file_processor":
+                r = await loop.run_in_executor(None, lambda: file_processor(parameters=args, player=None, speak=None))
+                result = r or "Done."
+
+            else:
+                result = f"Unknown tool: {name}"
+
+        except Exception as e:
+            result = f"Tool '{name}' failed: {e}"
+            traceback.print_exc()
+
+        print(f"[VoiceWS] Tool result: {name} -> {str(result)[:100]}")
+
+        # Envia o resultado da tool para o frontend exibir no chat
+        try:
+            await self.ws.send_json({
+                "type": "tool_result",
+                "tool": name,
+                "result": str(result)[:2000],
+            })
+        except Exception:
+            pass
+
+        return types.FunctionResponse(id=fc.id, name=name, response={"result": result})
+
+    async def _send_startup_briefing(self):
+        await asyncio.sleep(0.3)
+        if not self.session or not self._running:
+            return
+
+        time_str = datetime.now().strftime("%H:%M")
+        hour = datetime.now().hour
+        greeting = "Bom dia" if hour < 12 else ("Boa tarde" if hour < 18 else "Boa noite")
+
+        p1 = (
+            f"{greeting}. Sao {time_str}. "
+            f"Sou o Charon, seu assistente de voz. "
+            f"Como posso ajudar?"
+        )
+
+        self._turn_done_event.clear()
+        try:
+            await self.session.send_client_content(
+                turns={"parts": [{"text": p1}]},
+                turn_complete=True,
+            )
+        except Exception:
+            pass
+
+    async def _handle_response(self, response) -> None:
+        if not self._running:
+            return
+
+        if response.data:
+            try:
+                await self.ws.send_bytes(response.data)
+            except Exception as e:
+                print(f"[VoiceWS] Erro ao enviar audio: {e}")
+                self._running = False
+                return
+
+        if response.server_content:
+            sc = response.server_content
+            if sc.input_transcription and sc.input_transcription.text:
+                try:
+                    await self.ws.send_json({
+                        "type": "transcript",
+                        "speaker": "user",
+                        "text": sc.input_transcription.text,
+                    })
+                except Exception:
+                    pass
+            if sc.output_transcription and sc.output_transcription.text:
+                try:
+                    await self.ws.send_json({
+                        "type": "transcript",
+                        "speaker": "Charon",
+                        "text": sc.output_transcription.text,
+                    })
+                except Exception:
+                    pass
+            if sc.turn_complete:
+                self._turn_done_event.set()
+                try:
+                    await self.ws.send_json({"type": "turn_complete"})
+                except Exception:
+                    pass
+
+        if response.tool_call:
+            fn_responses = []
+            for fc in response.tool_call.function_calls:
+                print(f"[VoiceWS] Executando tool: {fc.name}")
+                fr = await self._execute_tool(fc)
+                fn_responses.append(fr)
+            try:
+                await self.session.send_tool_response(
+                    function_responses=fn_responses
+                )
+            except Exception as e:
+                print(f"[VoiceWS] Erro ao enviar tool_response: {e}")
+
+    async def _receive_loop(self):
+        print("[VoiceWS] Receive loop iniciado")
+        try:
+            while self._running:
+                async for response in self.session.receive():
+                    if not self._running:
+                        break
+                    await self._handle_response(response)
+
+        except Exception as e:
+            print(f"[VoiceWS] Receive loop erro: {e}")
+            traceback.print_exc()
+            # Reconexão automática quando a sessão do Gemini cai (ex: 1006 abnormal closure)
+            if self._running:
+                print("[VoiceWS] Tentando reconectar ao Gemini Live...")
+                try:
+                    await self.ws.send_json({"type": "error", "message": "Conexao caiu, reconectando..."})
+                except Exception:
+                    pass
+                for attempt in range(5):
+                    if not self._running:
+                        return
+                    await asyncio.sleep(2 * (attempt + 1))
+                    try:
+                        if self.session:
+                            try:
+                                await self.session.close()
+                            except Exception:
+                                pass
+                        if self._cm:
+                            try:
+                                await self._cm.__aexit__(None, None, None)
+                            except Exception:
+                                pass
+                            self._cm = None
+                        self._cm = self.client.aio.live.connect(
+                            model=LIVE_MODEL,
+                            config=types.LiveConnectConfig(
+                                response_modalities=["AUDIO"],
+                                output_audio_transcription={},
+                                input_audio_transcription={},
+                                system_instruction=_build_system_instruction(),
+                                tools=[types.Tool(function_declarations=TOOL_DECLARATIONS)],
+                                session_resumption=types.SessionResumptionConfig(),
+                                speech_config=types.SpeechConfig(
+                                    voice_config=types.VoiceConfig(
+                                        prebuilt_voice_config=types.PrebuiltVoiceConfig(voice_name=self._voice)
+                                    )
+                                ),
+                            ),
+                        )
+                        self.session = await self._cm.__aenter__()
+                        self._running = True
+                        print(f"[VoiceWS] Reconectado (tentativa {attempt + 1})")
+                        await self.ws.send_json({"type": "connected", "voice": self._voice, "preset": self._voice, "tools": len(TOOL_DECLARATIONS)})
+                        asyncio.create_task(self._send_startup_briefing())
+                        # Volta a receber mensagens
+                        while self._running:
+                            async for response in self.session.receive():
+                                if not self._running:
+                                    break
+                                await self._handle_response(response)
+                        return
+                    except Exception as re:
+                        print(f"[VoiceWS] Falha na reconexao (tentativa {attempt + 1}): {re}")
+                self._running = False
+
+    async def stop(self):
+        self._running = False
+        if self.session:
+            try:
+                await self.session.close()
+            except Exception:
+                pass
+        if self._cm:
+            try:
+                await self._cm.__aexit__(None, None, None)
+            except Exception:
+                pass
+            self._cm = None
+        self.session = None
+        try:
+            await self.ws.send_json({"type": "disconnected"})
+        except Exception:
+            pass
+
+
+_sessions: dict = {}
+
+
+@router.websocket("/ws/voice")
+async def voice_websocket(ws: WebSocket):
+    await ws.accept()
+    session = VoiceSession(ws)
+    sid = f"voice_{id(ws)}"
+    _sessions[sid] = session
+
+    try:
+        while True:
+            msg = await ws.receive()
+
+            if "bytes" in msg and msg["bytes"]:
+                await session.send_audio(msg["bytes"])
+                continue
+
+            if "text" in msg and msg["text"]:
+                data = json.loads(msg["text"])
+                msg_type = data.get("type", "")
+
+                if msg_type == "start":
+                    for old_sid, old_session in list(_sessions.items()):
+                        if old_sid != sid and old_session._running:
+                            await old_session.stop()
+                            _sessions.pop(old_sid, None)
+                    await session.start(voice=data.get("voice", "Charon"))
+
+                elif msg_type == "text":
+                    if data.get("text") and session.session:
+                        try:
+                            await session.session.send_client_content(
+                                turns={"parts": [{"text": data["text"]}]}, turn_complete=True
+                            )
+                        except Exception:
+                            pass
+
+                elif msg_type == "stop":
+                    break
+
+                elif msg_type == "interrupt":
+                    if session.session and session._running:
+                        try:
+                            await session.session.send_realtime_input(
+                                audio={"data": b"", "mime_type": "audio/pcm;rate=16000"},
+                                interrupt=True,
+                            )
+                        except Exception:
+                            pass
+                    session._turn_done_event.set()
+
+    except WebSocketDisconnect:
+        pass
+    except Exception:
+        pass
+    finally:
+        await session.stop()
+        _sessions.pop(sid, None)
+
+
+@router.get("/api/voice/status")
+async def voice_status():
+    key = _get_gemini_key()
+    return {
+        "available": bool(key and key != "cole_sua_chave_aqui"),
+        "default_voice": "charon",
+        "tools": len(TOOL_DECLARATIONS),
+        "actions_loaded": _ACTIONS_OK,
+    }

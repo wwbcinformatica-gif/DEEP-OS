@@ -34,51 +34,45 @@ export const SecurityToggle: React.FC = () => {
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'space-between',
-        padding: '16px',
+        padding: '12px 16px',
         background: 'var(--bg)',
-        borderRadius: '8px',
-        border: '1px solid var(--bg-2)',
+        borderRadius: '6px',
+        border: '1px solid var(--line)',
       }}
     >
       <div>
-        <h3 style={{ fontSize: '14px', fontWeight: 600, color: 'var(--ink)', margin: 0 }}>
-          Modo de Operação
+        <h3 style={{ fontSize: '12px', fontWeight: 600, color: 'var(--ink)', margin: 0 }}>
+          Modo de Operacao
         </h3>
-        <p style={{ fontSize: '12px', color: 'var(--muted)', margin: '4px 0 0 0' }}>
+        <p style={{ fontSize: '11px', color: 'var(--muted)', margin: '4px 0 0 0' }}>
           {isSandboxEnabled
-            ? '🔒 Modo Restrito (Isolado na pasta do projeto)'
-            : '🛠️ Modo Desenvolvedor (Acesso total ao sistema)'}
+            ? 'Restrito (pasta do projeto)'
+            : 'Desenvolvedor (acesso total)'}
         </p>
       </div>
       <button
         onClick={handleToggle}
         disabled={loading}
         style={{
-          position: 'relative',
-          display: 'inline-flex',
-          height: '24px',
-          width: '44px',
-          alignItems: 'center',
-          borderRadius: '9999px',
-          border: 'none',
+          width: 36,
+          height: 36,
+          borderRadius: 4,
+          border: `1px solid ${isSandboxEnabled ? 'var(--blue)' : 'var(--accent)'}`,
           cursor: loading ? 'not-allowed' : 'pointer',
           opacity: loading ? 0.6 : 1,
-          transition: 'background 0.2s',
-          outline: 'none',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          flexShrink: 0,
           background: isSandboxEnabled ? 'var(--blue)' : 'var(--accent)',
+          color: '#fff',
+          fontFamily: 'var(--font-ui)',
+          fontSize: '14px',
+          transition: 'all 0.2s ease',
         }}
+        title={isSandboxEnabled ? 'Modo Restrito - clique para mudar' : 'Modo Desenvolvedor - clique para mudar'}
       >
-        <span
-          style={{
-            display: 'inline-block',
-            height: '16px',
-            width: '16px',
-            borderRadius: '9999px',
-            background: '#fff',
-            transition: 'transform 0.2s',
-            transform: isSandboxEnabled ? 'translateX(24px)' : 'translateX(4px)',
-          }}
-        />
+        {isSandboxEnabled ? '🔒' : '🛠️'}
       </button>
     </div>
   );

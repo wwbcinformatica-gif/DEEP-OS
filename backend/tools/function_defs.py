@@ -12,11 +12,11 @@ TOOLS = [
         "type": "function",
         "function": {
             "name": "read",
-            "description": "Le o conteudo de um arquivo ou lista arquivos de um diretorio",
+            "description": "Le o conteudo de um arquivo ou lista arquivos de um diretorio. Aceita paths absolutos (ex: G:\\DEEP-AUREA, C:\\Users) ou relativos.",
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "path": {"type": "string", "description": "Caminho do arquivo ou diretorio"},
+                    "path": {"type": "string", "description": "Caminho do arquivo ou diretorio. Aceita paths absolutos (G:\\pasta) ou relativos (backend/core)"},
                     "root": {"type": "string", "description": "Diretorio raiz do projeto (opcional)"}
                 },
                 "required": ["path"]
@@ -27,11 +27,11 @@ TOOLS = [
         "type": "function",
         "function": {
             "name": "write",
-            "description": "Cria ou sobrescreve um arquivo com conteudo",
+            "description": "Cria ou sobrescreve um arquivo com conteudo. Aceita paths absolutos.",
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "path": {"type": "string", "description": "Caminho do arquivo"},
+                    "path": {"type": "string", "description": "Caminho do arquivo. Aceita paths absolutos (G:\\pasta\\arquivo.py)"},
                     "content": {"type": "string", "description": "Conteudo do arquivo"},
                     "root": {"type": "string", "description": "Diretorio raiz do projeto (opcional)"}
                 },
@@ -43,11 +43,11 @@ TOOLS = [
         "type": "function",
         "function": {
             "name": "bash",
-            "description": "Executa um comando no terminal do sistema",
+            "description": "Executa um comando no terminal do sistema. Tem acesso TOTAL a todas as unidades (C:\\, D:\\, G:\\, etc).",
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "command": {"type": "string", "description": "Comando a ser executado"},
+                    "command": {"type": "string", "description": "Comando a ser executado (ex: dir G:\\, ls C:\\Users)"},
                     "workdir": {"type": "string", "description": "Diretorio de trabalho (opcional)"}
                 },
                 "required": ["command"]
@@ -58,12 +58,12 @@ TOOLS = [
         "type": "function",
         "function": {
             "name": "explorer",
-            "description": "Lista o conteudo de um diretorio (arquivos e pastas)",
+            "description": "Lista o conteudo de um diretorio. Aceita paths absolutos (ex: G:\\, C:\\Users\\Desktop).",
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "path": {"type": "string", "description": "Subpasta dentro da raiz (vazio para raiz)"},
-                    "root": {"type": "string", "description": "Diretorio raiz do projeto (opcional)"}
+                    "path": {"type": "string", "description": "Caminho absoluto (G:\\pasta) ou subpasta relativa"},
+                    "root": {"type": "string", "description": "Diretorio raiz (opcional)"}
                 },
                 "required": []
             }
@@ -166,6 +166,38 @@ TOOLS = [
                 "type": "object",
                 "properties": {
                     "name": {"type": "string", "description": "Nome do plugin MCP (ex: github, discord, telegram, fakechat)"}
+                },
+                "required": ["name"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "open_app",
+            "description": "Abre um programa ou executavel no sistema. Procura em Program Files, AppData, PATH e Start Menu. Use quando o usuario pedir para abrir qualquer programa (ex: 'abra o Chrome', 'abra o Spotify', 'abra calculadora').",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "app_name": {"type": "string", "description": "Nome do programa (ex: chrome, spotify, notepad, calc, explorer)"},
+                    "path": {"type": "string", "description": "Caminho completo do executavel (opcional, se souber)"},
+                    "args": {"type": "string", "description": "Argumentos adicionais (opcional)"}
+                },
+                "required": ["app_name"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "find_file",
+            "description": "Procura arquivos em TODA a maquina por nome parcial. Use quando o usuario pedir para encontrar musicas, videos, documentos ou qualquer arquivo. Procura em todas as unidades (C:, D:, G:, etc).",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "name": {"type": "string", "description": "Nome parcial do arquivo (ex: Jefferson, musica, .mp3, hino)"},
+                    "pattern": {"type": "string", "description": "Padrao wildcard (ex: *.mp3, *Jefferson*)"},
+                    "drive": {"type": "string", "description": "Unidade especifica (ex: C:, D:). Vazio = todas as unidades."}
                 },
                 "required": ["name"]
             }

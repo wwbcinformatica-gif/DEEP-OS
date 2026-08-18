@@ -12,11 +12,11 @@ interface EditorPanelProps {
   saveFile: (id: string) => void;
 }
 
-const CLR_TOP = '#252526';
-const CLR_TAB = '#2d2d2d';
-const CLR_TAB_A = '#1e1e1e';
+const CLR_TOP = '#0a0a0a';
+const CLR_TAB = '#111111';
+const CLR_TAB_A = '#000000';
 
-const CLR_LINE = '#3c3c3c';
+const CLR_LINE = '#333333';
 
 // ─── Common editor styles ─────────────────────────────────────────────────
 const editorBase: React.CSSProperties = {

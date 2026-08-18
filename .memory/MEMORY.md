@@ -138,6 +138,14 @@ _Cross-task facts that survive across sessions. Promoted from session checkpoint
 - **Working providers as of 2026-07-15**: Groq (Llama 3.3 70B) ✅, OpenCode (deepseek-v4-flash-free, $0) ✅. Broken: MiMo (402), Gemini (404), OpenRouter (401).
 - **Default provider changed to OpenCode (2026-07-15)**: config.yaml updated from `prov: gemini` (broken) to `prov: opencode` with `model: deepseek-v4-flash-free`.
 
+## Correction flow and context preservation (2026-08-05)
+
+- **Interruption/correction flow (2026-08-05, IMPLEMENTED)**: When user sends a message while agent is processing (`loading=true`), frontend aborts the current request, saves conversation context (last 10 msgs), and sends new message with `is_correction: true`. Backend clears the processing state and processes the new message with full context. User sees "⏹️ Tarefa interrompida. Processando correção..." notification.
+- **Full context preservation on correction (2026-08-05, IMPLEMENTED)**: Backend always loads 50 most recent messages from database as base context, then appends correction context on top. Agent never loses sight of what happened before the interruption. Works like OpenCode — full conversation history always available.
+- **Stuck session recovery (2026-08-05, IMPLEMENTED)**: Backend detects sessions stuck in "processing" state for >60 seconds and auto-clears them. When correction arrives, also clears any queued messages for that session.
+- **Queued message system removed from frontend (2026-08-05)**: Old behavior: queue messages in `messageQueueRef` and process after current request finishes. New behavior: abort current request and send fresh. Queue ref still exists but is no longer populated.
+- **Jarvis TTS MediaSource fix (2026-08-05, IMPLEMENTED)**: `audio.play()` was called after only 300ms before audio data was buffered, causing browser errors and playback stopping after a few seconds. Fix: wait for first chunk to be appended to `sourceBuffer` (via `updateend` event) before calling `play()`. Also: `audio.onerror` now only kills playback on fatal errors (code ≥ 3), not transient errors. Added `QuotaExceededError` handling in `pump()` to remove old buffered data when buffer is full.
+
 ## Architecture decisions (DEEP-AUREA Voice Mode)
 
 - **Voice Mode UI architecture (2026-07-17, IMPLEMENTED)**: Full-screen immersive voice interface inspired by ChatGPT Advanced Voice Mode. Component: `VoiceMode.tsx` renders as fixed overlay (z-index 9999) with gradient dark background. Central orb (120px) animates based on audio levels. 4 visual states: idle (muted), listening (accent color + audio rings), thinking (yellow, pulsing), speaking (teal + waveform bars). Integrated via ChatPanel.tsx with `voiceModeOpen` state toggle.

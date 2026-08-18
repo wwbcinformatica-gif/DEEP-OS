@@ -1,6 +1,7 @@
 import json
 import subprocess
 from pathlib import Path
+from typing import List
 
 import yaml
 from fastapi import APIRouter
@@ -9,6 +10,7 @@ from pydantic import BaseModel
 router = APIRouter()
 
 CONFIG_PATH = Path(__file__).resolve().parent.parent / "config.yaml"
+MODELS_DIR = Path(__file__).resolve().parent.parent.parent / "models"
 
 
 def _read_config() -> dict:
@@ -43,6 +45,48 @@ def _fetch_ollama_models() -> dict:
         return {"running": False, "models": [], "error": str(e)}
 
 
+def _fetch_local_gguf_models() -> List[dict]:
+    """Busca modelos GGUF na pasta models/ e retorna lista de {name, path, size}."""
+    models = []
+    if not MODELS_DIR.exists():
+        return models
+    
+    # Buscar arquivos GGUF recursivamente
+    for gguf_file in MODELS_DIR.rglob("*.gguf"):
+        # Ignorar arquivos de projeção (mmproj)
+        if "mmproj" in gguf_file.name.lower():
+            continue
+        
+        try:
+            size_bytes = gguf_file.stat().st_size
+            size_gb = size_bytes / (1024 ** 3)
+            
+            # Criar nome amigável baseado no nome do arquivo
+            name = gguf_file.stem
+            # Remover padrões comuns de quantização para melhorar legibilidade
+            for suffix in ["-Q4_K_M", "-Q4_K_S", "-Q4_0", "-Q4_1", "-Q5_K_M", "-Q5_K_S", 
+                          "-Q5_0", "-Q5_1", "-Q6_K", "-Q8_0", "-Q2_0", "-Q2_K", "-IQ4_XS",
+                          "-IQ3_M", "-IQ3_S", "-IQ3_XS", "-IQ2_M", "-IQ2_S", "-IQ2_XS",
+                          "-FP16", "-BF16", "-F16"]:
+                name = name.replace(suffix, "")
+            
+            # Limpar separadores e capitalizar
+            name = name.replace("-", " ").replace("_", " ").strip()
+            name = " ".join(word.capitalize() for word in name.split())
+            
+            models.append({
+                "name": name,
+                "path": str(gguf_file),
+                "filename": gguf_file.name,
+                "size_gb": round(size_gb, 2),
+                "source": "local_gguf"
+            })
+        except Exception:
+            continue
+    
+    return models
+
+
 def get_gpu_config() -> dict:
     config = _read_config()
     ollama_cfg = config.get("ollama", {})
@@ -68,16 +112,51 @@ class GpuConfigPayload(BaseModel):
 
 @router.get("/ollama/status")
 async def ollama_status():
-    return _fetch_ollama_models()
+    result = _fetch_ollama_models()
+    local_models = _fetch_local_gguf_models()
+    
+    # Adicionar modelos locais à lista
+    all_models = result.get("models", []).copy()
+    for local in local_models:
+        # Usar o filename como identificador único
+        if local["filename"] not in all_models:
+            all_models.append(local["filename"])
+    
+    return {
+        "running": result.get("running", False),
+        "models": all_models,
+        "local_models": local_models,
+    }
 
 
 @router.get("/ollama/models")
 async def ollama_models():
-    """Retorna lista de modelos instalados no Ollama."""
+    """Retorna lista de modelos instalados no Ollama + modelos locais GGUF."""
     result = _fetch_ollama_models()
+    local_models = _fetch_local_gguf_models()
+    
+    # Combinar modelos
+    all_models = result.get("models", []).copy()
+    local_filenames = []
+    for local in local_models:
+        if local["filename"] not in all_models:
+            all_models.append(local["filename"])
+            local_filenames.append(local["filename"])
+    
     return {
-        "running": result["running"],
-        "models": result["models"],
+        "running": result.get("running", False),
+        "models": all_models,
+        "local_models": local_models,
+        "local_filenames": local_filenames,
+    }
+
+
+@router.get("/ollama/local-models")
+async def ollama_local_models():
+    """Retorna apenas os modelos GGUF locais da pasta models/."""
+    return {
+        "models": _fetch_local_gguf_models(),
+        "models_dir": str(MODELS_DIR),
     }
 
 

@@ -5,7 +5,7 @@ class Message(BaseModel):
     user: str
     provider: str = "openclaude"
     model: str = "deepseek-v4-flash"
-    mood: str = "serio"
+    mood: str = "opencode"
     temperature: float = 0.7
     system_prompt: str = ""
     root: str = ""      # Diretório raiz configurado no explorador
@@ -16,6 +16,10 @@ class Message(BaseModel):
     tool_confirmed: bool = False  # True quando usuario aprovou ferramenta destrutiva
     images: list[str] = []  # Imagens em base64 para modelos de visao
     session_id: str = ""  # ID da sessao para fila de mensagens
+    previous_context: list[dict] = []  # Contexto da conversa anterior (para fila)
+    is_correction: bool = False  # True quando usuario interrompe com nova mensagem (correcao)
+    assess_urgency: bool = False  # True quando frontend pede avaliacao de urgencia (nao interrompe, apenas classifica)
+    current_task_summary: str = ""  # Resumo da tarefa em execucao (para contexto da triagem)
 
 class BrainArtifact(BaseModel):
     title: str

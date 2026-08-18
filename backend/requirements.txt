@@ -8,6 +8,7 @@ pyyaml==6.0.2
 # ─── HTTP / API ─────────────────────────────────────────────────
 httpx==0.27.2
 openai==1.51.0
+requests>=2.31.0
 
 # ─── Rate Limiting ──────────────────────────────────────────────
 slowapi==0.1.9
@@ -18,6 +19,42 @@ edge-tts==6.1.12
 # ─── STT (Speech-to-Text) ──────────────────────────────────────
 SpeechRecognition==3.17.0
 pydub==0.25.1
+
+# ─── Gemini Live API ───────────────────────────────────────────
+google-genai>=0.3.0
+
+# ─── Voice / Audio ─────────────────────────────────────────────
+sounddevice>=0.4.6
+numpy>=1.24.0
+
+# ─── Computer Control (Mark-L) ─────────────────────────────────
+pyautogui>=0.9.54
+pyperclip>=1.8.2
+pygetwindow>=0.0.9
+opencv-python>=4.8.0
+mss>=9.0.1
+psutil>=5.9.5
+send2trash>=1.8.2
+
+# ─── Web / Search ──────────────────────────────────────────────
+beautifulsoup4>=4.12.0
+duckduckgo-search>=4.1.0
+youtube-transcript-api>=0.6.1
+
+# ─── Browser Automation ────────────────────────────────────────
+playwright>=1.40.0
+
+# ─── Windows-specific ──────────────────────────────────────────
+comtypes; sys_platform == "win32"
+pycaw; sys_platform == "win32"
+pywin32; sys_platform == "win32"
+pywinauto; sys_platform == "win32"
+
+# ─── Utilities ─────────────────────────────────────────────────
+python-pptx>=0.6.21
+qrcode[pil]>=7.4
+pillow>=10.0.0
+python-multipart>=0.0.6
 
 # ─── RAG / Vector Memory (optional) ────────────────────────────
 # langchain-community>=0.2.0

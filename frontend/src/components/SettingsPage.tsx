@@ -12,7 +12,12 @@ type VoicePreset =
   | 'daniel'
   | 'jarvis-cinematic'
   | 'edge-francisca'
-  | 'edge-thalita';
+  | 'edge-thalita'
+  | 'eleven-natasha'
+  | 'eleven-serafina'
+  | 'eleven-ivy'
+  | 'eleven-ingmar'
+  | 'dani-brandi';
 
 type Tab = 'geral' | 'aparencia' | 'voz' | 'agente' | 'dev';
 
@@ -47,6 +52,7 @@ interface Props {
   setMimoApiKey: (v: string) => void;
   oModels: { value: string; label: string }[];
   orModels: { value: string; label: string }[];
+  llamacppModels: { value: string; label: string; available: boolean }[];
   customM: string;
   setCustomM: (v: string) => void;
   showCust: boolean;
@@ -57,6 +63,8 @@ interface Props {
   setJarvisRate: (v: number) => void;
   voicePitch: number;
   setVoicePitch: (v: number) => void;
+  deepSilenceSec: number;
+  setDeepSilenceSec: (v: number) => void;
   ollSt: { running: boolean; models: string[] } | undefined;
   accentTheme: AccentTheme;
   setAccentTheme: (v: AccentTheme) => void;
@@ -118,6 +126,11 @@ const VOICE_OPTIONS = [
   { key: 'jarvis-cinematic' as const, label: 'Jarvis Cinematic', desc: 'Tom grave, levemente cinematografico' },
   { key: 'edge-francisca' as const, label: 'Francisca Neural (Edge)', desc: 'Voz feminina natural Microsoft Neural' },
   { key: 'edge-thalita' as const, label: 'Thalita Neural (Edge)', desc: 'Voz feminina clara Microsoft Neural' },
+  { key: 'dani-brandi' as const, label: 'Dani Brandi (Google)', desc: 'Voz feminina brasileira bonita e natural' },
+  { key: 'eleven-natasha' as const, label: 'Natasha (ElevenLabs)', desc: 'Sensual, hipnotica e brincalhona' },
+  { key: 'eleven-serafina' as const, label: 'Serafina (ElevenLabs)', desc: 'Sedutora sensual e charmosa' },
+  { key: 'eleven-ivy' as const, label: 'Ivy (ElevenLabs)', desc: 'Suave, expressiva e calorosa' },
+  { key: 'eleven-ingmar' as const, label: 'Ingmar (ElevenLabs)', desc: 'Masculina, misteriosa e envolvente' },
 ];
 
 export default function SettingsPage(props: Props) {
@@ -126,9 +139,9 @@ export default function SettingsPage(props: Props) {
     sysPr, setSysPr, snd, setSnd, bright, setBright, fsize, setFsize,
     apiKey, setApiKey, orApiKey, setOrApiKey, groqApiKey, setGroqApiKey,
     openaiApiKey, setOpenaiApiKey, geminiApiKey, setGeminiApiKey,
-    mimoApiKey, setMimoApiKey, oModels, orModels, customM, setCustomM,
+    mimoApiKey, setMimoApiKey, oModels, orModels, llamacppModels, customM, setCustomM,
     showCust, setShowCust, voicePreset, setVoicePreset, jarvisRate, setJarvisRate,
-    voicePitch, setVoicePitch, accentTheme, setAccentTheme, gpuEnabled, setGpuEnabled,
+    voicePitch, setVoicePitch, deepSilenceSec, setDeepSilenceSec, accentTheme, setAccentTheme, gpuEnabled, setGpuEnabled,
   } = props;
   const [toast, setToast] = useState('');
   const [activeTab, setActiveTab] = useState<Tab>('geral');
@@ -267,7 +280,21 @@ export default function SettingsPage(props: Props) {
             <h3 style={h3}>Modelo</h3>
             <select value={model} onChange={(e) => e.target.value === '__c' ? setShowCust(true) : (setModel(e.target.value), setShowCust(false))} style={selectStyle}>
               {(() => {
-                const avail = prov === 'ollama' && oModels.length ? oModels : prov === 'openrouter' && orModels.length ? orModels : MODELS[prov] || [];
+                let avail: { value: string; label: string }[] = [];
+                
+                if (prov === 'ollama' && oModels.length) {
+                  avail = oModels;
+                } else if (prov === 'llamacpp' && llamacppModels.length) {
+                  avail = llamacppModels.map(m => ({
+                    value: m.value,
+                    label: m.available ? m.label : `${m.label} (indisponível)`,
+                  }));
+                } else if (prov === 'openrouter' && orModels.length) {
+                  avail = orModels;
+                } else {
+                  avail = MODELS[prov] || [];
+                }
+                
                 const list = avail.some((m) => m.value === model) ? avail : [{ value: model, label: model }, ...avail];
                 return list.map((m) => <option key={m.value} value={m.value}>{m.label}</option>);
               })()}
@@ -417,6 +444,29 @@ export default function SettingsPage(props: Props) {
                   </button>
                 ))}
               </div>
+              <p style={{ ...s({ fontSize: '9px', color: 'var(--quiet)', margin: 0 }) }}>Google Natural:</p>
+              <div style={{ display: 'flex', gap: '6px' }}>
+                {[
+                  { key: 'dani-brandi' as const, label: 'Dani Brandi' },
+                ].map((v) => (
+                  <button key={v.key} onClick={() => setVoicePreset(v.key)} style={{ flex: 1, padding: '6px 8px', borderRadius: 6, border: voicePreset === v.key ? '1px solid var(--accent)' : '1px solid var(--line-strong)', background: voicePreset === v.key ? 'var(--accent)' : 'transparent', color: voicePreset === v.key ? 'var(--selection-fg)' : 'var(--muted)', cursor: 'pointer', fontSize: '11px' }}>
+                    {v.label}
+                  </button>
+                ))}
+              </div>
+              <p style={{ ...s({ fontSize: '9px', color: 'var(--quiet)', margin: 0 }) }}>ElevenLabs (requer API key):</p>
+              <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                {[
+                  { key: 'eleven-natasha' as const, label: 'Natasha' },
+                  { key: 'eleven-serafina' as const, label: 'Serafina' },
+                  { key: 'eleven-ivy' as const, label: 'Ivy' },
+                  { key: 'eleven-ingmar' as const, label: 'Ingmar' },
+                ].map((v) => (
+                  <button key={v.key} onClick={() => setVoicePreset(v.key)} style={{ flex: '1 0 45%', padding: '6px 8px', borderRadius: 6, border: voicePreset === v.key ? '1px solid var(--accent)' : '1px solid var(--line-strong)', background: voicePreset === v.key ? 'var(--accent)' : 'transparent', color: voicePreset === v.key ? 'var(--selection-fg)' : 'var(--muted)', cursor: 'pointer', fontSize: '11px' }}>
+                    {v.label}
+                  </button>
+                ))}
+              </div>
               <p style={{ ...s({ fontSize: '10px', color: 'var(--muted)', margin: 0 }) }}>{VOICE_OPTIONS.find((o) => o.key === voicePreset)?.desc}</p>
             </div>
             <div style={{ display: 'grid', gap: '10px' }}>
@@ -427,8 +477,13 @@ export default function SettingsPage(props: Props) {
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                 <span style={{ ...s(), minWidth: '56px' }}>Tom</span>
-                <input type="range" min="0" max="100" value={voicePitch} onChange={(e) => setVoicePitch(+e.target.value)} style={rangeStyle} />
-                <span style={s({ minWidth: '32px', textAlign: 'right' })}>{voicePitch}%</span>
+                <input type="range" min="-50" max="50" value={voicePitch - 50} onChange={(e) => setVoicePitch(+e.target.value + 50)} style={rangeStyle} />
+                <span style={s({ minWidth: '32px', textAlign: 'right' })}>{voicePitch > 50 ? '+' : ''}{voicePitch - 50}</span>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <span style={{ ...s(), minWidth: '56px' }} title="Tempo de silêncio no modo Aurea antes de enviar o comando">Escuta</span>
+                <input type="range" min="2" max="15" value={deepSilenceSec} onChange={(e) => setDeepSilenceSec(+e.target.value)} style={rangeStyle} />
+                <span style={s({ minWidth: '32px', textAlign: 'right' })}>{deepSilenceSec}s</span>
               </div>
             </div>
           </div>

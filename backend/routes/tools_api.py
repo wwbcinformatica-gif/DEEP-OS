@@ -22,7 +22,7 @@ router = APIRouter()
 
 def _check_sandbox(command: str):
     """Verifica se o modo restrito do sandbox está ativo e bloqueia comandos que acessam outros drives."""
-    config_path = Path("C:/DEEP-AUREA/config.yaml")
+    config_path = Path(__file__).resolve().parent.parent.parent / "config.yaml"
     if not config_path.exists():
         return  # Sem config, permite
     try:

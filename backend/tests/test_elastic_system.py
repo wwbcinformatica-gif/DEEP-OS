@@ -1,8 +1,9 @@
 """Quick test for new elastic memory + anti-loop systems."""
 import sys
 import asyncio
+from pathlib import Path
 
-sys.path.insert(0, "C:\\DEEP-AUREA\\backend")
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from memory.elastic_memory import (
     index_task_memory,

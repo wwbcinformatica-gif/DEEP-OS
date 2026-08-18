@@ -199,7 +199,7 @@ const MusicPlayer = forwardRef<MusicPlayerHandle>((_props, ref) => {
           >
             <video ref={videoRef} preload="auto" style={{ width: '100%', height: '100%', objectFit: 'cover' }} playsInline muted={false} />
             {!isPlaying && (
-              <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.4)' }}>
+              <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#000' }}>
                 <svg width="16" height="16" viewBox="0 0 16 16" fill="#fff"><path d="M4 2l10 6-10 6z" /></svg>
               </div>
             )}

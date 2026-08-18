@@ -305,7 +305,7 @@ function CodeBlock({ lang, code }: { lang: string; code: string }) {
         customStyle={{
           margin: 0,
           padding: '14px 16px',
-          fontSize: '13px',
+          fontSize: 'var(--base-font-size, 13px)',
           lineHeight: '1.55',
           background: 'var(--bg)',
           fontFamily: "'Cascadia Code', 'Fira Code', 'JetBrains Mono', Consolas, monospace",

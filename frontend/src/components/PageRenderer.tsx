@@ -41,6 +41,7 @@ interface PageRendererProps {
   setMimoApiKey: (v: string) => void;
   oModels: { value: string; label: string }[];
   orModels: { value: string; label: string }[];
+  llamacppModels: { value: string; label: string; available: boolean }[];
   customM: string;
   setCustomM: (v: string) => void;
   showCust: boolean;
@@ -54,7 +55,12 @@ interface PageRendererProps {
     | 'daniel'
     | 'jarvis-cinematic'
     | 'edge-francisca'
-    | 'edge-thalita';
+    | 'edge-thalita'
+    | 'eleven-natasha'
+    | 'eleven-serafina'
+    | 'eleven-ivy'
+    | 'eleven-ingmar'
+    | 'dani-brandi';
   setVoicePreset: (
     v:
       | 'google-female'
@@ -65,12 +71,19 @@ interface PageRendererProps {
       | 'daniel'
       | 'jarvis-cinematic'
       | 'edge-francisca'
-      | 'edge-thalita',
+      | 'edge-thalita'
+      | 'eleven-natasha'
+      | 'eleven-serafina'
+      | 'eleven-ivy'
+      | 'eleven-ingmar'
+      | 'dani-brandi',
   ) => void;
   jarvisRate: number;
   setJarvisRate: (v: number) => void;
   voicePitch: number;
   setVoicePitch: (v: number) => void;
+  deepSilenceSec: number;
+  setDeepSilenceSec: (v: number) => void;
   ollSt: { running: boolean; models: string[] } | undefined;
   knows: KnowItem[];
   setKnows: (v: React.SetStateAction<KnowItem[]>) => void;
@@ -130,6 +143,8 @@ export default function PageRenderer(props: PageRendererProps) {
         setJarvisRate={props.setJarvisRate}
         voicePitch={props.voicePitch}
         setVoicePitch={props.setVoicePitch}
+        deepSilenceSec={props.deepSilenceSec}
+        setDeepSilenceSec={props.setDeepSilenceSec}
         apiKey={props.apiKey}
         setApiKey={props.setApiKey}
         orApiKey={props.orApiKey}
@@ -144,6 +159,7 @@ export default function PageRenderer(props: PageRendererProps) {
         setMimoApiKey={props.setMimoApiKey}
         oModels={props.oModels}
         orModels={props.orModels}
+        llamacppModels={props.llamacppModels}
         customM={props.customM}
         setCustomM={props.setCustomM}
         showCust={props.showCust}
