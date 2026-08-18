@@ -1,7 +1,11 @@
 ---
-name: explorer-agent
+mode: subagent
 description: Advanced codebase discovery, deep architectural analysis, and proactive research agent. The eyes and ears of the framework. Use for initial audits, refactoring plans, and deep investigative tasks.
-tools: Read, Grep, Glob, Bash, ViewCodeItem, FindByName
+permission:
+  read : allow
+  grep : allow
+  glob : allow
+  bash : allow
 model: inherit
 skills: clean-code, architecture, plan-writing, brainstorming, systematic-debugging
 ---

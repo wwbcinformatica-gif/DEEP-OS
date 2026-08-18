@@ -1,7 +1,61 @@
-**Ultima atualizacao:** 2026-08-17 (Sessao 14) - Organizacao de modelos + Ternary-Bonsai no dropdown + Portabilidade
+<<<<<<< HEAD
+**Ultima atualizacao:** 2026-08-17 (Sessao 15) - Limpeza do Git + .gitignore atualizado
 
 ---
 
+## Sessao 2026-08-17 (15) - Limpeza do Git + .gitignore
+
+### Resumo
+
+Limpeza completa do repositorio: remocao de arquivos pessoais, binarios grandes e dados sensiveis do git. Atualizacao do .gitignore para evitar que esses arquivos sejam versionados no futuro.
+
+### Alteracoes aplicadas
+
+1. **.gitignore atualizado** — novas regras adicionadas:
+   - `WBC_Informatica_LandingPage/` — landing page pessoal
+   - `api_keys.json` — chaves de API (sensiveis)
+   - `*.dll`, `*.exe`, `*.rar`, `*.zip` — binarios e compactados
+   - `bin/` — binarios do llama-server
+   - `models/` — modelos GGUF (grandes demais)
+
+2. **Arquivos removidos do git** (mantidos localmente):
+   - `WBC_Informatica_LandingPage/` — 1197 arquivos (catalogo GSM DIGITAL)
+   - `backend/config/api_keys.json` — API keys
+   - `config/api_keys.json` — API keys
+   - `bin/vulkan/` — 33 arquivos (dll/exe do llama-server)
+   - `models/` — 2 arquivos de configuracao
+
+3. **Commits realizados:**
+   - `d1847d4` — fix: organizacao de modelos GGUF + Ternary-Bonsai no dropdown LLAMACPP
+   - `f07e76e` — feat: commit completo - todas as sessoes (1-14)
+   - `17d1ba4` — chore: remove arquivos pessoais e binarios do git
+
+### Commits Pushados
+
+```
+f07e76e..17d1ba4  master -> master (GitHub)
+```
+
+### Arquivos alterados
+
+- `.gitignore` (atualizado com novas regras)
+
+### Como reiniciar
+
+Execute `C:\DEEP-AUREA\START-TOTAL.bat` (backend + frontend).
+=======
+**Ultima atualizacao:** 2026-08-24 (Sessao 21) - GGUF Auto-Detection, Vision, Thinking Panel, GPU Support
+
+---
+
+## Sessao 2026-08-24 (21) - GGUF Auto-Detection, Vision, Thinking Panel, GPU Support
+
+### Resumo
+>>>>>>> d436640 (v2.0: GGUF auto-detection, GPU support, vision, thinking panel, monitor fix, portability scripts)
+
+Sistema de deteccao automatica de modelos GGUF, suporte a visao (mmproj), painel de thinking no contexto, voz sem thinking, suporte a GPU para llamacpp, correcao do monitor de GPU, e script de limpeza de memoria.
+
+<<<<<<< HEAD
 ## Sessao 2026-08-17 (14) - Organizacao de Modelos + Ternary-Bonsai no Dropdown
 
 ### Resumo
@@ -89,9 +143,31 @@ C:\DEEP-AUREA\models\
 ### Como reiniciar
 
 Execute `C:\DEEP-AUREA\START-TOTAL.bat` (backend + frontend). Faca Ctrl+Shift+R no navegador para pegar o build novo.
+=======
+### 1. GGUF Auto-Detection (CORRIGIDO)
 
----
+**Problema:** Modelos GGUF eram hardcoded em `GGUF_MODELS` — todo modelo novo exigia alterar o codigo.
 
+**Solucao:** `_scan_gguf_models()` escaneia `models/` recursivamente, detecta novos modelos automaticamente.
+
+**Arquivos modificados:**
+- `backend/routes/llamacpp_route.py` — Nova funcao `_scan_gguf_models()`, `_make_model_id()`, `_make_label()`, `_guess_ctx()`
+- `frontend/src/lib/constants.ts` — Lista hardcoded removida (dead code)
+- `frontend/src/App.tsx` — Busca dinamica via API `/llamacpp/models`
+
+**Como funciona:**
+- Escaneamento recursivo de `models/` para arquivos `.gguf`
+- Exclui automaticamente arquivos `mmproj` (projeção visão)
+- Gera IDs e labels automaticamente a partir do nome do arquivo
+- Context size inferido por familia (bonsai=32k, llama/qwen=16k, fallback=8k)
+- Re-scan a cada chamada API — novos modelos aparecem sem restart
+
+### 2. mmproj/Vision Support (NOVO)
+>>>>>>> d436640 (v2.0: GGUF auto-detection, GPU support, vision, thinking panel, monitor fix, portability scripts)
+
+**Problema:** Arquivos mmproj (projeção de visão) não eram detectados ou associados aos modelos.
+
+<<<<<<< HEAD
 ### Resumo
 
 Criacao de scripts `mudar_nome.bat` e `voltar_original.bat` para trocar o nome do assistente (Charon) em todos os arquivos do projeto. Correcao do provider `llamacpp` que nao aparecia no dropdown do chat central.
@@ -144,9 +220,21 @@ Criacao de scripts `mudar_nome.bat` e `voltar_original.bat` para trocar o nome d
 ### Como reiniciar
 
 Execute C:\DEEP-AUREA\START-TOTAL.bat (backend + frontend).
+=======
+**Solucao:** `_find_mmproj()` busca automaticamente mmproj correspondente ao modelo por similaridade de nome.
 
----
+**Arquivos modificados:**
+- `backend/routes/llamacpp_route.py` — Nova funcao `_find_mmproj()`
+- `_start_llama_server()` passa `--mmproj` quando encontrado
+>>>>>>> d436640 (v2.0: GGUF auto-detection, GPU support, vision, thinking panel, monitor fix, portability scripts)
 
+**Como funciona:**
+- Busca mmproj na mesma pasta do modelo por similaridade de nome
+- Prefere Q8_0 sobre BF16 (melhor qualidade)
+- Modelos com visão aparecem com 👁️ no dropdown
+- `--mmproj` passado automaticamente ao iniciar o servidor
+
+<<<<<<< HEAD
 ## Sessao 2026-08-16 (12) - Renomeacao Charon→WBC + Logica Provider Local/Cloud
 
 ### Resumo
@@ -758,11 +846,18 @@ AÃ§Ãµes que requerem pacotes extras (verificar se estÃ£o no venv):
 | `frontend/src/components/ChatPanel.tsx` | EDGE_VOICE_SETTINGS, ELEVEN_VOICES, safeRestart |
 | `frontend/src/components/PageRenderer.tsx` | VoicePreset type |
 | `frontend/src/components/SettingsPage.tsx` | VoicePreset type + VOICE_OPTIONS |
+=======
+### 3. Thinking Panel no Contexto (NOVO)
 
----
+**Problema:** Thinking/raciocinio do modelo não era visível de forma organizada.
+>>>>>>> d436640 (v2.0: GGUF auto-detection, GPU support, vision, thinking panel, monitor fix, portability scripts)
 
-## Como Iniciar
+**Solucao:** Painel Context (lado direito) mostra thinking em caixa azul com header "THINKING".
 
+**Arquivos modificados:**
+- `frontend/src/components/ProcessPanel.tsx` — Secao de thinking no Context
+
+<<<<<<< HEAD
 ### DEEP-AUREA
 ```bat
 C:\DEEP-AUREA\START-TOTAL.bat
@@ -795,9 +890,192 @@ asyncio.run(test())
 - [ ] Verificar dependÃªncias (psutil, playwright, send2trash) no venv
 - [ ] Testar cada ferramenta via WebSocket
 - [ ] Documentar resultado no .memory
+=======
+### 4. Voz sem Thinking (NOVO)
+
+**Problema:** Voz Dani Brandi lia o thinking completo do modelo antes da resposta.
+
+**Solucao:** `stripMarkdown()` remove tags `<think>...</think>` antes de enviar para TTS.
+
+**Arquivos modificados:**
+- `frontend/src/components/ChatPanel.tsx` — Regex `<think>[\s\S]*?<\/think>` no stripMarkdown
+
+### 5. GPU Support para Llamacpp (NOVO)
+
+**Problema:** Toggle GPU só salvava para Ollama, llamacpp não usava GPU.
+
+**Solucao:** Toggle agora salva para ambos, `_start_llama_server()` adiciona `--n-gpu-layers`.
+
+**Arquivos modificados:**
+- `backend/routes/llamacpp_route.py` — `_get_gpu_config()`, `GET/POST /llamacpp/gpu`
+- `backend/config.yaml` — Adicionada seção `llamacpp` com `gpu_enabled` e `gpu_layers`
+- `frontend/src/App.tsx` — useEffect salva GPU para Ollama + Llamacpp
+- `frontend/src/components/SettingsPage.tsx` — Label atualizado para "GPU (Ollama + Llamacpp)"
+
+**Configuracao:**
+```yaml
+llamacpp:
+  gpu_enabled: true
+  gpu_layers: 999
+```
+
+### 6. Monitor GPU - Correcao (CORRIGIDO)
+
+**Problema:** Monitor mostrava "GPU não detectada" mesmo com nvidia-smi funcionando.
+
+**Causa:** Python 32-bit não encontrava `nvidia-smi.exe` no PATH.
+
+**Solucao:** Busca explicita em `C:\Windows\System32\nvidia-smi.exe`.
+
+**Arquivos modificados:**
+- `backend/tools/monitor.py` — Adicionado `import os` + lista de caminhos do nvidia-smi
+
+### 7. Limpar_Processos_Memoria.bat (NOVO)
+
+**Problema:** `llama-server` consumia ~6GB de RAM, lotando o sistema de 12GB.
+
+**Solucao:** Script batch para encerrar processos pesados e limpar cache.
+
+**Arquivo criado:** `C:\DEEP-AUREA\Limpar_Processos_Memoria.bat`
+
+**O que faz:**
+1. Encerra `llama-server.exe`
+2. Encerra processos Node.js
+3. Limpa temporários do Windows
+4. Compacta memória
+
+### 8. Requisitos do Sistema (DOCUMENTADO)
+
+| Componente | Mínimo | Recomendado |
+|---|---|---|
+| RAM | 8 GB | 16 GB |
+| CPU | 4 cores | 6+ cores |
+| Disco | 10 GB | 50 GB SSD |
+| GPU | Opcional | RTX 3060 12GB+ |
+
+**Consumo típico:**
+- llama-server (27B): ~6 GB RAM
+- llama-server (7B): ~2-4 GB RAM
+- llama-server (3B): ~1-2 GB RAM
+- Backend Python: ~200 MB
+- Frontend Vite: ~150 MB
+
+### Como Testar
+
+1. **Auto-Detection:** Coloque um `.gguf` em `models/` → aparece no dropdown automaticamente
+2. **Vision:** Selecione modelo com mmproj → 👁️ no dropdown → `--mmproj` passado ao iniciar
+3. **Thinking:** Envie pergunta → thinking aparece no painel Context (lado direito)
+4. **Voz:** Ative Jarvis → only resposta é lida (sem thinking)
+5. **GPU:** Toggle GPU ativo → `--n-gpu-layers 999` passado ao iniciar modelo
+6. **Monitor:** Abra Monitor → VRAM deve aparecer (após reinicialização com driver atualizado)
+
+### Arquivos Criados/Modificados
+
+- `backend/routes/llamacpp_route.py` — Auto-detection, mmproj, GPU config
+- `backend/tools/monitor.py` — Correção nvidia-smi 32-bit
+- `backend/config.yaml` — Seção llamacpp adicionada
+- `frontend/src/App.tsx` — GPU toggle para ambos providers
+- `frontend/src/components/ChatPanel.tsx` — stripMarkdown remove thinking
+- `frontend/src/components/ProcessPanel.tsx` — Thinking no Context
+- `frontend/src/components/SettingsPage.tsx` — Label GPU atualizado
+- `frontend/src/lib/constants.ts` — Lista hardcoded removida
+- `Limpar_Processos_Memoria.bat` — Script de limpeza
+
+---
+
+## Sessao 2026-08-23 (20) - Tool Calling Ollama + Separacao de Providers
+
+### Resumo
+
+Corrigido tool calling para modelos Ollama (qwen3.5:9b, Bonsai, etc), expandido LOCAL_TOOLS para 30 ferramentas, e corrigida mistura de modelos GGUF no dropdown do Ollama.
+
+### Problemas Identificados e Corrigidos
+
+#### 1. Ollama Nao Usava Tool Calling (CORRIGIDO)
+**Problema:** Modelos Ollama (qwen3.5:9b, Bonsai, etc) geravam checklists textuais mas nunca emitiam `tool_calls` nativos. O sistema parava com `HAS_RESPONSE` sem executar nada.
+
+**Causa raiz:** `_ollama_chat_stream()` em `llm_native.py` nao passava o parametro `tools` para a API nativa `/api/chat` do Ollama. Quando as messages eram multimodais, as tools eram completamente ignoradas.
+
+**Solucao (3 partes):**
+1. **Nova funcao `_ollama_chat_stream_with_tools()`** — Usa API nativa do Ollama (`/api/chat`) com suporte a `tools`
+2. **`stream_chat_with_tools()` atualizado** — Provider Ollama agora usa API nativa com tools em vez do endpoint OpenAI `/v1/chat/completions`
+3. **Lifecycle CHECKLIST_SEM_EXECUCAO** — Detecta quando modelo gera checkboxes sem tool calls e injeta nudge forçando execução (limite de 2 nudges)
+
+**Arquivos modificados:**
+- `backend/core/llm_native.py` — Nova funcao `_ollama_chat_stream_with_tools()` + update `stream_chat_with_tools()`
+- `backend/core/lifecycle.py` — Campo `checklist_nudge_count` + detecção de checklist sem execução
+
+#### 2. LOCAL_TOOLS com Poucas Ferramentas (CORRIGIDO)
+**Problema:** Filtro `LOCAL_TOOLS` enviava apenas 14 tools para modelos locais (Ollama/llamacpp), deixando funcionalidades importantes de fora.
+
+**Solucao:** Expandido de 14 para **30 tools essenciais**:
+
+| Categoria | Tools |
+|---|---|
+| Arquivos/Código | read, write, bash, explorer, search, glob, create_directory, delete, rename, file_edit, read_document, execute_python, find_file |
+| Web | web_search, web_fetch |
+| Tarefas | task_create, task_update, task_list |
+| Sistema/Apps | open_app, close_app, system_status, computer_settings |
+| Mídia | media_play |
+| Memória | memory_write, memory_read, memory_list |
+| Outros | tool_search, monitor_dashboard, reminder |
+
+**Arquivo:** `backend/routes/chat.py` — `LOCAL_TOOLS` expandido
+
+#### 3. Modelos GGUF Misturados no Ollama (CORRIGIDO)
+**Problema:** Endpoint `/ollama/models` listava arquivos GGUF (Bonsai, NemoMix, etc) junto com modelos Ollama nativos, causando confusão no dropdown.
+
+**Solucao:** Endpoints `/ollama/status` e `/ollama/models` agora retornam APENAS modelos Ollama nativos. Modelos GGUF ficam exclusivos no provider llamacpp.
+
+**Arquivo:** `backend/routes/ollama_route.py` — Removida mistura de GGUF nos endpoints Ollama
+
+### Como Testar
+
+1. **Ollama com tool calling:** Selecione provider "ollama" + "qwen3.5:9b" → envie "liste as pastas de C:/" → deve usar tool_call `explorer` ou `bash`
+2. **30 tools:** Verifique no log do backend: `[CHAT] provider=ollama model=qwen3.5:9b tools=30`
+3. **Separacao de providers:** Dropdown Ollama mostra apenas modelos Ollama; dropdown llamacpp mostra apenas GGUF
+
+---
+
+## Estado Atual: FUNCIONAL + GGUF AUTO-DETECTED + GPU SUPPORT
+
+O sistema esta operacional em `localhost:5175` (frontend) / `localhost:8001` (backend).
+
+**Provider ativo:** MiMo V2.5 (gratis) via `mimo` provider → mimo.exe executor + API cloud com native tool calling
+
+**Modelos GGUF:** Auto-detectados via scan recursivo — novos modelos aparecem automaticamente
+
+**Vision:** Modelos com mmproj detectados automaticamente — 👁️ no dropdown
+
+**GPU:** Toggle salva para Ollama + Llamacpp — `--n-gpu-layers` passado ao iniciar
+
+**Thinking:** Mostrado no painel Context (lado direito) — voz não lê thinking
+
+**Ferramentas Charon (33):** youtube_video, open_app, weather_report, browser_control, computer_control, computer_settings, desktop_control, file_controller, code_helper, dev_agent, game_updater, flight_finder, file_processor, system_status, reminder, web_search, send_message, screen_process, calorie_counter, pushup_counter, upload_video, + 11 novas
+
+**Como iniciar:** `C:\DEEP-AUREA\START-TOTAL.bat` (backend + frontend)
+
+**Limpeza:** `C:\DEEP-AUREA\Limpar_Processos_Memoria.bat` (encerra processos pesados)
+
+---
+
+## Pendencias
+>>>>>>> d436640 (v2.0: GGUF auto-detection, GPU support, vision, thinking panel, monitor fix, portability scripts)
 
 ### Geral
 - **ElevenLabs:** Configurar `ELEVENLABS_API_KEY` em `backend/.env`
 - **MiMo Executor:** Implementar `--continue` para manter contexto entre mensagens
 - **web_fetch:** User-Agent precisa de upgrade (403 em sites com Cloudflare)
 - **Wake word:** Falsos positivos em ambientes barulhentos
+<<<<<<< HEAD
+=======
+
+### Browser Automation
+- **CDP:** Conexao com Chrome via porta 9222 (alternativa ao Playwright)
+- **Fill form:** Preenchimento automático de formulários via Charon
+- **Screenshot:** Captura de tela para analise de paginas
+
+### Modelos Locais
+- **llamacpp context overflow:** NemoMix 12B Q4_K_M tem limite de 8192 tokens; system_prompt + historico excede este limite. Precisa reduzir system prompt ou aumentar --ctx-size.
+- **GPU detection:** Driver NVIDIA atualizado (610.88) — verificar se monitor detecta VRAM corretamente após reinicialização
+>>>>>>> d436640 (v2.0: GGUF auto-detection, GPU support, vision, thinking panel, monitor fix, portability scripts)

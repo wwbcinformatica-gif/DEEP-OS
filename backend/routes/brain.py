@@ -2,13 +2,17 @@ import json
 from datetime import datetime
 
 from fastapi import APIRouter, HTTPException
-from langchain_core.prompts import PromptTemplate
 
 from core.config import BRAIN_DIR
 from core.llm import get_llm
 from core.models import AgentTask, BrainArtifact
 
 router = APIRouter()
+
+try:
+    from langchain_core.prompts import PromptTemplate
+except ImportError:
+    PromptTemplate = None
 
 @router.post("/brain/artifacts")
 async def create_artifact(payload: BrainArtifact):

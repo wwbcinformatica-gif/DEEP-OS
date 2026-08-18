@@ -1,4 +1,8 @@
 ﻿from fastapi import HTTPException
+<<<<<<< HEAD
+=======
+from pathlib import Path
+>>>>>>> d436640 (v2.0: GGUF auto-detection, GPU support, vision, thinking panel, monitor fix, portability scripts)
 
 from agents.fork import fork_subagent, get_subagent_result
 from agents.team import send_message, team_create, team_delete
@@ -24,6 +28,56 @@ from tools.tool_search import tool_tool_search
 from tools.web_fetch import tool_web_fetch
 from tools.web_search import tool_web_search
 from tools.document_reader import tool_read_document
+
+# ── Charon Actions (mesmas ferramentas do voice assistant) ──────────────────
+_ACTIONS_DIR = str(Path(__file__).resolve().parent.parent / "actions")
+_PROJECT_ROOT = str(Path(__file__).resolve().parent.parent.parent)
+import sys as _sys
+# backend primeiro para memory.brain ser encontrado antes do C:\DEEP-AUREA\memory
+_BACKEND_DIR = str(Path(__file__).resolve().parent.parent)
+if _BACKEND_DIR not in _sys.path:
+    _sys.path.insert(0, _BACKEND_DIR)
+if _ACTIONS_DIR not in _sys.path:
+    _sys.path.append(_ACTIONS_DIR)
+# project root para actions encontrarem config.py
+if _PROJECT_ROOT not in _sys.path:
+    _sys.path.append(_PROJECT_ROOT)
+
+from typing import Any
+
+def _charon_wrapper(action_func):
+    """Wrap Charon action functions to match executor signature: async def(**params) -> dict"""
+    async def wrapper(**params):
+        import asyncio
+        loop = asyncio.get_event_loop()
+        try:
+            r = await loop.run_in_executor(None, lambda: action_func(parameters=params, response=None, player=None))
+            return {"result": r} if r else {"status": "ok"}
+        except Exception as e:
+            return {"error": str(e)}
+    return wrapper
+
+def _charon_wrapper_no_player(action_func):
+    async def wrapper(**params):
+        import asyncio
+        loop = asyncio.get_event_loop()
+        try:
+            r = await loop.run_in_executor(None, lambda: action_func(parameters=params, player=None))
+            return {"result": r} if r else {"status": "ok"}
+        except Exception as e:
+            return {"error": str(e)}
+    return wrapper
+
+def _charon_wrapper_speak(action_func):
+    async def wrapper(**params):
+        import asyncio
+        loop = asyncio.get_event_loop()
+        try:
+            r = await loop.run_in_executor(None, lambda: action_func(parameters=params, player=None, speak=None))
+            return {"result": r} if r else {"status": "ok"}
+        except Exception as e:
+            return {"error": str(e)}
+    return wrapper
 
 TOOL_REGISTRY = {
     "read": tool_read,
@@ -176,6 +230,89 @@ async def init_mcp_plugin(name: str) -> dict:
 
 TOOL_REGISTRY["list_mcp_servers"] = list_mcp_servers
 TOOL_REGISTRY["init_mcp_plugin"] = init_mcp_plugin
+
+# ── Charon Actions (mesmas ferramentas do voice assistant) ──────────────────
+try:
+    from actions.youtube_video import youtube_video as _yt_video
+    from actions.open_app import open_app as _open_app_charon
+    from actions.web_search import web_search as _web_search_charon
+    from actions.weather_report import weather_action as _weather
+    from actions.send_message import send_message as _send_msg
+    from actions.reminder import reminder as _reminder
+    from actions.screen_processor import _capture_screen, _capture_camera
+    from actions.computer_settings import computer_settings as _comp_settings
+    from actions.browser_control import browser_control as _browser_ctrl
+    from actions.file_controller import file_controller as _file_ctrl
+    from actions.desktop import desktop_control as _desktop_ctrl
+    from actions.code_helper import code_helper as _code_helper
+    from actions.dev_agent import dev_agent as _dev_agent
+    from actions.computer_control import computer_control as _comp_control
+    from actions.game_updater import game_updater as _game_updater
+    from actions.flight_finder import flight_finder as _flight_finder
+    from actions.file_processor import file_processor as _file_processor
+    from actions.system_monitor import get_system_status as _system_status
+    from actions.background_monitor import add_monitor, remove_monitor, list_monitors
+    from actions.calorie_counter import run as _calorie_counter
+    from actions.pushup_counter import run as _pushup_counter
+    from actions.upload_video import run as _upload_video
+    _CHARON_ACTIONS_OK = True
+    print("[Executor] Todas as actions do Charon importadas com sucesso")
+except ImportError as e:
+    _CHARON_ACTIONS_OK = False
+    print(f"[Executor] Aviso: nem todas as actions do Charon foram importadas: {e}")
+
+if _CHARON_ACTIONS_OK:
+    TOOL_REGISTRY["youtube_video"] = _charon_wrapper(_yt_video)
+    TOOL_REGISTRY["open_app_charon"] = _charon_wrapper(_open_app_charon)
+    TOOL_REGISTRY["weather_report"] = _charon_wrapper_no_player(_weather)
+    TOOL_REGISTRY["reminder"] = _charon_wrapper(_reminder)
+    TOOL_REGISTRY["computer_settings"] = _charon_wrapper_no_player(_comp_settings)
+    TOOL_REGISTRY["browser_control"] = _charon_wrapper_no_player(_browser_ctrl)
+    TOOL_REGISTRY["file_controller"] = _charon_wrapper_no_player(_file_ctrl)
+    TOOL_REGISTRY["desktop_control"] = _charon_wrapper_no_player(_desktop_ctrl)
+    TOOL_REGISTRY["computer_control"] = _charon_wrapper_no_player(_comp_control)
+    TOOL_REGISTRY["code_helper"] = _charon_wrapper_speak(_code_helper)
+    TOOL_REGISTRY["dev_agent"] = _charon_wrapper_speak(_dev_agent)
+    TOOL_REGISTRY["game_updater"] = _charon_wrapper_speak(_game_updater)
+    TOOL_REGISTRY["flight_finder"] = _charon_wrapper_no_player(_flight_finder)
+    TOOL_REGISTRY["file_processor"] = _charon_wrapper_speak(_file_processor)
+    TOOL_REGISTRY["calorie_counter"] = _charon_wrapper_speak(_calorie_counter)
+    TOOL_REGISTRY["pushup_counter"] = _charon_wrapper_speak(_pushup_counter)
+    TOOL_REGISTRY["upload_video"] = _charon_wrapper_speak(_upload_video)
+
+    async def _tool_system_status(**kw):
+        import asyncio
+        return await asyncio.to_thread(_system_status)
+    TOOL_REGISTRY["system_status"] = _tool_system_status
+
+    async def _tool_screen_process(angle: str = "screen", text: str = "", **kw):
+        import asyncio
+        if angle == "camera":
+            img_b, mime_t = await asyncio.to_thread(_capture_camera)
+            return {"result": f"Camera captured: {len(img_b)} bytes"}
+        else:
+            img_b, mime_t = await asyncio.to_thread(_capture_screen)
+            return {"result": f"Screen captured: {len(img_b)} bytes"}
+    TOOL_REGISTRY["screen_process"] = _tool_screen_process
+
+    async def _tool_whatsapp_send(receiver: str = "", message_text: str = "", platform: str = "WhatsApp", **kw):
+        import asyncio
+        args = {"receiver": receiver, "message_text": message_text, "platform": platform}
+        r = await asyncio.to_thread(lambda: _send_msg(parameters=args, response=None, player=None, session_memory=None))
+        return {"result": r} if r else {"status": "ok"}
+    TOOL_REGISTRY["whatsapp_send"] = _tool_whatsapp_send
+
+    async def _tool_manage_monitor(action: str = "", topic: str = "", **kw):
+        import asyncio
+        if action == "add" and topic:
+            return {"result": await asyncio.to_thread(add_monitor, topic)}
+        elif action == "remove" and topic:
+            return {"result": await asyncio.to_thread(remove_monitor, topic)}
+        elif action == "list":
+            topics = await asyncio.to_thread(list_monitors)
+            return {"result": topics if topics else []}
+        return {"error": "Specify action (add/remove/list) and a topic"}
+    TOOL_REGISTRY["manage_monitor"] = _tool_manage_monitor
 
 # ── Task Management Tools ──────────────────────────────────
 async def tool_task_create(subject: str, description: str = "", active_form: str = ""):

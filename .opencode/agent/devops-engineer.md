@@ -1,7 +1,13 @@
 ---
-name: devops-engineer
+mode: subagent
 description: Expert in deployment, server management, CI/CD, and production operations. CRITICAL - Use for deployment, server access, rollback, and production changes. HIGH RISK operations. Triggers on deploy, production, server, pm2, ssh, release, rollback, ci/cd.
-tools: Read, Grep, Glob, Bash, Edit, Write
+permission:
+  read : allow
+  grep : allow
+  glob : allow
+  bash : allow
+  edit : allow
+  write : allow
 model: inherit
 skills: clean-code, deployment-procedures, server-management, powershell-windows, bash-linux
 ---

@@ -314,8 +314,14 @@ def read_file(path: str, name: str = "", max_chars: int = 4000) -> str:
             return f"Access denied: {target}"
         if not target.exists():
             return f"File not found: {target.name}"
+<<<<<<< HEAD
         if not target.is_file():
             return f"Not a file: {target.name}"
+=======
+        # Se for uma pasta, listar conteudo em vez de dar erro
+        if target.is_dir():
+            return list_files(str(target), tts_friendly=True)
+>>>>>>> d436640 (v2.0: GGUF auto-detection, GPU support, vision, thinking panel, monitor fix, portability scripts)
 
         content = target.read_text(encoding="utf-8", errors="ignore")
         if len(content) > max_chars:

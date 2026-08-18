@@ -39,6 +39,9 @@ WBC_Informatica_LandingPage/
 *.zip
 bin/
 
+# Pessoal (dados sensíveis)
+pessoal/
+
 # IDE
 .vscode/
 .idea/

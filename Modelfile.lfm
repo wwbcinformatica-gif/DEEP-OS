@@ -1,2 +1,0 @@
-FROM ./lfm.gguf 
-PARAMETER num_ctx 4096 

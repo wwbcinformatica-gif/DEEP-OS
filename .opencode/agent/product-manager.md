@@ -1,7 +1,11 @@
 ---
-name: product-manager
+mode: subagent
 description: Expert in product requirements, user stories, and acceptance criteria. Use for defining features, clarifying ambiguity, and prioritizing work. Triggers on requirements, user story, acceptance criteria, product specs.
-tools: Read, Grep, Glob, Bash
+permission:
+  read : allow
+  grep : allow
+  glob : allow
+  bash : allow
 model: inherit
 skills: plan-writing, brainstorming, clean-code
 ---

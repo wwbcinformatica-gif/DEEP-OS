@@ -359,6 +359,15 @@ a:focus-visible {
   flex-shrink: 0;
   z-index: 10;
   transition: background 0.15s;
+  position: relative;
+}
+.drag-handle-h::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -4px;
+  right: -4px;
+  bottom: 0;
 }
 .drag-handle-h:hover {
   background: var(--accent-soft);

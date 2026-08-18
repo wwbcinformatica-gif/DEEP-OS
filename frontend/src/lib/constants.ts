@@ -19,7 +19,8 @@ export type Provider =
   | 'gemini'
   | 'openclaude'
   | 'opencode'
-  | 'mimo';
+  | 'mimo'
+  | 'nvidia';
 export type AccentTheme =
   | 'laranja'
   | 'maracuja'
@@ -33,6 +34,7 @@ export interface Msg {
   text: string;
   time: string | number;
   images?: string[];
+  thinking?: string;
   planData?: any;
   planTaskId?: string;
   planStatus?: 'pending' | 'approved' | 'rejected' | 'executing' | 'done' | 'error';
@@ -106,8 +108,11 @@ export const now = () =>
 
 export const MODELS: Record<string, { value: string; label: string }[]> = {
   groq: [
-    { value: 'llama-3.3-70b-versatile', label: 'Llama 3.3 70B' },
-    { value: 'mixtral-8x7b-32768', label: 'Mixtral 8x7B' },
+    { value: 'openai/gpt-oss-120b', label: 'GPT OSS 120B' },
+    { value: 'openai/gpt-oss-20b', label: 'GPT OSS 20B' },
+    { value: 'groq/compound', label: 'Compound (web search + code)' },
+    { value: 'groq/compound-mini', label: 'Compound Mini' },
+    { value: 'qwen/qwen3.6-27b', label: 'Qwen 3.6 27B (preview)' },
   ],
   ollama: [
     { value: 'qwen3.5:9b', label: 'Qwen 3.5 9B' },
@@ -145,6 +150,7 @@ export const MODELS: Record<string, { value: string; label: string }[]> = {
   mimo: [
     { value: 'mimo-v2.5', label: 'MiMo V2.5 (gratis)' },
   ],
+<<<<<<< HEAD
   llamacpp: [
     { value: 'bonsai-27b', label: 'Ternary-Bonsai 27B Q2_0' },
     { value: 'bonsai-27b-1bit', label: 'Ternary-Bonsai 27B Q1_0' },
@@ -153,6 +159,20 @@ export const MODELS: Record<string, { value: string; label: string }[]> = {
     { value: 'nemomix-12b-gguf', label: 'NemoMix 12B Q4_K_M' },
     { value: 'qwen2.5-7b-gguf', label: 'Qwen 2.5 7B Q4_K_M' },
   ],
+=======
+  nvidia: [
+    { value: 'nvidia/llama-3.1-nemotron-70b-instruct', label: 'Nemotron 70B Instruct' },
+    { value: 'nvidia/llama-3.3-nemotron-super-49b-v1', label: 'Nemotron Super 49B' },
+    { value: 'nvidia/llama-3.1-nemotron-8b-v1', label: 'Nemotron 8B' },
+    { value: 'nvidia/llama-3.1-nemotron-mini-4b-instruct', label: 'Nemotron Mini 4B' },
+    { value: 'meta/llama-3.1-405b-instruct', label: 'Llama 3.1 405B' },
+    { value: 'meta/llama-3.1-70b-instruct', label: 'Llama 3.1 70B' },
+    { value: 'meta/llama-3.1-8b-instruct', label: 'Llama 3.1 8B' },
+    { value: 'mistralai/mistral-large-2-instruct', label: 'Mistral Large 2' },
+    { value: 'google/gemma-2-27b-it', label: 'Gemma 2 27B' },
+  ],
+  llamacpp: [], // detectado automaticamente via /llamacpp/models
+>>>>>>> d436640 (v2.0: GGUF auto-detection, GPU support, vision, thinking panel, monitor fix, portability scripts)
 };
 
 export const PROVIDERS = [
@@ -165,6 +185,7 @@ export const PROVIDERS = [
   'openai',
   'gemini',
   'mimo',
+  'nvidia',
 ];
 
 export const MOODS = ['descontraido', 'serio', 'bravo', 'jarvis', 'opencode'] as const;

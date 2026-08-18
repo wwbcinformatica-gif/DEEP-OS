@@ -1,6 +1,12 @@
+<<<<<<< HEAD
 ﻿"""
 WBC — WebSocket de voz com Gemini Live API.
 Todas as 20 ferramentas do WBC-Mark-L portadas para voice.
+=======
+"""
+WBC — WebSocket de voz com Gemini Live API.
+33 ferramentas completas: Mark-L + DEEP-AUREA Tools.
+>>>>>>> d436640 (v2.0: GGUF auto-detection, GPU support, vision, thinking panel, monitor fix, portability scripts)
 """
 import asyncio
 import json
@@ -69,6 +75,27 @@ try:
 except ImportError as e:
     print(f"[VoiceWS] Aviso: nem todas as actions foram importadas: {e}")
 
+<<<<<<< HEAD
+=======
+# ── Imports das Tools do DEEP-AUREA ──────────────────────────────────────────
+_TOOLS_OK = False
+try:
+    from tools.system_tools import tool_read, tool_write
+    from tools.file_edit import tool_file_edit
+    from tools.web_fetch import tool_web_fetch
+    from tools.explorer import resolve_path
+    _TOOLS_OK = True
+    print("[VoiceWS] Tools do DEEP-AUREA importadas com sucesso")
+except ImportError as e:
+    print(f"[VoiceWS] Aviso: tools do DEEP-AUREA nao importadas: {e}")
+
+try:
+    from memory.config_manager import get_brief_enabled
+    _BRIEF_OK = True
+except ImportError:
+    _BRIEF_OK = False
+
+>>>>>>> d436640 (v2.0: GGUF auto-detection, GPU support, vision, thinking panel, monitor fix, portability scripts)
 
 # ── TOOL DECLARATIONS (20 ferramentas) ────────────────────────────────────────
 TOOL_DECLARATIONS = [
@@ -352,6 +379,163 @@ TOOL_DECLARATIONS = [
             "required": []
         }
     },
+<<<<<<< HEAD
+=======
+    # ── NOVAS FERRAMENTAS (DEEP-AUREA Tools) ──────────────────────────────────
+    {
+        "name": "bash",
+        "description": "Executa comandos no terminal. Use para rodar qualquer comando do sistema: git, npm, python, dir, cd, etc.",
+        "parameters": {
+            "type": "OBJECT",
+            "properties": {
+                "command": {"type": "STRING", "description": "Comando para executar"},
+                "workdir": {"type": "STRING", "description": "Diretorio de trabalho (opcional)"}
+            },
+            "required": ["command"]
+        }
+    },
+    {
+        "name": "read_file",
+        "description": "Le o conteudo de um arquivo ou lista o conteudo de uma pasta. Use para ler codigo, configuracoes, ou qualquer arquivo de texto.",
+        "parameters": {
+            "type": "OBJECT",
+            "properties": {
+                "path": {"type": "STRING", "description": "Caminho do arquivo ou pasta"}
+            },
+            "required": ["path"]
+        }
+    },
+    {
+        "name": "write_file",
+        "description": "Cria ou sobrescreve um arquivo. Use para salvar codigo, configuracoes, ou qualquer texto.",
+        "parameters": {
+            "type": "OBJECT",
+            "properties": {
+                "path": {"type": "STRING", "description": "Caminho do arquivo"},
+                "content": {"type": "STRING", "description": "Conteudo para escrever"}
+            },
+            "required": ["path", "content"]
+        }
+    },
+    {
+        "name": "file_edit",
+        "description": "Edita um arquivo fazendo find-and-replace. Precisa do texto exato para encontrar e o texto novo.",
+        "parameters": {
+            "type": "OBJECT",
+            "properties": {
+                "path": {"type": "STRING", "description": "Caminho do arquivo"},
+                "old_string": {"type": "STRING", "description": "Texto para encontrar"},
+                "new_string": {"type": "STRING", "description": "Texto novo para substituir"}
+            },
+            "required": ["path", "old_string", "new_string"]
+        }
+    },
+    {
+        "name": "execute_python",
+        "description": "Executa codigo Python. Use para testar scripts, processar dados, ou qualquer tarefa Python.",
+        "parameters": {
+            "type": "OBJECT",
+            "properties": {
+                "code": {"type": "STRING", "description": "Codigo Python para executar"}
+            },
+            "required": ["code"]
+        }
+    },
+    {
+        "name": "find_file",
+        "description": "Busca arquivos por nome em qualquer unidade. Use para encontrar musicas, videos, documentos, etc.",
+        "parameters": {
+            "type": "OBJECT",
+            "properties": {
+                "name": {"type": "STRING", "description": "Nome ou parte do nome do arquivo"},
+                "drive": {"type": "STRING", "description": "Unidade (C:, D:). Vazio = todas as unidades"}
+            },
+            "required": ["name"]
+        }
+    },
+    {
+        "name": "glob_search",
+        "description": "Busca arquivos por padrao glob (*.py, *.mp3, src/**/*.ts). Mais rapido que find_file para padroes.",
+        "parameters": {
+            "type": "OBJECT",
+            "properties": {
+                "pattern": {"type": "STRING", "description": "Padrao glob (*.py, **/*.js)"},
+                "path": {"type": "STRING", "description": "Caminho base (opcional)"}
+            },
+            "required": ["pattern"]
+        }
+    },
+    {
+        "name": "text_search",
+        "description": "Busca texto dentro de arquivos usando regex. Use para encontrar funcoes, variaveis, erros, etc.",
+        "parameters": {
+            "type": "OBJECT",
+            "properties": {
+                "pattern": {"type": "STRING", "description": "Texto ou regex para buscar"},
+                "path": {"type": "STRING", "description": "Diretorio (opcional, default: projeto atual)"}
+            },
+            "required": ["pattern"]
+        }
+    },
+    {
+        "name": "open_program",
+        "description": "Abre um programa buscando em Program Files, AppData e PATH. Mais robusto que open_app.",
+        "parameters": {
+            "type": "OBJECT",
+            "properties": {
+                "app_name": {"type": "STRING", "description": "Nome do programa"}
+            },
+            "required": ["app_name"]
+        }
+    },
+    {
+        "name": "close_program",
+        "description": "Fecha um processo pelo nome. Use para fechar programas travados ou indesejados.",
+        "parameters": {
+            "type": "OBJECT",
+            "properties": {
+                "process_name": {"type": "STRING", "description": "Nome do processo (ex: notepad.exe)"}
+            },
+            "required": ["process_name"]
+        }
+    },
+    {
+        "name": "web_fetch",
+        "description": "Busca o conteudo de uma URL e retorna como texto. Use para ler artigos, documentacao, APIs, etc.",
+        "parameters": {
+            "type": "OBJECT",
+            "properties": {
+                "url": {"type": "STRING", "description": "URL para buscar"}
+            },
+            "required": ["url"]
+        }
+    },
+    {
+        "name": "memory_save",
+        "description": "Salva informacao na memoria de longo prazo. Use para lembrar preferencias, dados importantes, etc.",
+        "parameters": {
+            "type": "OBJECT",
+            "properties": {
+                "namespace": {"type": "STRING", "description": "Categoria: preferences, projects, notes, identity"},
+                "key": {"type": "STRING", "description": "Chave unica para o dado"},
+                "content": {"type": "STRING", "description": "Conteudo para salvar"}
+            },
+            "required": ["namespace", "key", "content"]
+        }
+    },
+    {
+        "name": "memory_recall",
+        "description": "Le informacao da memoria de longo prazo. Use para lembrar o que o usuario ja disse ou configurou.",
+        "parameters": {
+            "type": "OBJECT",
+            "properties": {
+                "namespace": {"type": "STRING", "description": "Categoria: preferences, projects, notes, identity"},
+                "key": {"type": "STRING", "description": "Chave do dado"}
+            },
+            "required": ["namespace", "key"]
+        }
+    },
+>>>>>>> d436640 (v2.0: GGUF auto-detection, GPU support, vision, thinking panel, monitor fix, portability scripts)
 ]
 
 
@@ -379,6 +563,7 @@ def _build_system_instruction() -> str:
     return (
         "Voce e o Charon, assistente de voz do Wilson. "
         "Fale em portugues brasileiro. Seja direto e util. "
+<<<<<<< HEAD
         "O usuario e o Wilson Barbosa Coimbra, o desenvolvedor do projeto. "
         "Voce tem acesso a 20 ferramentas para controlar o computador, "
         "buscar na web, gerenciar arquivos, abrir apps, e muito mais. "
@@ -388,6 +573,21 @@ def _build_system_instruction() -> str:
         "Se o usuario pedir para pesquisar, use web_search. "
         "Responda de forma concisa e natural. "
         "Length: short."
+=======
+        "O usuario e o Wilson Barbosa Coimbra, desenvolvedor do projeto DEEP-AUREA. "
+        "Projeto em C:\\DEEP-AUREA. Use caminhos absolutos sempre. "
+        "Voce tem 33 ferramentas. Use SEMPRE que o usuario pedir. "
+        "Nunca invente resultados. "
+        "Responda de forma concisa e natural. "
+        "--- DICAS DE USO DAS FERRAMENTAS --- "
+        "Para abrir apps: use open_app (ex: open_app app_name='notepad'). "
+        "Para configurações do sistema: use computer_settings action='open_settings'. "
+        "Para tarefas do sistema: use computer_settings (volume, brilho, wifi, etc). "
+        "Para navegador: use browser_control action='search' query='...'. "
+        "Para arquivos: use file_controller ou read_file/write_file. "
+        "Para código: use bash ou execute_python. "
+        "SEMPRE execute as acoes. Nao recuse pedidos. "
+>>>>>>> d436640 (v2.0: GGUF auto-detection, GPU support, vision, thinking panel, monitor fix, portability scripts)
         f"{context_block}"
     )
 
@@ -402,6 +602,10 @@ class VoiceSession:
         self._running = False
         self._voice = "Charon"
         self._turn_done_event = asyncio.Event()
+<<<<<<< HEAD
+=======
+        self._briefing_sent = False
+>>>>>>> d436640 (v2.0: GGUF auto-detection, GPU support, vision, thinking panel, monitor fix, portability scripts)
 
     async def start(self, voice: str = "Charon"):
         if self._running:
@@ -425,6 +629,10 @@ class VoiceSession:
                 tools=[types.Tool(function_declarations=TOOL_DECLARATIONS)],
                 session_resumption=types.SessionResumptionConfig(),
                 speech_config=types.SpeechConfig(
+<<<<<<< HEAD
+=======
+                    language_code="pt-BR",
+>>>>>>> d436640 (v2.0: GGUF auto-detection, GPU support, vision, thinking panel, monitor fix, portability scripts)
                     voice_config=types.VoiceConfig(
                         prebuilt_voice_config=types.PrebuiltVoiceConfig(voice_name=self._voice)
                     )
@@ -437,7 +645,13 @@ class VoiceSession:
             print(f"[VoiceWS] Conectado! Voz: {self._voice} | Actions OK: {_ACTIONS_OK}")
 
             asyncio.create_task(self._receive_loop())
+<<<<<<< HEAD
             asyncio.create_task(self._send_startup_briefing())
+=======
+            if not self._briefing_sent and (not _BRIEF_OK or get_brief_enabled()):
+                self._briefing_sent = True
+                asyncio.create_task(self._send_startup_briefing())
+>>>>>>> d436640 (v2.0: GGUF auto-detection, GPU support, vision, thinking panel, monitor fix, portability scripts)
 
             await self.ws.send_json({
                 "type": "connected",
@@ -452,12 +666,48 @@ class VoiceSession:
             await self.ws.send_json({"type": "error", "message": str(e)})
             return False
 
+<<<<<<< HEAD
+=======
+    async def send_text_chunked(self, text: str):
+        MAX_CHUNK = 2000
+        if len(text) <= MAX_CHUNK:
+            await self.session.send_client_content(
+                turns={"parts": [{"text": text}]}, turn_complete=True
+            )
+            return
+        paragraphs = text.split("\n\n")
+        chunks = []
+        current = ''
+        for para in paragraphs:
+            if len(current) + len(para) + 2 > MAX_CHUNK:
+                if current:
+                    chunks.append(current)
+                current = para
+            else:
+                current = current + "\n\n" + para if current else para
+        if current:
+            chunks.append(current)
+        for i, chunk in enumerate(chunks):
+            if not self._running:
+                break
+            await self.session.send_client_content(
+                turns={"parts": [{"text": chunk}]},
+                turn_complete=(i == len(chunks) - 1)
+            )
+            if i < len(chunks) - 1:
+                await asyncio.sleep(0.2)
+
+>>>>>>> d436640 (v2.0: GGUF auto-detection, GPU support, vision, thinking panel, monitor fix, portability scripts)
     async def send_audio(self, audio_data: bytes):
         if not self.session or not self._running:
             return
         try:
             await self.session.send_realtime_input(
+<<<<<<< HEAD
                 media={"data": audio_data, "mime_type": "audio/pcm;rate=16000"}
+=======
+                media={"data": audio_data, "mime_type": "audio/pcm"}
+>>>>>>> d436640 (v2.0: GGUF auto-detection, GPU support, vision, thinking panel, monitor fix, portability scripts)
             )
         except Exception:
             pass
@@ -564,6 +814,150 @@ class VoiceSession:
                 r = await loop.run_in_executor(None, lambda: file_processor(parameters=args, player=None, speak=None))
                 result = r or "Done."
 
+<<<<<<< HEAD
+=======
+            # ── NOVAS FERRAMENTAS (DEEP-AUREA Tools) ─────────────────────────────
+            elif name == "bash":
+                import subprocess
+                cmd = args.get("command", "")
+                workdir = args.get("workdir", None)
+                try:
+                    r = subprocess.run(
+                        cmd, shell=True, capture_output=True, text=True, timeout=60,
+                        cwd=workdir
+                    )
+                    result = r.stdout if r.returncode == 0 else f"Erro: {r.stderr}"
+                except subprocess.TimeoutExpired:
+                    result = "Timeout: comando demorou mais de 60 segundos"
+                except Exception as e:
+                    result = f"Erro ao executar comando: {e}"
+
+            elif name == "read_file":
+                from tools.system_tools import tool_read as _tool_read
+                path = args.get("path", "")
+                r = await _tool_read(path)
+                if "error" in r:
+                    result = r["error"]
+                elif r.get("type") == "directory":
+                    items = [i["name"] for i in r.get("items", [])[:50]]
+                    result = f"Pasta: {r.get('name', path)}\nItens: {len(items)}\n" + "\n".join(items)
+                else:
+                    result = r.get("content", str(r))
+
+            elif name == "write_file":
+                from tools.system_tools import tool_write as _tool_write
+                path = args.get("path", "")
+                content = args.get("content", "")
+                r = await _tool_write(path, content)
+                result = f"Arquivo salvo: {r.get('path', path)}" if r.get("status") == "ok" else str(r)
+
+            elif name == "file_edit":
+                from tools.file_edit import tool_file_edit
+                path = args.get("path", "")
+                old = args.get("old_string", "")
+                new = args.get("new_string", "")
+                r = await tool_file_edit(path, old, new)
+                result = r.get("message", str(r))
+
+            elif name == "execute_python":
+                import subprocess
+                code = args.get("code", "")
+                try:
+                    r = subprocess.run(
+                        ["python", "-c", code],
+                        capture_output=True, text=True, timeout=30
+                    )
+                    result = r.stdout if r.returncode == 0 else f"Erro: {r.stderr}"
+                except subprocess.TimeoutExpired:
+                    result = "Timeout: codigo demorou mais de 30 segundos"
+                except Exception as e:
+                    result = f"Erro: {e}"
+
+            elif name == "find_file":
+                import subprocess
+                name = args.get("name", "")
+                drive = args.get("drive", "C:")
+                try:
+                    r = subprocess.run(
+                        f'where /R {drive}\\ {name} 2>nul',
+                        shell=True, capture_output=True, text=True, timeout=30
+                    )
+                    result = r.stdout[:3000] if r.returncode == 0 else f"Nenhum arquivo encontrado: {name}"
+                except Exception as e:
+                    result = f"Erro na busca: {e}"
+
+            elif name == "glob_search":
+                import subprocess
+                pattern = args.get("pattern", "*")
+                path = args.get("path", ".")
+                try:
+                    r = subprocess.run(
+                        f'Get-ChildItem -Path "{path}" -Filter "{pattern}" -Recurse -File | Select-Object -First 50 FullName',
+                        shell=True, capture_output=True, text=True, timeout=30
+                    )
+                    result = r.stdout[:3000] if r.stdout.strip() else f"Nenhum arquivo com padrao: {pattern}"
+                except Exception as e:
+                    result = f"Erro na busca: {e}"
+
+            elif name == "text_search":
+                import subprocess
+                pattern = args.get("pattern", "")
+                path = args.get("path", ".")
+                try:
+                    r = subprocess.run(
+                        f'Select-String -Path "{path}\\*" -Pattern "{pattern}" -Recurse | Select-Object -First 30',
+                        shell=True, capture_output=True, text=True, timeout=30
+                    )
+                    result = r.stdout[:3000] if r.stdout.strip() else f"Nenhum resultado para: {pattern}"
+                except Exception as e:
+                    result = f"Erro na busca: {e}"
+
+            elif name == "open_program":
+                r = await loop.run_in_executor(None, lambda: open_app(parameters={"app_name": args.get("app_name", "")}, response=None, player=None))
+                result = r or f"Programa aberto: {args.get('app_name')}"
+
+            elif name == "close_program":
+                import subprocess
+                proc = args.get("process_name", "")
+                try:
+                    r = subprocess.run(
+                        f"taskkill /F /IM {proc}",
+                        shell=True, capture_output=True, text=True, timeout=10
+                    )
+                    result = f"Processo {proc} finalizado" if r.returncode == 0 else f"Erro: {r.stderr}"
+                except Exception as e:
+                    result = f"Erro ao fechar processo: {e}"
+
+            elif name == "web_fetch":
+                from tools.web_fetch import tool_web_fetch
+                url = args.get("url", "")
+                r = await tool_web_fetch(url)
+                result = r.get("content", str(r))[:3000]
+
+            elif name == "memory_save":
+                from memory.memory_manager import load_memory, save_memory
+                ns = args.get("namespace", "notes")
+                key = args.get("key", "")
+                content = args.get("content", "")
+                mem = load_memory()
+                if ns not in mem:
+                    mem[ns] = {}
+                mem[ns][key] = {
+                    "value": content,
+                    "updated": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                }
+                save_memory(mem)
+                result = f"Salvo em {ns}/{key}"
+
+            elif name == "memory_recall":
+                from memory.memory_manager import load_memory
+                ns = args.get("namespace", "notes")
+                key = args.get("key", "")
+                mem = load_memory()
+                entry = mem.get(ns, {}).get(key, {})
+                result = entry.get("value", f"Nenhum dado encontrado em {ns}/{key}")
+
+>>>>>>> d436640 (v2.0: GGUF auto-detection, GPU support, vision, thinking panel, monitor fix, portability scripts)
             else:
                 result = f"Unknown tool: {name}"
 
@@ -586,7 +980,11 @@ class VoiceSession:
         return types.FunctionResponse(id=fc.id, name=name, response={"result": result})
 
     async def _send_startup_briefing(self):
+<<<<<<< HEAD
         await asyncio.sleep(0.3)
+=======
+        await asyncio.sleep(1)
+>>>>>>> d436640 (v2.0: GGUF auto-detection, GPU support, vision, thinking panel, monitor fix, portability scripts)
         if not self.session or not self._running:
             return
 
@@ -706,6 +1104,10 @@ class VoiceSession:
                                 tools=[types.Tool(function_declarations=TOOL_DECLARATIONS)],
                                 session_resumption=types.SessionResumptionConfig(),
                                 speech_config=types.SpeechConfig(
+<<<<<<< HEAD
+=======
+                                    language_code="pt-BR",
+>>>>>>> d436640 (v2.0: GGUF auto-detection, GPU support, vision, thinking panel, monitor fix, portability scripts)
                                     voice_config=types.VoiceConfig(
                                         prebuilt_voice_config=types.PrebuiltVoiceConfig(voice_name=self._voice)
                                     )
@@ -716,7 +1118,13 @@ class VoiceSession:
                         self._running = True
                         print(f"[VoiceWS] Reconectado (tentativa {attempt + 1})")
                         await self.ws.send_json({"type": "connected", "voice": self._voice, "preset": self._voice, "tools": len(TOOL_DECLARATIONS)})
+<<<<<<< HEAD
                         asyncio.create_task(self._send_startup_briefing())
+=======
+                        if not self._briefing_sent and (not _BRIEF_OK or get_brief_enabled()):
+                            self._briefing_sent = True
+                            asyncio.create_task(self._send_startup_briefing())
+>>>>>>> d436640 (v2.0: GGUF auto-detection, GPU support, vision, thinking panel, monitor fix, portability scripts)
                         # Volta a receber mensagens
                         while self._running:
                             async for response in self.session.receive():
@@ -780,8 +1188,21 @@ async def voice_websocket(ws: WebSocket):
                 elif msg_type == "text":
                     if data.get("text") and session.session:
                         try:
+<<<<<<< HEAD
                             await session.session.send_client_content(
                                 turns={"parts": [{"text": data["text"]}]}, turn_complete=True
+=======
+                            # Injeta skills relevantes na mensagem
+                            from core.skill_loader import get_charon_skills_context
+                            user_text = data["text"]
+                            skills_ctx = get_charon_skills_context(user_text)
+                            if skills_ctx:
+                                full_text = f"{skills_ctx}\n\nUsuario: {user_text}"
+                            else:
+                                full_text = user_text
+                            await session.session.send_client_content(
+                                turns={"parts": [{"text": full_text}]}, turn_complete=True
+>>>>>>> d436640 (v2.0: GGUF auto-detection, GPU support, vision, thinking panel, monitor fix, portability scripts)
                             )
                         except Exception:
                             pass
@@ -793,7 +1214,11 @@ async def voice_websocket(ws: WebSocket):
                     if session.session and session._running:
                         try:
                             await session.session.send_realtime_input(
+<<<<<<< HEAD
                                 audio={"data": b"", "mime_type": "audio/pcm;rate=16000"},
+=======
+                                audio={"data": b"", "mime_type": "audio/pcm"},
+>>>>>>> d436640 (v2.0: GGUF auto-detection, GPU support, vision, thinking panel, monitor fix, portability scripts)
                                 interrupt=True,
                             )
                         except Exception:
@@ -812,9 +1237,17 @@ async def voice_websocket(ws: WebSocket):
 @router.get("/api/voice/status")
 async def voice_status():
     key = _get_gemini_key()
+<<<<<<< HEAD
+=======
+    from core.skill_loader import get_skill_count
+>>>>>>> d436640 (v2.0: GGUF auto-detection, GPU support, vision, thinking panel, monitor fix, portability scripts)
     return {
         "available": bool(key and key != "cole_sua_chave_aqui"),
         "default_voice": "charon",
         "tools": len(TOOL_DECLARATIONS),
         "actions_loaded": _ACTIONS_OK,
+<<<<<<< HEAD
+=======
+        "skills": get_skill_count(),
+>>>>>>> d436640 (v2.0: GGUF auto-detection, GPU support, vision, thinking panel, monitor fix, portability scripts)
     }

@@ -117,12 +117,22 @@ export default function App() {
   const [charonPanel, setCharonPanel] = useState(true);
   const [charonTranscripts, setCharonTranscripts] = useState<{speaker: string; text: string; time: string}[]>([]);
   const [voiceMode, setVoiceMode] = useState(false);
+<<<<<<< HEAD
+=======
+  const voiceModeRef = useRef(false);
+>>>>>>> d436640 (v2.0: GGUF auto-detection, GPU support, vision, thinking panel, monitor fix, portability scripts)
   const [deepSilenceSec, setDeepSilenceSec] = useState(30);
   const [charonActive, setCharonActive] = useState(false);
   const [charonVoiceStatus, setCharonVoiceStatus] = useState<string>('idle');
   const charonSendTextRef = useRef<((text: string) => void) | null>(null);
   const savedProvRef = useRef<{ prov: Provider; model: string } | null>(null);
 
+<<<<<<< HEAD
+=======
+  // Sincroniza voiceModeRef com o state
+  useEffect(() => { voiceModeRef.current = voiceMode; }, [voiceMode]);
+
+>>>>>>> d436640 (v2.0: GGUF auto-detection, GPU support, vision, thinking panel, monitor fix, portability scripts)
   // Quando WBC liga: troca provider local por cloud
   // Quando WBC desliga: restaura provider local
   useEffect(() => {
@@ -138,6 +148,15 @@ export default function App() {
     }
   }, [charonActive]);
 
+<<<<<<< HEAD
+=======
+  // Quando Charon ativa: abre o painel. Quando desativa: fecha o painel
+  // (pula no primeiro render para nao sobrescrever layout salvo)
+  useEffect(() => {
+    if (layoutLoadedRef.current) setCharonPanel(charonActive);
+  }, [charonActive]);
+
+>>>>>>> d436640 (v2.0: GGUF auto-detection, GPU support, vision, thinking panel, monitor fix, portability scripts)
   // Handler para resultados de tools do Charon
   const handleCharonToolResult = (tool: string, result: string) => {
     const toolConfig: Record<string, { label: string; icon: string; color: string }> = {
@@ -219,6 +238,7 @@ export default function App() {
   const [openaiApiKey, setOpenaiApiKey] = useState('');
   const [geminiApiKey, setGeminiApiKey] = useState('');
   const [mimoApiKey, setMimoApiKey] = useState('');
+  const [nvidiaApiKey, setNvidiaApiKey] = useState('');
   const [initDone, setInitDone] = useState(false);
 
   // ── Settings ──────────────────────────────────────────────────────────
@@ -299,6 +319,7 @@ export default function App() {
 
   // ─── Layout persistence ──────────────────────────────────────────────
   const LAYOUT_KEY = 'wbc2_layout';
+  const layoutLoadedRef = useRef(false);
 
   // Load layout from localStorage on mount
   useEffect(() => {
@@ -312,7 +333,10 @@ export default function App() {
       if (typeof saved.termH === 'number') setTermH(saved.termH);
       if (typeof saved.termOpen === 'boolean') setTermOpen(saved.termOpen);
       if (typeof saved.processW === 'number') setProcessW(saved.processW);
+      if (typeof saved.charonPanel === 'boolean') setCharonPanel(saved.charonPanel);
+      if (typeof saved.thinkOpen === 'boolean') setThinkOpen(saved.thinkOpen);
     } catch {}
+    layoutLoadedRef.current = true;
   }, []);
 
   // Save layout to localStorage on change
@@ -321,10 +345,10 @@ export default function App() {
     try {
       localStorage.setItem(
         LAYOUT_KEY,
-        JSON.stringify({ page, view, expW, chatW, chatH, termH, termOpen, processW }),
+        JSON.stringify({ page, view, expW, chatW, chatH, termH, termOpen, processW, charonPanel, thinkOpen }),
       );
     } catch {}
-  }, [initDone, page, view, expW, chatW, termH, termOpen, processW]);
+  }, [initDone, page, view, expW, chatW, termH, termOpen, processW, charonPanel, thinkOpen]);
 
   // ─── Effects ──────────────────────────────────────────────────────────
   useEffect(() => {
@@ -377,6 +401,7 @@ export default function App() {
       if (saved.openaiApiKey) setOpenaiApiKey(saved.openaiApiKey);
       if (saved.geminiApiKey) setGeminiApiKey(saved.geminiApiKey);
       if (saved.mimoApiKey) setMimoApiKey(saved.mimoApiKey);
+      if (saved.nvidiaApiKey) setNvidiaApiKey(saved.nvidiaApiKey);
 
       if (!cancelled) setInitDone(true);
     })();
@@ -418,6 +443,7 @@ export default function App() {
         groqApiKey,
         openaiApiKey,
         geminiApiKey,
+        nvidiaApiKey,
         accentTheme,
       }),
     );
@@ -439,6 +465,7 @@ export default function App() {
     groqApiKey,
     openaiApiKey,
     geminiApiKey,
+    nvidiaApiKey,
     accentTheme,
   ]);
 
@@ -463,13 +490,20 @@ export default function App() {
       .catch(() => {});
   }, [initDone]);
 
-  // Sincroniza toggle GPU com backend
+  // Sincroniza toggle GPU com backend (Ollama + Llamacpp)
   useEffect(() => {
     if (!initDone) return;
+    // Salvar no Ollama
     fetch(`${API_BASE}/ollama/gpu`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ gpu_enabled: gpuEnabled, gpu_layers: -1 }),
+    }).catch(() => {});
+    // Salvar no Llamacpp
+    fetch(`${API_BASE}/llamacpp/gpu`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ gpu_enabled: gpuEnabled, gpu_layers: 999 }),
     }).catch(() => {});
   }, [initDone, gpuEnabled]);
 
@@ -554,8 +588,14 @@ export default function App() {
           if (d.models?.length) {
             setLlamacppModels(d.models.map((m: any) => ({
               value: m.id,
+<<<<<<< HEAD
               label: m.available ? m.label : `${m.label} (não encontrado)`,
               available: m.available,
+=======
+              label: m.available ? `${m.label}${m.has_vision ? ' 👁️' : ''}` : `${m.label} (não encontrado)`,
+              available: m.available,
+              has_vision: m.has_vision,
+>>>>>>> d436640 (v2.0: GGUF auto-detection, GPU support, vision, thinking panel, monitor fix, portability scripts)
             })));
           }
         })
@@ -760,6 +800,10 @@ export default function App() {
     console.log('[App] stopGen called, abortRef:', abortRef.current);
     abortRef.current?.abort();
     setLoading(false);
+    // Parar llama-server no backend se provider for llamacpp
+    if (prov === 'llamacpp') {
+      fetch(`${API_BASE}/llamacpp/stop`, { method: 'POST' }).catch(() => {});
+    }
   };
 
   const send = async (text?: string, images?: string[]) => {
@@ -790,7 +834,9 @@ export default function App() {
                   ? openaiApiKey
                   : prov === 'gemini'
                     ? geminiApiKey
-                    : '__backend_env__';
+                    : prov === 'nvidia'
+                      ? nvidiaApiKey
+                      : '__backend_env__';
       if (!keyToSend) {
         setMsgs((c) => [
           ...c,
@@ -869,7 +915,9 @@ export default function App() {
                       ? geminiApiKey
                       : prov === 'mimo'
                         ? mimoApiKey
-                        : '',
+                        : prov === 'nvidia'
+                          ? nvidiaApiKey
+                          : '',
         task_id: effectiveTaskId,
         mode: 'auto',
         plan_strategy: 'never',
@@ -939,7 +987,7 @@ export default function App() {
               setThink(ev.content || '');
             } else if (ev.type === 'token') {
               full += ev.content || '';
-              setStream(stripInternalJson(full));
+              setStream(voiceModeRef.current ? stripInternalJson(full) : full);
             } else if (ev.type === 'tool_start') {
               const logId = `${ev.tool}_${Date.now()}`;
               setLogs((p) => [...p, { id: logId, tool: ev.tool, status: 'running', params: ev.params, startedAt: Date.now() }]);
@@ -1079,7 +1127,8 @@ export default function App() {
               }
             } else if (ev.type === 'done') {
               full = ev.answer || full;
-              setStream('');
+              // Salva o raciocinio antes de limpar (para preservar quando Jarvis off)
+              const savedThinking = thinking;
               setThinkOn(false);
               setChecklistSteps((prev) => {
                 if (prev.length === 0) return prev;
@@ -1101,12 +1150,21 @@ export default function App() {
                 planTaskIdRef.current = '';
               } else {
                 playSound('agent_success');
-                const displayText = stripInternalJson(full);
+                // Quando Jarvis off: mostra raciocinio completo. Quando on: mostra so resumo
+                const displayText = voiceModeRef.current ? stripInternalJson(full) : full;
                 setMsgs((c) => [
                   ...c,
-                  { from: 'bot', text: displayText || '(resposta vazia)', time: Date.now() },
+                  {
+                    from: 'bot',
+                    text: displayText || '(resposta vazia)',
+                    time: Date.now(),
+                    // Salva raciocinio apenas quando Jarvis esta desativado
+                    thinking: !voiceModeRef.current && savedThinking ? savedThinking : undefined,
+                  },
                 ]);
               }
+              // setStream DEPOIS de setMsgs para o auto-speak detectar a mensagem nova
+              setStream('');
               fetchHist();
               // Salva task_id para continuar depois
               if (ev.task_id) taskIdRef.current = ev.task_id;
@@ -1114,7 +1172,6 @@ export default function App() {
               // Refresh no explorador apos qualquer resposta (captura mudancas de arquivos)
               setTimeout(() => refreshExplorer(), 400);
             } else if (ev.type === 'error') {
-              setStream('');
               setLoading(false);
               const isLoop = ev.message?.toLowerCase().includes('loop');
               setMsgs((c) => [
@@ -1126,6 +1183,7 @@ export default function App() {
                   isLoopError: isLoop,
                 },
               ]);
+              setStream('');
             }
           } catch {}
         }
@@ -1163,29 +1221,35 @@ export default function App() {
 
   // ─── Drag resize ──────────────────────────────────────────────────────
   useEffect(() => {
+    let rafId = 0;
     const onMove = (e: MouseEvent) => {
       if (!dragging.current) return;
-      if (dragging.current === 'exp') setExpW(Math.max(160, Math.min(400, e.clientX)));
-      else if (dragging.current === 'chat')
-        setChatW(
-          Math.max(
-            280,
-            Math.min(Math.round(window.innerWidth * 0.45), window.innerWidth - e.clientX),
-          ),
-        );
-      else if (dragging.current === 'process')
-        setProcessW(Math.max(180, Math.min(600, window.innerWidth - e.clientX)));
-      else if (dragging.current === 'term')
-        setTermH(Math.max(100, Math.min(500, window.innerHeight - e.clientY - 24)));
-      else if (dragging.current === 'chat-h')
-        setChatH(
-          Math.max(
-            200,
-            Math.min(window.innerHeight - 32 - 24, window.innerHeight - e.clientY - 24),
-          ),
-        );
+      if (rafId) return; // throttled — skip frame if one is already pending
+      rafId = requestAnimationFrame(() => {
+        rafId = 0;
+        if (dragging.current === 'exp') setExpW(Math.max(160, Math.min(400, e.clientX)));
+        else if (dragging.current === 'chat')
+          setChatW(
+            Math.max(
+              280,
+              Math.min(Math.round(window.innerWidth * 0.45), window.innerWidth - e.clientX),
+            ),
+          );
+        else if (dragging.current === 'process')
+          setProcessW(Math.max(180, Math.min(600, window.innerWidth - e.clientX)));
+        else if (dragging.current === 'term')
+          setTermH(Math.max(100, Math.min(500, window.innerHeight - e.clientY - 24)));
+        else if (dragging.current === 'chat-h')
+          setChatH(
+            Math.max(
+              200,
+              Math.min(window.innerHeight - 32 - 24, window.innerHeight - e.clientY - 24),
+            ),
+          );
+      });
     };
     const onUp = () => {
+      if (rafId) { cancelAnimationFrame(rafId); rafId = 0; }
       dragging.current = null;
       document.body.style.cursor = '';
       document.body.style.userSelect = '';
@@ -1195,6 +1259,7 @@ export default function App() {
     return () => {
       window.removeEventListener('mousemove', onMove);
       window.removeEventListener('mouseup', onUp);
+      if (rafId) cancelAnimationFrame(rafId);
     };
   }, []);
 
@@ -1580,6 +1645,62 @@ export default function App() {
                 ].map(([func, desc]) => (
                   <div key={func} style={{ marginBottom: 3, display: 'flex', gap: 8 }}>
                     <code style={{ color: 'var(--yellow, #ffc107)', fontFamily: 'monospace', fontSize: 11, minWidth: 190, whiteSpace: 'nowrap' }}>{func}</code>
+                    <span style={{ color: 'var(--muted)' }}>{desc}</span>
+                  </div>
+                ))}
+
+                {/* Ferramentas Charon - Voz e Webcam */}
+                <div style={{ fontWeight: 700, fontSize: 12, color: 'var(--purple, #b478ff)', marginTop: 12, marginBottom: 6 }}>
+                  FERRAMENTAS CHARON (VOZ / WEBCAM)
+                </div>
+                {[
+                  ['youtube_video(query)', 'Pesquisar e abrir video no YouTube'],
+                  ['open_app(app_name)', 'Abrir qualquer aplicativo'],
+                  ['weather_report(city)', 'Relatorio do tempo para uma cidade'],
+                  ['browser_control(action)', 'Controlar navegador (abrir URL, fechar aba)'],
+                  ['computer_control(action)', 'Controlar volume, brilho, WiFi, etc.'],
+                  ['computer_settings(action)', 'Configuracoes do sistema'],
+                  ['desktop_control(action)', 'Gerenciar area de trabalho'],
+                  ['file_controller(action)', 'Ler/gravar/listar arquivos e pastas'],
+                  ['code_helper(instruction)', 'Revisar e gerar codigo'],
+                  ['dev_agent(instruction)', 'Agente de desenvolvimento autonomo'],
+                  ['game_updater(action)', 'Verificar atualizacoes de jogos (Steam/Epic)'],
+                  ['flight_finder(origin, dest)', 'Buscar voos e precos'],
+                  ['file_processor(instruction)', 'Processar e resumir arquivos'],
+                  ['system_status()', 'Metricas de CPU, RAM, GPU, temperatura'],
+                  ['reminder(date, time, msg)', 'Agendar lembrete no sistema'],
+                  ['web_search(query)', 'Pesquisar na internet'],
+                  ['send_message(receiver, text, platform)', 'Enviar mensagem (WhatsApp, Telegram)'],
+                  ['screen_process(angle)', 'Capturar tela ou webcam'],
+                  ['calorie_counter(query)', 'Analise nutricional de comida via webcam'],
+                  ['pushup_counter(query, target)', 'Contar flexoes ao vivo pela webcam'],
+                  ['upload_video(description)', 'Upload de video para TikTok Studio'],
+                ].map(([func, desc]) => (
+                  <div key={func} style={{ marginBottom: 3, display: 'flex', gap: 8 }}>
+                    <code style={{ color: 'var(--purple, #b478ff)', fontFamily: 'monospace', fontSize: 11, minWidth: 200, whiteSpace: 'nowrap' }}>{func}</code>
+                    <span style={{ color: 'var(--muted)' }}>{desc}</span>
+                  </div>
+                ))}
+
+                {/* Comandos de Voz - Charon */}
+                <div style={{ fontWeight: 700, fontSize: 12, color: 'var(--purple, #b478ff)', marginTop: 12, marginBottom: 6 }}>
+                  COMANDOS DE VOZ - CHARON (NOVAS FERRAMENTAS)
+                </div>
+                {[
+                  ['"abra o YouTube / toque musica"', 'Pesquisar e abrir video no YouTube'],
+                  ['"abra o Chrome / Spotify"', 'Abrir qualquer aplicativo'],
+                  ['"qual o tempo em Sao Paulo"', 'Relatorio do tempo'],
+                  ['"abra o site google.com"', 'Abrir URL no navegador'],
+                  ['"quanto de RAM / CPU"', 'Metricas do sistema'],
+                  ['"tira print da tela"', 'Capturar tela'],
+                  ['"quantas calorias tem nessa comida"', 'Analise nutricional via webcam'],
+                  ['"vou fazer flexoes, conte"', 'Contar flexoes ao vivo'],
+                  ['"poste esse video no tiktok"', 'Upload automatico para TikTok'],
+                  ['"lembrete para 15/08 as 14h: reuniao"', 'Agendar lembrete'],
+                  ['"envie mensagem para Joao"', 'Enviar WhatsApp/Telegram'],
+                ].map(([cmd, desc]) => (
+                  <div key={cmd} style={{ marginBottom: 3, display: 'flex', gap: 8 }}>
+                    <code style={{ color: 'var(--purple, #b478ff)', fontFamily: 'monospace', fontSize: 11, minWidth: 220, whiteSpace: 'nowrap' }}>{cmd}</code>
                     <span style={{ color: 'var(--muted)' }}>{desc}</span>
                   </div>
                 ))}
@@ -2066,6 +2187,8 @@ export default function App() {
                     setGeminiApiKey={setGeminiApiKey}
                     mimoApiKey={mimoApiKey}
                     setMimoApiKey={setMimoApiKey}
+                    nvidiaApiKey={nvidiaApiKey}
+                    setNvidiaApiKey={setNvidiaApiKey}
                     oModels={oModels}
                     orModels={orModels}
                     llamacppModels={llamacppModels}
@@ -2224,7 +2347,16 @@ export default function App() {
           {charonPanel ? (
             <CharonPanel
               visible={charonPanel}
+<<<<<<< HEAD
               onClose={() => setCharonPanel(false)}
+=======
+              onClose={() => {
+                // Só permite fechar quando Charon NÃO está ativo
+                if (!charonActive) {
+                  setCharonPanel(false);
+                }
+              }}
+>>>>>>> d436640 (v2.0: GGUF auto-detection, GPU support, vision, thinking panel, monitor fix, portability scripts)
               transcripts={charonTranscripts}
               voiceName="Charon"
               voiceStatus={charonVoiceStatus}
@@ -2261,6 +2393,10 @@ export default function App() {
         setThinkOpen={setThinkOpen}
         charonPanel={charonPanel}
         setCharonPanel={setCharonPanel}
+<<<<<<< HEAD
+=======
+        charonActive={charonActive}
+>>>>>>> d436640 (v2.0: GGUF auto-detection, GPU support, vision, thinking panel, monitor fix, portability scripts)
         onCharonActive={setCharonActive}
         onCharonVoiceStatus={setCharonVoiceStatus}
         onCharonToolResult={handleCharonToolResult}

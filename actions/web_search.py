@@ -12,16 +12,38 @@ def _get_base_dir() -> Path:
 BASE_DIR        = _get_base_dir()
 API_CONFIG_PATH = BASE_DIR / "config" / "api_keys.json"
 
+<<<<<<< HEAD
+=======
+# Cache do cliente Gemini para reutilizar (evita criar novo a cada busca)
+_gemini_client_cache = None
+_gemini_api_key_cache = None
+
+>>>>>>> d436640 (v2.0: GGUF auto-detection, GPU support, vision, thinking panel, monitor fix, portability scripts)
 
 def _get_api_key() -> str:
     with open(API_CONFIG_PATH, "r", encoding="utf-8") as f:
         return json.load(f)["gemini_api_key"]
 
 
+<<<<<<< HEAD
 def _gemini_search(query: str) -> str:
     from google import genai
 
     client   = genai.Client(api_key=_get_api_key())
+=======
+def _get_gemini_client():
+    global _gemini_client_cache, _gemini_api_key_cache
+    api_key = _get_api_key()
+    if _gemini_client_cache is None or _gemini_api_key_cache != api_key:
+        from google import genai
+        _gemini_client_cache = genai.Client(api_key=api_key)
+        _gemini_api_key_cache = api_key
+    return _gemini_client_cache
+
+
+def _gemini_search(query: str) -> str:
+    client = _get_gemini_client()
+>>>>>>> d436640 (v2.0: GGUF auto-detection, GPU support, vision, thinking panel, monitor fix, portability scripts)
     response = client.models.generate_content(
         model="gemini-2.5-flash",
         contents=query,
@@ -120,9 +142,14 @@ def _gemini_headlines(n: int = 5) -> tuple[list[str], str]:
     Returns (headline_list, raw_text_for_display).
     """
     import re
+<<<<<<< HEAD
     from google import genai
 
     client = genai.Client(api_key=_get_api_key())
+=======
+
+    client = _get_gemini_client()
+>>>>>>> d436640 (v2.0: GGUF auto-detection, GPU support, vision, thinking panel, monitor fix, portability scripts)
     response = client.models.generate_content(
         model="gemini-2.5-flash",
         contents=f"Current world news: {n} headlines. Numbered list, titles only.",
@@ -153,6 +180,7 @@ def _gemini_headlines(n: int = 5) -> tuple[list[str], str]:
 # ── Modes ──────────────────────────────────────────────────────────────────────
 
 def _search(query: str) -> str:
+<<<<<<< HEAD
     """Default search — Gemini grounded, DDG fallback."""
     try:
         return _gemini_search(query)
@@ -237,6 +265,54 @@ def _price(query: str) -> str:
         print(f"[WebSearch] ⚠️ Price Gemini failed ({e}) — DDG fallback...")
         results = _ddg_search(f"{query} price buy", max_results=6)
         return _format_ddg(query, results)
+=======
+    """Default search — DDG fast (primary), Gemini grounded (fallback)."""
+    try:
+        results = _ddg_search(query, max_results=6)
+        return _format_ddg(query, results)
+    except Exception as e:
+        print(f"[WebSearch] ⚠️ DDG failed ({e}) — trying Gemini...")
+        return _gemini_search(query)
+
+
+def _news(query: str) -> str:
+    """News search — DDG fast (primary), Gemini grounded (fallback)."""
+    try:
+        results = _ddg_news(query, max_results=8)
+        return _format_news(query, results)
+    except Exception as e:
+        print(f"[WebSearch] ⚠️ DDG news failed ({e}) — trying Gemini...")
+        try:
+            return _gemini_search(f"latest news today: {query}")
+        except Exception as e2:
+            print(f"[WebSearch] ⚠️ Gemini news also failed ({e2})")
+            return f"No news found for: {query}"
+
+
+def _research(query: str) -> str:
+    """Deep dive — DDG fast (primary), Gemini grounded (fallback)."""
+    try:
+        results = _ddg_search(query, max_results=10)
+        return _format_ddg(query, results)
+    except Exception as e:
+        print(f"[WebSearch] ⚠️ DDG research failed ({e}) — trying Gemini...")
+        research_query = (
+            f"Comprehensive, detailed explanation of: {query}. "
+            "Include background context, key facts, current state, and important nuances."
+        )
+        return _gemini_search(research_query)
+
+
+def _price(query: str) -> str:
+    """Product price lookup — DDG fast (primary), Gemini grounded (fallback)."""
+    try:
+        results = _ddg_search(f"{query} price buy", max_results=6)
+        return _format_ddg(query, results)
+    except Exception as e:
+        print(f"[WebSearch] ⚠️ DDG price failed ({e}) — trying Gemini...")
+        price_query = f"current price of {query} — how much does it cost today"
+        return _gemini_search(price_query)
+>>>>>>> d436640 (v2.0: GGUF auto-detection, GPU support, vision, thinking panel, monitor fix, portability scripts)
 
 
 def _compare(items: list[str], aspect: str) -> str:

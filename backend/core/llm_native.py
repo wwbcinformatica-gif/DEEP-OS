@@ -9,6 +9,7 @@ from core.config import (
     GEMINI_API_KEY,
     GROQ_API_KEY,
     MIMO_API_KEY,
+    NVIDIA_API_KEY,
     OPENAI_API_KEY,
     OPENCLAUDE_API_KEY,
     OPENCLAUDE_BASE_URL,
@@ -126,6 +127,15 @@ def get_client(provider: str, api_key_override: str = "", timeout_read: float = 
             api_key=key,
             timeout=timeout,
         )
+    elif provider == "nvidia":
+        key = api_key_override or NVIDIA_API_KEY
+        if not key:
+            raise ValueError("NVIDIA_API_KEY nao configurada. Crie backend/.env com NVIDIA_API_KEY=nvapi-...")
+        return AsyncOpenAI(
+            base_url="https://integrate.api.nvidia.com/v1",
+            api_key=key,
+            timeout=timeout,
+        )
     elif provider == "openclaude":
         key = api_key_override or OPENCLAUDE_API_KEY
         if not key:
@@ -177,11 +187,14 @@ def _convert_to_ollama_native(messages: list) -> list:
                     else:
                         b64 = url
                     images.append(b64)
-            entry["content"] = "".join(text_parts)
+            entry["content"] = "".join(text_parts) or ""
             if images:
                 entry["images"] = images
+        elif isinstance(content, str):
+            entry["content"] = content
         else:
-            entry["content"] = content if isinstance(content, str) else str(content or "")
+            # Garante que content nunca seja None para Ollama
+            entry["content"] = str(content) if content is not None else ""
         result.append(entry)
     return result
 
@@ -223,6 +236,64 @@ async def _ollama_chat_stream(model: str, messages: list, temperature: float = 0
                 continue
 
 
+async def _ollama_chat_stream_with_tools(model: str, messages: list, tools: list, temperature: float = 0.7):
+    """Ollama native API with tool calling support."""
+    url = f"{OLLAMA_BASE_URL}/api/chat"
+    opts = {"temperature": temperature}
+    opts.update(_ollama_gpu_options())
+    payload = {
+        "model": model,
+        "messages": messages,
+        "stream": True,
+        "options": opts,
+    }
+    if tools:
+        payload["tools"] = tools
+    timeout = httpx.Timeout(connect=10.0, read=120.0, write=10.0, pool=10.0)
+    full_content = ""
+    full_tool_calls = []
+    async with httpx.AsyncClient(timeout=timeout) as client, client.stream("POST", url, json=payload) as response:
+        async for line in response.aiter_lines():
+            if not line.strip():
+                continue
+            try:
+                chunk = json.loads(line)
+                msg = chunk.get("message", {})
+                if msg.get("content"):
+                    content = msg["content"]
+                    full_content += content
+                    yield {"type": "content", "data": content}
+                if msg.get("tool_calls"):
+                    for tc in msg["tool_calls"]:
+                        full_tool_calls.append(tc)
+                if chunk.get("done"):
+                    break
+            except json.JSONDecodeError:
+                continue
+
+    if full_tool_calls:
+        parsed = []
+        for tc in full_tool_calls:
+            func = tc.get("function", {})
+            args = func.get("arguments", {})
+            if isinstance(args, str):
+                try:
+                    args = json.loads(args)
+                except json.JSONDecodeError:
+                    args = {}
+            parsed.append({
+                "id": f"ollama_{abs(hash(str(tc))) % 100000}",
+                "type": "function",
+                "function": {
+                    "name": func.get("name", ""),
+                    "arguments": json.dumps(args, ensure_ascii=False),
+                },
+            })
+        yield {"type": "tool_calls", "data": parsed, "content": full_content, "reasoning": ""}
+    else:
+        yield {"type": "done", "content": full_content, "reasoning": ""}
+
+
 async def _ollama_chat_complete(model: str, messages: list, temperature: float = 0.7) -> str:
     url = f"{OLLAMA_BASE_URL}/api/chat"
     opts = {"temperature": temperature}
@@ -255,6 +326,10 @@ async def stream_chat(
             return
     messages = truncate_messages(messages)
     messages = convert_to_multimodal(messages)
+    # Sanitiza mensagens para garantir que content nunca seja None
+    for m in messages:
+        if "content" not in m or m["content"] is None:
+            m["content"] = ""
     if provider == "ollama" and _is_multimodal(messages):
         native_msgs = _convert_to_ollama_native(messages)
         async for chunk in _ollama_chat_stream(model, native_msgs, temperature):
@@ -312,6 +387,10 @@ async def complete_chat(
             return f"ERR: {status['error']}"
     messages = truncate_messages(messages)
     messages = convert_to_multimodal(messages)
+    # Sanitiza mensagens para garantir que content nunca seja None
+    for m in messages:
+        if "content" not in m or m["content"] is None:
+            m["content"] = ""
     if provider == "ollama" and _is_multimodal(messages):
         native_msgs = _convert_to_ollama_native(messages)
         return await _ollama_chat_complete(model, native_msgs, temperature)
@@ -576,14 +655,27 @@ async def stream_chat_with_tools(
             return
     messages = truncate_messages(messages)
     messages = convert_to_multimodal(messages)
-    if provider == "ollama" and _is_multimodal(messages):
+    # Sanitiza mensagens para garantir que content nunca seja None
+    for m in messages:
+        if "content" not in m or m["content"] is None:
+            m["content"] = ""
+    if provider == "ollama":
         native_msgs = _convert_to_ollama_native(messages)
-        full = ""
-        async for chunk in _ollama_chat_stream(model, native_msgs, temperature):
-            full += chunk
-            yield {"type": "content", "data": chunk}
-        yield {"type": "done", "content": full, "reasoning": ""}
-        return
+        effective_tools = tools
+        if _is_vision_model(model):
+            effective_tools = []
+        if effective_tools:
+            print(f"[LLM] Ollama native API with {len(effective_tools)} tools")
+            async for chunk in _ollama_chat_stream_with_tools(model, native_msgs, effective_tools, temperature):
+                yield chunk
+            return
+        else:
+            full = ""
+            async for chunk in _ollama_chat_stream(model, native_msgs, temperature):
+                full += chunk
+                yield {"type": "content", "data": chunk}
+            yield {"type": "done", "content": full, "reasoning": ""}
+            return
     client = get_client(provider, api_key)
     kwargs = dict(model=model, messages=messages, temperature=temperature, max_tokens=8192, stream=True)
     if tools:
@@ -688,6 +780,10 @@ async def complete_chat_with_tools(
             return {"type": "content", "data": f"ERR: {status['error']}", "reasoning": ""}
     messages = truncate_messages(messages)
     messages = convert_to_multimodal(messages)
+    # Sanitiza mensagens para garantir que content nunca seja None
+    for m in messages:
+        if "content" not in m or m["content"] is None:
+            m["content"] = ""
     if provider == "ollama" and _is_multimodal(messages):
         native_msgs = _convert_to_ollama_native(messages)
         content = await _ollama_chat_complete(model, native_msgs, temperature)
@@ -777,6 +873,11 @@ def build_conversation_messages(system: str, user: str, history_pairs: list[dict
                 pass
             clean.append(h)
         for h in clean[-max_pairs * 2:]:  # max_pairs * 2 = user + assistant
-            msgs.append({"role": h["role"], "content": h["content"][:1000]})
+            content = h["content"] or ""
+            # Para tool results, mantem mais contexto (atel 8000 chars)
+            if h["role"] == "tool":
+                msgs.append({"role": h["role"], "content": content[:8000]})
+            else:
+                msgs.append({"role": h["role"], "content": content[:3000]})
     msgs.append({"role": "user", "content": build_user_content(user, images)})
     return msgs

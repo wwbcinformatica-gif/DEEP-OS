@@ -38,6 +38,27 @@ limiter = Limiter(key_func=get_remote_address)
 
 router = APIRouter()
 
+# ── Tools filtradas para modelos locais (reduzir tokens) ────────────────────────
+# Modelos locais tem contexto limitado, entao enviamos apenas as tools essenciais
+LOCAL_TOOLS = [t for t in TOOLS if t["function"]["name"] in [
+    # Arquivos e codigo
+    "read", "write", "bash", "explorer", "search", "glob",
+    "create_directory", "delete", "rename", "file_edit",
+    "read_document", "execute_python", "find_file",
+    # Web
+    "web_search", "web_fetch",
+    # Tarefas
+    "task_create", "task_update", "task_list",
+    # Sistema e apps
+    "open_app", "close_app", "system_status", "computer_settings",
+    # Midia
+    "media_play",
+    # Memoria
+    "memory_write", "memory_read", "memory_list",
+    # Ferramentas
+    "tool_search", "monitor_dashboard", "reminder",
+]]
+
 # JSON interno que o modelo gera como parte do protocolo de checklist/planejamento
 _INTERNAL_JSON_RE = re.compile(
     r'\{"type"\s*:\s*"(task_plan|task_progress)"[^}]*\}'
@@ -591,6 +612,13 @@ def build_system_prompt(msg: Message) -> str:
 
     prompt_base += PLANNING_PROTOCOL_REMINDER
 
+    # Injeta skills relevantes
+    from core.skill_loader import get_chat_skills_context
+    provider = msg.provider if hasattr(msg, 'provider') else 'cloud'
+    skills_ctx = get_chat_skills_context(msg.user, provider)
+    if skills_ctx:
+        prompt_base += "\n\n" + skills_ctx
+
     return prompt_base
 
 
@@ -1026,7 +1054,11 @@ async def handle_task_stream(msg: Message) -> AsyncGenerator[dict, None]:
         # ═══════════════════════════════════════════════════════════════
 
         async def call_model_stream(messages_inner: list) -> AsyncGenerator[dict, None]:
-            effective_tools = [] if is_greeting or not supports_tools(msg.provider, msg.model) else TOOLS
+            # Modelos locais usam LOCAL_TOOLS (reduzido) para caber no contexto
+            if msg.provider in ("ollama", "llamacpp"):
+                effective_tools = [] if is_greeting or not supports_tools(msg.provider, msg.model) else LOCAL_TOOLS
+            else:
+                effective_tools = [] if is_greeting or not supports_tools(msg.provider, msg.model) else TOOLS
             tool_names = [t["function"]["name"] for t in effective_tools] if effective_tools else []
             print(f"[CHAT] provider={msg.provider} model={msg.model} tools={len(effective_tools)} tool_names={tool_names[:10]}... is_greeting={is_greeting}")
             async for chunk in stream_chat_with_tools(
@@ -2014,8 +2046,13 @@ async def handle_task(msg: Message):
         ]
 
         for step in range(max_steps):
+            # Modelos locais usam LOCAL_TOOLS (reduzido) para caber no contexto
+            if msg.provider in ("ollama", "llamacpp"):
+                step_tools = [] if is_greeting or not supports_tools(msg.provider, msg.model) else LOCAL_TOOLS
+            else:
+                step_tools = [] if is_greeting or not supports_tools(msg.provider, msg.model) else TOOLS
             result = await complete_chat_with_tools(
-                msg.provider, msg.model, messages, [] if is_greeting or not supports_tools(msg.provider, msg.model) else TOOLS, tool_temp, api_key=msg.api_key
+                msg.provider, msg.model, messages, step_tools, tool_temp, api_key=msg.api_key
             )
 
             content = result.get("content", "")

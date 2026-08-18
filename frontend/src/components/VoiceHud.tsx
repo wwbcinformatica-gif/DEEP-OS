@@ -1,23 +1,23 @@
-﻿import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect } from 'react';
 
 const WORKLET_CODE = `
 class MicProcessor extends AudioWorkletProcessor {
   constructor() {
     super();
     this._buf = [];
-    // 1600 samples = 100ms at 16kHz (recommended by Gemini Live API)
-    this._size = 1600;
+    this._size = 1024;
   }
   process(inputs) {
     const input = inputs[0];
     if (!input || !input[0]) return true;
     const ch = input[0];
-    // Downsample from 48kHz to 16kHz (take every 3rd sample)
-    // and convert to PCM16 in one pass
-    const downsampled = Math.floor(ch.length / 3);
+    const ratio = 3;
+    const downsampled = Math.floor(ch.length / ratio);
     const pcm16 = new Int16Array(downsampled);
     for (let i = 0; i < downsampled; i++) {
-      const s = Math.max(-1, Math.min(1, ch[i * 3]));
+      const idx = i * ratio;
+      const avg = (ch[idx] + ch[idx + 1] + ch[idx + 2]) / 3;
+      const s = Math.max(-1, Math.min(1, avg));
       pcm16[i] = s < 0 ? s * 0x8000 : s * 0x7fff;
     }
     for (let i = 0; i < pcm16.length; i++) this._buf.push(pcm16[i]);
@@ -36,22 +36,28 @@ const PLAYBACK_CODE = `
 class PlaybackProcessor extends AudioWorkletProcessor {
   constructor() {
     super();
-    this._ringSize = 48000;
+    this._ringSize = 480000;
     this._ring = new Float32Array(this._ringSize);
     this._writePos = 0;
     this._readPos = 0;
     this._available = 0;
+    this._prebuf = 30000;
+    this._started = false;
     this.port.onmessage = (e) => {
       if (e.data && e.data.type === 'clear') {
         this._writePos = 0; this._readPos = 0; this._available = 0;
+        this._started = false;
         return;
       }
       const pcm16 = new Int16Array(e.data);
       for (let i = 0; i < pcm16.length; i++) {
-        this._ring[this._writePos] = pcm16[i] / 0x8000;
+        this._ring[this._writePos] = pcm16[i] / 32768;
         this._writePos = (this._writePos + 1) % this._ringSize;
         if (this._available < this._ringSize) this._available++;
         else this._readPos = (this._readPos + 1) % this._ringSize;
+      }
+      if (!this._started && this._available >= this._prebuf) {
+        this._started = true;
       }
     };
   }
@@ -59,6 +65,10 @@ class PlaybackProcessor extends AudioWorkletProcessor {
     const output = outputs[0];
     if (!output || !output[0]) return true;
     const ch = output[0];
+    if (!this._started) {
+      for (let i = 0; i < ch.length; i++) ch[i] = 0;
+      return true;
+    }
     for (let i = 0; i < ch.length; i++) {
       if (this._available > 0) {
         ch[i] = this._ring[this._readPos];
@@ -225,13 +235,12 @@ export default function VoiceHud({ onUserTranscript, onJarvisTranscript, termOpe
         micNodeRef.current = node;
 
         node.port.onmessage = (ev: MessageEvent) => {
-          // Audio is already downsampled to 16kHz PCM16 in the worklet
           const pcm16 = new Int16Array(ev.data);
           const bytes = new Uint8Array(pcm16.buffer);
           if (ws.readyState === WebSocket.OPEN) {
             ws.send(bytes);
           }
-          // Audio level
+          // Audio level (use original 48kHz data)
           let sum = 0;
           for (let i = 0; i < pcm16.length; i++) sum += Math.abs(pcm16[i]);
           setAudioLevel(Math.min(1, (sum / pcm16.length / 0x8000) * 3));
@@ -284,7 +293,7 @@ export default function VoiceHud({ onUserTranscript, onJarvisTranscript, termOpe
         <button onClick={() => setTermOpen(!termOpen)} title="Terminal" style={{ background: termOpen ? 'rgba(255,122,26,0.15)' : 'none', border: `1px solid ${termOpen ? 'var(--accent)' : '#333'}`, color: termOpen ? 'var(--accent)' : '#666', cursor: 'pointer', padding: '2px 8px', borderRadius: 3, fontSize: 10, fontWeight: 700 }}>T</button>
       )}
       {setThinkOpen && (
-        <button onClick={() => setThinkOpen(!thinkOpen)} title="Thinking" style={{ background: thinkOpen ? 'rgba(0,170,255,0.15)' : 'none', border: `1px solid ${thinkOpen ? '#0af' : '#333'}`, color: thinkOpen ? '#0af' : '#666', cursor: 'pointer', padding: '2px 8px', borderRadius: 3, fontSize: 10, fontWeight: 700 }}>H</button>
+        <button onClick={() => setThinkOpen(!thinkOpen)} title="Thinking" style={{ background: thinkOpen ? 'rgba(0,170,255,0.15)' : 'none', border: `1px solid ${thinkOpen ? 'var(--accent)' : '#333'}`, color: thinkOpen ? 'var(--accent)' : '#666', cursor: 'pointer', padding: '2px 8px', borderRadius: 3, fontSize: 10, fontWeight: 700 }}>H</button>
       )}
       <button onClick={interrupt} title="Interromper" style={{ background: 'none', border: '1px solid #f443', color: '#f88', cursor: 'pointer', padding: '2px 6px', borderRadius: 3, fontSize: 10 }}>⏹</button>
     </div>

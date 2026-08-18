@@ -1,4 +1,0 @@
-# Development dependencies for folder-lister (CLI tool)
-# pytest is used for testing during development.
-pytest>=7.0
-pytest-cov   # optional: for coverage reports

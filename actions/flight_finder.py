@@ -98,6 +98,39 @@ _CABIN_CODE: dict[str, str] = {
 }
 
 
+<<<<<<< HEAD
+=======
+_CITY_IATA: dict[str, str] = {
+    "brasilia": "BSB", "brasília": "BSB",
+    "sao paulo": "GRU", "são paulo": "GRU", "sao paolo": "GRU",
+    "rio de janeiro": "GIG", "rio": "GIG",
+    "campinas": "VCP",
+    "curitiba": "CWB",
+    "belo horizonte": "CNF",
+    "salvador": "SSA",
+    "recife": "REC",
+    "fortaleza": "FOR",
+    "porto alegre": "POA",
+    "manaus": "MAO",
+    "florianopolis": "FLN",
+    "goiania": "GYN",
+    "goiânia": "GYN",
+    "nova york": "JFK", "new york": "JFK",
+    "londres": "LHR", "london": "LHR",
+    "paris": "CDG",
+    "miami": "MIA",
+    "lisboa": "LIS", "lisbon": "LIS",
+    "madrid": "MAD",
+    "barcelona": "BCN",
+    "tokyo": "NRT", "tquio": "NRT",
+    "buenos aires": "EZE",
+    "santiago": "SCL",
+    "bogota": "BOG",
+    "lima": "LIM",
+}
+
+
+>>>>>>> d436640 (v2.0: GGUF auto-detection, GPU support, vision, thinking panel, monitor fix, portability scripts)
 def _build_google_flights_url(
     origin:      str,
     destination: str,
@@ -106,6 +139,7 @@ def _build_google_flights_url(
     passengers:  int        = 1,
     cabin:       str        = "economy",
 ) -> str:
+<<<<<<< HEAD
     cabin_code = _CABIN_CODE.get(cabin.lower(), "1")
     base       = "https://www.google.com/travel/flights"
 
@@ -121,6 +155,19 @@ def _build_google_flights_url(
         f"&cabin={cabin_code}"
         f"&adults={passengers}"
     )
+=======
+    base = "https://www.google.com/travel/flights"
+
+    origin_iata = _CITY_IATA.get(origin.lower().strip(), origin.upper().strip()[:3])
+    dest_iata   = _CITY_IATA.get(destination.lower().strip(), destination.upper().strip()[:3])
+
+    if return_date:
+        q = f"Flights+from+{origin_iata}+to+{dest_iata}+on+{date}+through+{return_date}"
+    else:
+        q = f"Flights+from+{origin_iata}+to+{dest_iata}+on+{date}"
+
+    return f"{base}?q={q}&curr=BRL"
+>>>>>>> d436640 (v2.0: GGUF auto-detection, GPU support, vision, thinking panel, monitor fix, portability scripts)
 
 
 
@@ -133,18 +180,71 @@ def _search_flights_browser(
     cabin:       str,
 ) -> tuple[str, str]:
     import time
+<<<<<<< HEAD
     from actions.browser_control import browser_control
+=======
+    import urllib.request
+
+    CDP_BASE = "http://localhost:8001/browser"
+>>>>>>> d436640 (v2.0: GGUF auto-detection, GPU support, vision, thinking panel, monitor fix, portability scripts)
 
     url = _build_google_flights_url(
         origin, destination, date, return_date, passengers, cabin
     )
 
+<<<<<<< HEAD
     print(f"[FlightFinder] 🌐 Opening: {url}")
     browser_control({"action": "go_to", "url": url})
     time.sleep(5)
 
     raw = browser_control({"action": "get_text"})
     return (raw or ""), url
+=======
+    print(f"[FlightFinder] 🌐 Opening via CDP: {url}")
+
+    def _cdp_post(endpoint, data=None):
+        body = json.dumps(data).encode() if data else None
+        req = urllib.request.Request(
+            f"{CDP_BASE}/{endpoint}",
+            data=body,
+            headers={"Content-Type": "application/json"} if body else {},
+            method="POST" if body else "GET",
+        )
+        with urllib.request.urlopen(req, timeout=30) as resp:
+            return json.loads(resp.read())
+
+    try:
+        _cdp_post("navigate", {"url": url})
+    except Exception as e:
+        print(f"[FlightFinder] ⚠️ CDP navigate failed: {e}")
+        return "", url
+
+    time.sleep(8)
+
+    try:
+        result = _cdp_post("js", {
+            "expression": "document.body.innerText"
+        })
+        raw = result.get("result", "")
+        if isinstance(raw, str) and len(raw) > 100:
+            return raw, url
+    except Exception as e:
+        print(f"[FlightFinder] ⚠️ CDP js failed: {e}")
+
+    try:
+        result = _cdp_post("js", {
+            "expression": "document.documentElement.outerHTML"
+        })
+        html = result.get("result", "")
+        if isinstance(html, str) and len(html) > 100:
+            from bs4 import BeautifulSoup
+            soup = BeautifulSoup(html, "html.parser")
+            return soup.get_text(separator="\n", strip=True), url
+    except Exception as e:
+        print(f"[FlightFinder] ⚠️ CDP html extract failed: {e}")
+
+    return "", url
+>>>>>>> d436640 (v2.0: GGUF auto-detection, GPU support, vision, thinking panel, monitor fix, portability scripts)
 
 def _parse_flights_with_gemini(
     raw_text:    str,
@@ -192,6 +292,7 @@ def _format_spoken(
 ) -> str:
     if not flights:
         return (
+<<<<<<< HEAD
             f"I couldn't find any flights from {origin} to {destination} "
             f"on {date}, sir. The page may not have loaded correctly."
         )
@@ -200,6 +301,16 @@ def _format_spoken(
 
     for i, f in enumerate(flights[:5], 1):
         airline   = f.get("airline",   "Unknown airline")
+=======
+            f"Não encontrei voos de {origin} para {destination} "
+            f"nessas datas, senhor. A página pode não ter carregado corretamente."
+        )
+
+    lines = [f"Encontrei as melhores opções de voo de {origin} para {destination} no dia {date}, senhor."]
+
+    for i, f in enumerate(flights[:5], 1):
+        airline   = f.get("airline",   "Companhia desconhecida")
+>>>>>>> d436640 (v2.0: GGUF auto-detection, GPU support, vision, thinking panel, monitor fix, portability scripts)
         departure = f.get("departure", "--:--")
         arrival   = f.get("arrival",   "--:--")
         duration  = f.get("duration",  "")
@@ -207,6 +318,7 @@ def _format_spoken(
         price     = f.get("price",     "")
         currency  = f.get("currency",  "")
 
+<<<<<<< HEAD
         stop_str  = "non-stop" if stops == 0 else f"{stops} stop{'s' if stops > 1 else ''}"
         price_str = f"{price} {currency}".strip() if price else "price unavailable"
         dur_str   = f", {duration}" if duration else ""
@@ -217,6 +329,17 @@ def _format_spoken(
         )
 
     # Cheapest — strip non-digits for comparison
+=======
+        stop_str  = "sem escalas" if stops == 0 else f"{stops} parada{'s' if stops > 1 else ''}"
+        price_str = f"{price} {currency}".strip() if price else "preço indisponível"
+        dur_str   = f", duração {duration}" if duration else ""
+
+        lines.append(
+            f"Opção {i}: {airline}, saída às {departure}, "
+            f"chegada às {arrival}{dur_str}, {stop_str}, {price_str}."
+        )
+
+>>>>>>> d436640 (v2.0: GGUF auto-detection, GPU support, vision, thinking panel, monitor fix, portability scripts)
     priced = [f for f in flights if f.get("price")]
     if priced:
         cheapest = min(
@@ -224,8 +347,13 @@ def _format_spoken(
             key=lambda x: int(re.sub(r"[^\d]", "", str(x["price"])) or "999999"),
         )
         lines.append(
+<<<<<<< HEAD
             f"The cheapest option is {cheapest.get('airline')} "
             f"at {cheapest.get('price')} {cheapest.get('currency', '')}."
+=======
+            f"A opção mais barata é {cheapest.get('airline')} "
+            f"por {cheapest.get('price')} {cheapest.get('currency', '')}."
+>>>>>>> d436640 (v2.0: GGUF auto-detection, GPU support, vision, thinking panel, monitor fix, portability scripts)
         )
 
     return " ".join(lines)

@@ -21,7 +21,7 @@ async def agent_execute(task: AgentTask):
             task.agent_type = classify_task(task.task)
         agent_config = get_agent_config(task.agent_type)
         personality = agent_config.get("system_prompt", "")
-        if task.provider == "groq" and task.model == "llama-3.1-70b-versatile":
+        if task.provider == "groq" and task.model == "openai/gpt-oss-120b":
             routed_provider, routed_model = resolve_model_for_task(agent_config.get("routing", "personality"))
         else:
             routed_provider, routed_model = task.provider, task.model

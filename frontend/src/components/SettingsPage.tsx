@@ -50,6 +50,8 @@ interface Props {
   setGeminiApiKey: (v: string) => void;
   mimoApiKey: string;
   setMimoApiKey: (v: string) => void;
+  nvidiaApiKey: string;
+  setNvidiaApiKey: (v: string) => void;
   oModels: { value: string; label: string }[];
   orModels: { value: string; label: string }[];
   llamacppModels: { value: string; label: string; available: boolean }[];
@@ -139,7 +141,11 @@ export default function SettingsPage(props: Props) {
     sysPr, setSysPr, snd, setSnd, bright, setBright, fsize, setFsize,
     apiKey, setApiKey, orApiKey, setOrApiKey, groqApiKey, setGroqApiKey,
     openaiApiKey, setOpenaiApiKey, geminiApiKey, setGeminiApiKey,
+<<<<<<< HEAD
     mimoApiKey, setMimoApiKey, oModels, orModels, llamacppModels, customM, setCustomM,
+=======
+    mimoApiKey, setMimoApiKey, nvidiaApiKey, setNvidiaApiKey, oModels, orModels, llamacppModels, customM, setCustomM,
+>>>>>>> d436640 (v2.0: GGUF auto-detection, GPU support, vision, thinking panel, monitor fix, portability scripts)
     showCust, setShowCust, voicePreset, setVoicePreset, jarvisRate, setJarvisRate,
     voicePitch, setVoicePitch, deepSilenceSec, setDeepSilenceSec, accentTheme, setAccentTheme, gpuEnabled, setGpuEnabled,
   } = props;
@@ -351,6 +357,13 @@ export default function SettingsPage(props: Props) {
               <p style={{ ...s({ color: 'var(--muted)', fontSize: '10px', marginTop: '6px' }) }}>Modelo gratuito: mimo-v2.5</p>
             </div>
           )}
+          {prov === 'nvidia' && (
+            <div style={{ ...card, gridColumn: '1 / -1' }}>
+              <h3 style={h3}>API Key NVIDIA (NIM)</h3>
+              <p style={labelStyle}>Cole sua chave de <a href="https://build.nvidia.com/" target="_blank" style={linkStyle}>build.nvidia.com</a></p>
+              <input value={nvidiaApiKey} onChange={(e) => setNvidiaApiKey(e.target.value)} placeholder="nvapi-..." type="password" style={{ ...inputStyle(), width: '100%' }} />
+            </div>
+          )}
 
           <div style={card}>
             <h3 style={h3}>Personalidade</h3>
@@ -405,7 +418,7 @@ export default function SettingsPage(props: Props) {
             <Toggle value={snd} onChange={() => setSnd(!snd)} label="Clique nos botoes" />
           </div>
           <div style={card}>
-            <h3 style={h3}>GPU (Ollama)</h3>
+            <h3 style={h3}>GPU (Ollama + Llamacpp)</h3>
             <Toggle value={gpuEnabled} onChange={() => setGpuEnabled(!gpuEnabled)} label={gpuEnabled ? 'GPU ativada (RTX 3060)' : 'GPU desativada'} />
           </div>
           <div style={card}>

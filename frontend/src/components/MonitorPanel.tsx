@@ -43,12 +43,21 @@ function Card({ label, value, sub, pct, color }: { label: string; value: string;
 
 export default function MonitorPanel() {
   const [data, setData] = useState<DashData | null>(null);
+  const mountedRef = React.useRef(true);
 
   useEffect(() => {
-    const fetch_ = () => fetch(`${API_BASE}/monitor`).then(r => r.json()).then(setData).catch(() => {});
+    mountedRef.current = true;
+    const fetch_ = () => {
+      if (!mountedRef.current) return;
+      fetch(`${API_BASE}/monitor`)
+        .then(r => r.json())
+        .then(d => { if (mountedRef.current) setData(d); })
+        .catch(() => {});
+    };
+    // Busca imediata
     fetch_();
     const iv = setInterval(fetch_, 3000);
-    return () => clearInterval(iv);
+    return () => { mountedRef.current = false; clearInterval(iv); };
   }, []);
 
   const d = data;

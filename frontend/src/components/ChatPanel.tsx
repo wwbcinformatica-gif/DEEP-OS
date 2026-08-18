@@ -1,6 +1,6 @@
 ﻿import React, { useRef, useEffect, useState, useCallback } from 'react';
 import type { Msg, TLog, FileTab, Provider, Mood } from '../lib/constants';
-import { API_BASE, MODELS, SETTINGS_KEY } from '../lib/constants';
+import { API_BASE, MODELS, PROVIDERS, SETTINGS_KEY } from '../lib/constants';
 import MarkdownBlock from './MarkdownBlock';
 import PlanMessage from './PlanMessage';
 import PermissionDialog from './PermissionDialog';
@@ -26,7 +26,11 @@ interface ChatPanelProps {
   setModel: (v: string) => void;
   oModels: { value: string; label: string }[];
   orModels: { value: string; label: string }[];
+<<<<<<< HEAD
   llamacppModels: { value: string; label: string; available: boolean }[];
+=======
+  llamacppModels: { value: string; label: string; available: boolean; has_vision?: boolean }[];
+>>>>>>> d436640 (v2.0: GGUF auto-detection, GPU support, vision, thinking panel, monitor fix, portability scripts)
   curTab: FileTab | undefined;
   chatW: number;
   send: (text?: string, images?: string[]) => void;
@@ -117,6 +121,10 @@ export default function ChatPanel({
   const [isListening, setIsListening] = useState(false);
   const [isJarvisVoice, setIsJarvisVoice] = useState(false);
   const [isDeepMode, setIsDeepMode] = useState(false);
+<<<<<<< HEAD
+=======
+
+>>>>>>> d436640 (v2.0: GGUF auto-detection, GPU support, vision, thinking panel, monitor fix, portability scripts)
   const [wakeWordActive, setWakeWordActive] = useState(false);
   const [speechSupported, setSpeechSupported] = useState(false);
   const [autoSend, setAutoSend] = useState(() => {
@@ -174,6 +182,18 @@ export default function ChatPanel({
     { id: 'refactor', label: '@refactor', desc: 'Refatorar codigo', icon: 'R' },
     { id: 'explore', label: '@explore', desc: 'Explorar projeto', icon: 'E' },
     { id: 'plan', label: '@plan', desc: 'Criar plano de execucao', icon: 'P' },
+    // ── Browser-Harness Skills ──────────────────────────────────────────────
+    { id: 'browser_open', label: '@browser_open', desc: 'Abrir site no navegador', icon: 'B' },
+    { id: 'browser_search', label: '@browser_search', desc: 'Pesquisar no navegador', icon: 'S' },
+    { id: 'browser_click', label: '@browser_click', desc: 'Clicar em elemento da pagina', icon: 'C' },
+    { id: 'browser_type', label: '@browser_type', desc: 'Digitar no navegador', icon: 'T' },
+    { id: 'browser_scrape', label: '@browser_scrape', desc: 'Extrair dados de pagina', icon: 'X' },
+    { id: 'browser_form', label: '@browser_form', desc: 'Preencher formulario', icon: 'F' },
+    { id: 'browser_screenshot', label: '@browser_screenshot', desc: 'Capturar tela', icon: 'I' },
+    { id: 'browser_pdf', label: '@browser_pdf', desc: 'Salvar pagina como PDF', icon: 'P' },
+    { id: 'browser_record', label: '@browser_record', desc: 'Gravar sessao do navegador', icon: 'G' },
+    { id: 'browser_cookies', label: '@browser_cookies', desc: 'Gerenciar cookies', icon: 'K' },
+    { id: 'browser_download', label: '@browser_download', desc: 'Gerenciar downloads', icon: 'W' },
   ];
 
   const SLASH_COMMANDS = [
@@ -192,6 +212,9 @@ export default function ChatPanel({
     { id: 'clear', label: '/clear', desc: 'Limpar contexto', icon: 'X' },
     { id: 'web_search', label: '@web_search', desc: 'Pesquisar web', icon: '*' },
     { id: 'terminal', label: '@terminal_run', desc: 'Abrir terminal', icon: '$' },
+    { id: 'browser_open', label: '@browser_open', desc: 'Abrir site', icon: 'B' },
+    { id: 'browser_search', label: '@browser_search', desc: 'Pesquisar no navegador', icon: 'S' },
+    { id: 'browser_screenshot', label: '@browser_screenshot', desc: 'Capturar tela', icon: 'I' },
     { id: 'help', label: '/help', desc: 'Ajuda', icon: '?' },
   ];
 
@@ -323,12 +346,21 @@ export default function ChatPanel({
   const safeRestart = () => {
     if (isRestartingRef.current || isStartingRef.current) return;
     if (!userWantsListeningRef.current) return;
+<<<<<<< HEAD
+=======
+    if (isSpeakingRef.current) return;
+>>>>>>> d436640 (v2.0: GGUF auto-detection, GPU support, vision, thinking panel, monitor fix, portability scripts)
     isRestartingRef.current = true;
     try { recognitionRef.current?.stop(); } catch {}
     setTimeout(() => {
       isRestartingRef.current = false;
+<<<<<<< HEAD
       if (userWantsListeningRef.current) {
         try { isStartingRef.current = true; recognitionRef.current?.start(); } catch {}
+=======
+      if (userWantsListeningRef.current && !isSpeakingRef.current) {
+        try { isStartingRef.current = true; recognitionRef.current?.start(); setIsListening(true); } catch {}
+>>>>>>> d436640 (v2.0: GGUF auto-detection, GPU support, vision, thinking panel, monitor fix, portability scripts)
       }
     }, 250);
   };
@@ -472,8 +504,21 @@ export default function ChatPanel({
     r.continuous = false;
     r.interimResults = false;
     r.onresult = (event: SpeechRecognitionEvent) => handleDeepResult(event);
+<<<<<<< HEAD
     r.onerror = () => { if (userWantsListeningRef.current) setTimeout(() => { safeRestart(); }, 500); else setIsListening(false); };
     r.onend = () => { isStartingRef.current = false; if (userWantsListeningRef.current) setTimeout(() => { safeRestart(); }, 200); else setIsListening(false); };
+=======
+    r.onerror = () => {
+      isStartingRef.current = false;
+      if (userWantsListeningRef.current && !isSpeakingRef.current) setTimeout(() => { safeRestart(); }, 500);
+      else setIsListening(false);
+    };
+    r.onend = () => {
+      isStartingRef.current = false;
+      if (userWantsListeningRef.current && !isSpeakingRef.current) setTimeout(() => { safeRestart(); }, 200);
+      else if (!isSpeakingRef.current) setIsListening(false);
+    };
+>>>>>>> d436640 (v2.0: GGUF auto-detection, GPU support, vision, thinking panel, monitor fix, portability scripts)
     return r;
   };
 
@@ -533,6 +578,29 @@ export default function ChatPanel({
     handleSendRef.current = handleSend;
   });
 
+<<<<<<< HEAD
+=======
+
+
+  const safeStartListening = () => {
+    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition || (window as any).mozSpeechRecognition || (window as any).msSpeechRecognition;
+    if (!SpeechRecognition) return;
+    if (!recognitionRef.current) {
+      const r = buildRecognition();
+      if (!r) return;
+      recognitionRef.current = r;
+    }
+    const recognition = recognitionRef.current as any;
+    try {
+      userWantsListeningRef.current = true;
+      recognition.start();
+      setIsListening(true);
+    } catch (e) {
+      console.warn('Erro ao iniciar reconhecimento:', e);
+    }
+  };
+
+>>>>>>> d436640 (v2.0: GGUF auto-detection, GPU support, vision, thinking panel, monitor fix, portability scripts)
   const toggleMic = () => {
     const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition || (window as any).mozSpeechRecognition || (window as any).msSpeechRecognition;
     if (!SpeechRecognition) { setSpeechSupported(false); setIsListening(false); return; }
@@ -554,12 +622,19 @@ export default function ChatPanel({
       setIsListening(false);
     } else {
       userWantsListeningRef.current = true;
+<<<<<<< HEAD
+=======
+      stopJarvis();
+>>>>>>> d436640 (v2.0: GGUF auto-detection, GPU support, vision, thinking panel, monitor fix, portability scripts)
       try { recognition.start(); setIsListening(true); } catch (e) {
         console.warn('Erro ao iniciar reconhecimento:', e);
         setIsListening(false);
       }
     }
+<<<<<<< HEAD
     try { window.speechSynthesis?.cancel?.(); } catch {}
+=======
+>>>>>>> d436640 (v2.0: GGUF auto-detection, GPU support, vision, thinking panel, monitor fix, portability scripts)
   };
 
   const SpeechRecognitionCtor =
@@ -577,6 +652,7 @@ export default function ChatPanel({
   // Extrai apenas o texto limpo para o Jarvis falar
   const stripMarkdown = (text: string): string => {
     return text
+      .replace(/<think>[\s\S]*?<\/think>/g, '') // remove thinking do modelo
       .replace(/```[\s\S]*?```/g, '') // blocos de codigo
       .replace(/`([^`]+)`/g, '$1') // inline code
       .replace(/\*\*([^*]+)\*\*/g, '$1') // **bold**
@@ -586,6 +662,17 @@ export default function ChatPanel({
       .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1') // links [text](url)
       .replace(/>\s/g, '') // blockquotes
       .replace(/[-*+]\s/g, '') // list markers
+      .replace(/[\u{1F600}-\u{1F64F}]/gu, '') // emoticons
+      .replace(/[\u{1F300}-\u{1F5FF}]/gu, '') // symbols & pictographs
+      .replace(/[\u{1F680}-\u{1F6FF}]/gu, '') // transport & map
+      .replace(/[\u{1F1E0}-\u{1F1FF}]/gu, '') // flags
+      .replace(/[\u{2600}-\u{26FF}]/gu, '') // misc symbols
+      .replace(/[\u{2700}-\u{27BF}]/gu, '') // dingbats
+      .replace(/[\u{FE00}-\u{FE0F}]/gu, '') // variation selectors
+      .replace(/[\u{1F900}-\u{1F9FF}]/gu, '') // supplemental symbols
+      .replace(/[\u{200D}]/gu, '') // zero width joiner
+      .replace(/[\u{20E3}]/gu, '') // combining enclosing keycap
+      .replace(/[^\S\n]+/g, ' ') // multiplos espacos
       .replace(/\n{2,}/g, '. ') // paragrafos
       .trim();
   };
@@ -635,7 +722,7 @@ export default function ChatPanel({
           if (!response.ok) {
             throw new Error(`TTS backend falhou: ${response.status}`);
           }
-          if (id !== lastSpeakId.current) { isSpeakingRef.current = false; return; }
+        if (id !== lastSpeakId.current) { isSpeakingRef.current = false; return; }
 
           const mimeType = 'audio/mpeg';
           const mediaSource = new MediaSource();
@@ -702,6 +789,9 @@ export default function ChatPanel({
             URL.revokeObjectURL(audio.src);
             if (audioRef.current === audio) audioRef.current = null;
             isSpeakingRef.current = false;
+            if (userWantsListeningRef.current && !isListening) {
+              setTimeout(() => { safeRestart(); }, 300);
+            }
           };
           audio.onended = finishSpeaking;
           audio.onerror = finishSpeaking;
@@ -741,6 +831,9 @@ export default function ChatPanel({
 
         utterance.onend = () => {
           isSpeakingRef.current = false;
+          if (userWantsListeningRef.current && !isListening) {
+            setTimeout(() => { safeRestart(); }, 300);
+          }
         };
         utterance.onerror = () => {
           isSpeakingRef.current = false;
@@ -757,7 +850,7 @@ export default function ChatPanel({
   );
 
   const stopJarvis = () => {
-    lastSpeakId.current++; // invalida chamadas speakText em andamento
+    lastSpeakId.current++;
     isSpeakingRef.current = false;
     window.speechSynthesis.cancel();
     if (audioRef.current) {
@@ -767,6 +860,8 @@ export default function ChatPanel({
       audioRef.current = null;
     }
   };
+
+
 
   const toggleJarvis = () => {
     if (voiceMode) {
@@ -779,14 +874,17 @@ export default function ChatPanel({
 
   // Disparo automático quando o stream chegar ao fim
   const prevStreamRef = useRef(stream);
-  const lastSpokenMsgRef = useRef(''); // texto da última mensagem falada
+  const lastSpokenMsgRef = useRef('');
   useEffect(() => {
     const finished = prevStreamRef.current && !stream;
+<<<<<<< HEAD
     if (finished && voiceMode && !charonActive && stream === '' && msgs.length > 0) {
+=======
+    if (finished && voiceMode && stream === '' && msgs.length > 0) {
+>>>>>>> d436640 (v2.0: GGUF auto-detection, GPU support, vision, thinking panel, monitor fix, portability scripts)
       const lastBotMsg = [...msgs].reverse().find((m) => m.from === 'bot');
-      if (lastBotMsg) {
+      if (lastBotMsg && lastBotMsg.text) {
         const now = Date.now();
-        // Só fala se: mensagem é nova (diferente da última falada) OU passaram >3s desde última fala
         const isNewMsg = lastBotMsg.text !== lastSpokenMsgRef.current;
         const cooldownOk = now - lastSpokenTimeRef.current > 3000;
         if (isNewMsg || cooldownOk) {
@@ -798,10 +896,31 @@ export default function ChatPanel({
     }
     prevStreamRef.current = stream;
   }, [stream, voiceMode, msgs, speakText]);
+<<<<<<< HEAD
+=======
 
-  // Cancela fala ao enviar nova mensagem
+  // Quando ativa o ear e ja tem mensagem nao falada, fala agora
+  useEffect(() => {
+    if (voiceMode && msgs.length > 0 && !isSpeakingRef.current) {
+      const lastBotMsg = [...msgs].reverse().find((m) => m.from === 'bot');
+      if (lastBotMsg && lastBotMsg.text && lastBotMsg.text !== lastSpokenMsgRef.current) {
+        const now = Date.now();
+        const cooldownOk = now - lastSpokenTimeRef.current > 3000;
+        if (cooldownOk) {
+          lastSpokenMsgRef.current = lastBotMsg.text;
+          lastSpokenTimeRef.current = now;
+          speakText(lastBotMsg.text);
+        }
+      }
+    }
+  }, [voiceMode]);
+
+
+>>>>>>> d436640 (v2.0: GGUF auto-detection, GPU support, vision, thinking panel, monitor fix, portability scripts)
+
   const handleSend = (text?: string) => {
     lastSpeakId.current++;
+<<<<<<< HEAD
     lastSpokenMsgRef.current = ''; // reseta guard para próxima resposta ser falada
     if (autoSendTimerRef.current) { clearTimeout(autoSendTimerRef.current); autoSendTimerRef.current = null; }
     setAutoSendCountdown(0);
@@ -814,6 +933,11 @@ export default function ChatPanel({
       audioRef.current.src = '';
       audioRef.current = null;
     }
+=======
+    lastSpokenMsgRef.current = '';
+    if (autoSendTimerRef.current) { clearTimeout(autoSendTimerRef.current); autoSendTimerRef.current = null; }
+    setAutoSendCountdown(0);
+>>>>>>> d436640 (v2.0: GGUF auto-detection, GPU support, vision, thinking panel, monitor fix, portability scripts)
     let msg = text ?? input;
     if (imagePreviews.length > 0) {
       const saved = JSON.parse(localStorage.getItem(SETTINGS_KEY) || '{}');
@@ -1000,7 +1124,11 @@ export default function ChatPanel({
           className="select-input"
           style={{ flex: 1, padding: '3px 5px', fontSize: '11px' }}
         >
+<<<<<<< HEAD
           {['ollama', 'llamacpp', 'openclaude', 'opencode', 'groq', 'openrouter', 'openai', 'gemini', 'mimo'].map(
+=======
+          {PROVIDERS.map(
+>>>>>>> d436640 (v2.0: GGUF auto-detection, GPU support, vision, thinking panel, monitor fix, portability scripts)
             (p) => (
               <option key={p} value={p}>
                 {p}
@@ -1121,6 +1249,28 @@ export default function ChatPanel({
                 }
                 return (
                   <>
+                    {m.thinking && (
+                      <details style={{ marginBottom: 6, fontSize: 11, color: 'var(--muted)' }}>
+                        <summary style={{ cursor: 'pointer', color: 'var(--accent)', fontWeight: 600, fontSize: 11, userSelect: 'none' }}>
+                          Raciocínio
+                        </summary>
+                        <div style={{
+                          marginTop: 4,
+                          padding: '8px 10px',
+                          background: 'rgba(128,128,128,0.08)',
+                          borderRadius: 4,
+                          borderLeft: '3px solid var(--accent)',
+                          whiteSpace: 'pre-wrap',
+                          fontFamily: 'monospace',
+                          fontSize: 11,
+                          lineHeight: 1.5,
+                          maxHeight: 300,
+                          overflowY: 'auto',
+                        }}>
+                          {m.thinking}
+                        </div>
+                      </details>
+                    )}
                     <MarkdownBlock text={m.text} />
                     {m.isLoopError && (
                     <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>

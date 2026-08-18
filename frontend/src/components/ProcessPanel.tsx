@@ -119,6 +119,25 @@ export default function ProcessPanel({
           <div>{stream ? '~' : '0'}% used</div>
           <div>$0.00 spent</div>
         </div>
+        {/* Thinking do modelo */}
+        {thinking && (
+          <div style={{
+            marginTop: 8,
+            padding: '8px 10px',
+            background: '#0a0f1a',
+            borderRadius: 6,
+            border: '1px solid #1a2a4a',
+            fontSize: 11,
+            lineHeight: 1.5,
+          }}>
+            <div style={{ fontSize: 10, color: '#569cd6', fontWeight: 600, marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+              Thinking
+            </div>
+            <div style={{ color: '#808080', whiteSpace: 'pre-wrap', wordBreak: 'break-word', maxHeight: 200, overflow: 'auto' }}>
+              {thinking}
+            </div>
+          </div>
+        )}
       </Section>
 
       {/* LSP */}

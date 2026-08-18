@@ -1,7 +1,13 @@
 ---
-name: database-architect
+mode: subagent
 description: Expert database architect for schema design, query optimization, migrations, and modern serverless databases. Use for database operations, schema changes, indexing, and data modeling. Triggers on database, sql, schema, migration, query, postgres, index, table.
-tools: Read, Grep, Glob, Bash, Edit, Write
+permission:
+  read : allow
+  grep : allow
+  glob : allow
+  bash : allow
+  edit : allow
+  write : allow
 model: inherit
 skills: clean-code, database-design
 ---

@@ -2,6 +2,12 @@
 WBC Agent v2.1 — Backend modular estilo AntiGravity
 FastAPI + LangChain + Memória Vetorial + Multi-Agentes
 """
+import sys as _sys
+import os as _os
+_BACKEND_DIR = _os.path.dirname(_os.path.abspath(__file__))
+if _BACKEND_DIR not in _sys.path:
+    _sys.path.insert(0, _BACKEND_DIR)
+
 import asyncio
 import traceback
 
@@ -124,6 +130,10 @@ from routes.workspace import router as workspace_router
 from routes.ws_terminal import router as ws_terminal_router
 from routes.voice_ws import router as voice_router
 from routes.llamacpp_route import router as llamacpp_router
+<<<<<<< HEAD
+=======
+from routes.browser import router as browser_router
+>>>>>>> d436640 (v2.0: GGUF auto-detection, GPU support, vision, thinking panel, monitor fix, portability scripts)
 
 # ─── WorkspaceManager: carrega workspace persistido ─────────────────
 WorkspaceManager.get_instance().load_workspace()
@@ -159,6 +169,10 @@ app.include_router(config_router)
 app.include_router(workspace_router)
 app.include_router(agent_diagnostics_router)
 app.include_router(llamacpp_router)
+<<<<<<< HEAD
+=======
+app.include_router(browser_router)
+>>>>>>> d436640 (v2.0: GGUF auto-detection, GPU support, vision, thinking panel, monitor fix, portability scripts)
 
 
 @app.get("/")

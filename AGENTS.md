@@ -26,13 +26,19 @@ C:\DEEP-AUREA\
 ├── backend/          # Python FastAPI backend
 │   ├── core/         # Core modules (spiral_memory, lifecycle, agent_config, secrets, log_viewer)
 │   ├── agents/       # Agent loop and configurations
+│   ├── browser/      # Browser automation via CDP (Chrome DevTools Protocol)
 │   ├── cron/         # Cron scheduler (real asyncio execution)
 │   ├── database/     # SQLite pool + triggers system
 │   ├── memory/       # Elastic memory, vector memory (FAISS), brain
-│   └── routes/       # API routes (chat, cron, triggers, secrets, logs, etc.)
+│   └── routes/       # API routes (chat, cron, triggers, secrets, logs, browser, etc.)
 ├── frontend/         # React + TypeScript (Vite)
 │   └── src/
 │       └── components/  # UI components (ArchitecturePage, ChatPanel, etc.)
+├── skills/           # Agent skills
+│   ├── browser-automation/  # Browser automation skill (CDP)
+│   │   ├── SKILL.md
+│   │   └── interaction-skills/  # 12 interaction techniques
+│   └── software-development/    # Dev skills
 ├── .memory/          # Portable project memory (junction from mimocode)
 ├── docs/             # Documentation (architecture.html)
 ├── config.yaml       # Main configuration file
@@ -64,6 +70,39 @@ The agent MUST automatically:
 - `POST /chat/stream` — Chat SSE com streaming
 - `GET/POST /memory` — Sistema de memoria
 - `POST /agent/execute` — Execucao direta de agentes
+- `GET /browser/status` — Status da conexao CDP
+- `POST /browser/navigate` — Navegar para URL
+- `GET /browser/page-info` — Info da pagina atual
+- `POST /browser/click` — Clique em coordenadas
+- `POST /browser/type` — Digitar texto
+- `POST /browser/fill` — Preencher input (React/Vue)
+- `POST /browser/key` — Pressionar tecla
+- `POST /browser/scroll` — Scroll
+- `POST /browser/js` — Executar JavaScript
+- `GET /browser/screenshot` — Capturar screenshot
+- `GET /browser/tabs` — Listar abas
+- `POST /browser/tab/new` — Nova aba
+- `POST /browser/tab/switch` — Trocar aba
+- `POST /browser/tab/close` — Fechar aba
+- `POST /browser/upload` — Upload de arquivo
+- `GET /browser/doctor` — Diagnosticos
+
+## Browser Setup (Chrome Remote Debugging)
+O modulo browser precisa que o Chrome esteja com remote debugging habilitado.
+
+### Opcao 1: Ativar pelo Chrome
+1. Abra o Chrome e va para `chrome://inspect/#remote-debugging`
+2. Clique em "Ativar" (Enable)
+
+### Opcao 2: Atalho com porta 9222
+Crie um atalho do Chrome com parametro:
+```
+"C:\Program Files\Google\Chrome\Application\chrome.exe" --remote-debugging-port=9222
+```
+
+### Verificar se funciona
+Apos ativar, acesse: `http://localhost:8001/browser/doctor`
+Deve retornar `"status": "healthy"`
 
 ## Guidelines
 - Backend runs on port 8001 (dev) or 8000 (production)

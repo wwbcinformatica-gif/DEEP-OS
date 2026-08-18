@@ -13,7 +13,7 @@ def strip_ansi(text: str) -> str:
     return ANSI_ESCAPE_RE.sub('', text)
 
 
-async def tool_read(path: str, root: str = "") -> dict:
+async def tool_read(path: str, root: str = "", offset: int = 0, limit: int = 0) -> dict:
     from tools.explorer import resolve_path
     target = resolve_path(path, root)
     if not target.exists():
@@ -46,12 +46,18 @@ doc = fitz.open(r"{target}")
 text = ""
 for page in doc:
     text += page.get_text()
-print(text[:15000])
+print(text)
 '''],
-                    capture_output=True, text=True, timeout=15
+                    capture_output=True, text=True, timeout=30
                 )
                 if result.returncode == 0 and result.stdout.strip():
-                    return {"type": "file", "content": result.stdout[:15000], "truncated": len(result.stdout) > 15000, "note": "Texto extraido do PDF"}
+                    full_text = result.stdout
+                    total = len(full_text)
+                    if limit > 0:
+                        start = offset * limit
+                        chunk = full_text[start:start + limit]
+                        return {"type": "file", "content": chunk, "total_chars": total, "offset": start, "has_more": start + limit < total, "note": "Texto extraido do PDF"}
+                    return {"type": "file", "content": full_text, "total_chars": total, "note": "Texto extraido do PDF (completo)"}
             except Exception:
                 pass
 
@@ -64,7 +70,24 @@ print(text[:15000])
         }
 
     content = target.read_text("utf-8", errors="replace")
-    return {"type": "file", "content": content[:10000], "truncated": len(content) > 10000}
+    total = len(content)
+    total_lines = content.count('\n') + 1
+
+    # Se limit > 0, retorna apenas o trecho solicitado (paginação)
+    if limit > 0:
+        start = offset * limit
+        chunk = content[start:start + limit]
+        return {
+            "type": "file",
+            "content": chunk,
+            "total_chars": total,
+            "total_lines": total_lines,
+            "offset_chars": start,
+            "has_more": start + limit < total,
+        }
+
+    # Retorna o conteudo completo
+    return {"type": "file", "content": content, "total_chars": total, "total_lines": total_lines}
 
 async def tool_write(path: str, content: str, root: str = "") -> dict:
     from tools.explorer import resolve_path

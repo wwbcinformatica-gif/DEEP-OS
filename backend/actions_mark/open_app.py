@@ -54,14 +54,32 @@ _APP_ALIASES: dict[str, dict[str, str]] = {
     "settings":           {"Windows": "ms-settings:",            "Darwin": "System Preferences",   "Linux": "gnome-control-center"},
     "calculator":         {"Windows": "calc.exe",                "Darwin": "Calculator",           "Linux": "gnome-calculator"},
     "paint":              {"Windows": "mspaint.exe",             "Darwin": "Preview",              "Linux": "gimp"},
+<<<<<<< HEAD
     "instagram":          {"Windows": "Instagram",               "Darwin": "Instagram",            "Linux": "firefox"},
     "tiktok":             {"Windows": "TikTok",                  "Darwin": "TikTok",               "Linux": "firefox"},
+=======
+    "instagram":          {"Windows": "Instagram",               "Darwin": "Instagram",            "Linux": "instagram"},
+    "tiktok":             {"Windows": "TikTok",                  "Darwin": "TikTok",               "Linux": "tiktok"},
+>>>>>>> d436640 (v2.0: GGUF auto-detection, GPU support, vision, thinking panel, monitor fix, portability scripts)
     "notion":             {"Windows": "Notion",                  "Darwin": "Notion",               "Linux": "notion"},
     "obsidian":           {"Windows": "Obsidian",                "Darwin": "Obsidian",             "Linux": "obsidian"},
     "capcut":             {"Windows": "CapCut",                  "Darwin": "CapCut",               "Linux": "capcut"},
     "steam":              {"Windows": "steam",                   "Darwin": "Steam",                "Linux": "steam"},
     "epic":               {"Windows": "EpicGamesLauncher",       "Darwin": "Epic Games Launcher",  "Linux": "legendary"},
     "epic games":         {"Windows": "EpicGamesLauncher",       "Darwin": "Epic Games Launcher",  "Linux": "legendary"},
+<<<<<<< HEAD
+=======
+    # ── Aliases em Português ──────────────────────────────────────────────────
+    "configurações":      {"Windows": "ms-settings:",            "Darwin": "System Preferences",   "Linux": "gnome-control-center"},
+    "configuracoes":      {"Windows": "ms-settings:",            "Darwin": "System Preferences",   "Linux": "gnome-control-center"},
+    "configuração do sistema": {"Windows": "ms-settings:",       "Darwin": "System Preferences",   "Linux": "gnome-control-center"},
+    "calculadora":        {"Windows": "calc.exe",                "Darwin": "Calculator",           "Linux": "gnome-calculator"},
+    "gerenciador de tarefas": {"Windows": "taskmgr.exe",         "Darwin": "Activity Monitor",     "Linux": "gnome-system-monitor"},
+    "explorador de arquivos": {"Windows": "explorer.exe",        "Darwin": "Finder",               "Linux": "nautilus"},
+    "bloco de notas":     {"Windows": "notepad.exe",             "Darwin": "TextEdit",             "Linux": "gedit"},
+    "paint":              {"Windows": "mspaint.exe",             "Darwin": "Preview",              "Linux": "gimp"},
+    "terminal":           {"Windows": "wt",                      "Darwin": "Terminal",             "Linux": "x-terminal-emulator"},
+>>>>>>> d436640 (v2.0: GGUF auto-detection, GPU support, vision, thinking panel, monitor fix, portability scripts)
 }
 
 

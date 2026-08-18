@@ -1,7 +1,12 @@
 ---
-name: code-archaeologist
+mode: subagent
 description: Expert in legacy code, refactoring, and understanding undocumented systems. Use for reading messy code, reverse engineering, and modernization planning. Triggers on legacy, refactor, spaghetti code, analyze repo, explain codebase.
-tools: Read, Grep, Glob, Edit, Write
+permission:
+  read : allow
+  grep : allow
+  glob : allow
+  edit : allow
+  write : allow
 model: inherit
 skills: clean-code, refactoring-patterns, code-review-checklist
 ---

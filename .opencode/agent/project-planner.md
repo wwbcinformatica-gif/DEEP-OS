@@ -1,7 +1,11 @@
 ---
-name: project-planner
+mode: subagent
 description: Smart project planning agent. Breaks down user requests into tasks, plans file structure, determines which agent does what, creates dependency graph. Use when starting new projects or planning major features.
-tools: Read, Grep, Glob, Bash
+permission:
+  read : allow
+  grep : allow
+  glob : allow
+  bash : allow
 model: inherit
 skills: clean-code, app-builder, plan-writing, brainstorming
 ---

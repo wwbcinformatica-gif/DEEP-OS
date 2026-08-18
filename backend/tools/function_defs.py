@@ -12,12 +12,23 @@ TOOLS = [
         "type": "function",
         "function": {
             "name": "read",
+<<<<<<< HEAD
             "description": "Le o conteudo de um arquivo ou lista arquivos de um diretorio. Aceita paths absolutos (ex: G:\\DEEP-AUREA, C:\\Users) ou relativos.",
             "parameters": {
                 "type": "object",
                 "properties": {
                     "path": {"type": "string", "description": "Caminho do arquivo ou diretorio. Aceita paths absolutos (G:\\pasta) ou relativos (backend/core)"},
                     "root": {"type": "string", "description": "Diretorio raiz do projeto (opcional)"}
+=======
+            "description": "Le o conteudo de um arquivo ou lista arquivos de um diretorio. Aceita paths absolutos (ex: C:\\DEEP-AUREA, C:\\Users) ou relativos. Retorna o conteudo COMPLETO por padrao. Use offset/limit para paginação se o arquivo for muito grande.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "path": {"type": "string", "description": "Caminho do arquivo ou diretorio. Aceita paths absolutos (C:\\pasta) ou relativos (backend/core)"},
+                    "root": {"type": "string", "description": "Diretorio raiz do projeto (opcional)"},
+                    "offset": {"type": "integer", "description": "Pagina para ler (0=primeira). Use com limit para paginação."},
+                    "limit": {"type": "integer", "description": "Caracteres por pagina (ex: 50000). Sem limit = arquivo completo."}
+>>>>>>> d436640 (v2.0: GGUF auto-detection, GPU support, vision, thinking panel, monitor fix, portability scripts)
                 },
                 "required": ["path"]
             }
@@ -31,7 +42,11 @@ TOOLS = [
             "parameters": {
                 "type": "object",
                 "properties": {
+<<<<<<< HEAD
                     "path": {"type": "string", "description": "Caminho do arquivo. Aceita paths absolutos (G:\\pasta\\arquivo.py)"},
+=======
+                    "path": {"type": "string", "description": "Caminho do arquivo. Aceita paths absolutos (C:\\pasta\\arquivo.py)"},
+>>>>>>> d436640 (v2.0: GGUF auto-detection, GPU support, vision, thinking panel, monitor fix, portability scripts)
                     "content": {"type": "string", "description": "Conteudo do arquivo"},
                     "root": {"type": "string", "description": "Diretorio raiz do projeto (opcional)"}
                 },
@@ -43,11 +58,19 @@ TOOLS = [
         "type": "function",
         "function": {
             "name": "bash",
+<<<<<<< HEAD
             "description": "Executa um comando no terminal do sistema. Tem acesso TOTAL a todas as unidades (C:\\, D:\\, G:\\, etc).",
             "parameters": {
                 "type": "object",
                 "properties": {
                     "command": {"type": "string", "description": "Comando a ser executado (ex: dir G:\\, ls C:\\Users)"},
+=======
+            "description": "Executa um comando no terminal do sistema. Tem acesso TOTAL a todas as unidades (C:\\, D:\\, etc).",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "command": {"type": "string", "description": "Comando a ser executado (ex: dir C:\\, ls C:\\Users)"},
+>>>>>>> d436640 (v2.0: GGUF auto-detection, GPU support, vision, thinking panel, monitor fix, portability scripts)
                     "workdir": {"type": "string", "description": "Diretorio de trabalho (opcional)"}
                 },
                 "required": ["command"]
@@ -58,11 +81,19 @@ TOOLS = [
         "type": "function",
         "function": {
             "name": "explorer",
+<<<<<<< HEAD
             "description": "Lista o conteudo de um diretorio. Aceita paths absolutos (ex: G:\\, C:\\Users\\Desktop).",
             "parameters": {
                 "type": "object",
                 "properties": {
                     "path": {"type": "string", "description": "Caminho absoluto (G:\\pasta) ou subpasta relativa"},
+=======
+            "description": "Lista o conteudo de um diretorio. Aceita paths absolutos (ex: C:\\, C:\\Users\\Desktop).",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "path": {"type": "string", "description": "Caminho absoluto (C:\\pasta) ou subpasta relativa"},
+>>>>>>> d436640 (v2.0: GGUF auto-detection, GPU support, vision, thinking panel, monitor fix, portability scripts)
                     "root": {"type": "string", "description": "Diretorio raiz (opcional)"}
                 },
                 "required": []
@@ -595,6 +626,334 @@ TOOLS = [
                     "linhas_log": {"type": "integer", "description": "Quantidade de linhas de log para retornar (padrao 20)"}
                 },
                 "required": []
+            }
+        }
+    },
+    # ── Charon Tools (mesmas ferramentas do voice assistant) ──
+    {
+        "type": "function",
+        "function": {
+            "name": "youtube_video",
+            "description": "Controla YouTube: reproduzir videos, resumir, obter info ou mostrar trending. Use quando o usuario pedir para abrir YouTube, tocar musica, ver video.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "action": {"type": "string", "description": "play | summarize | get_info | trending"},
+                    "query": {"type": "string", "description": "Busca para play (ex: 'James Blunt Goodbye My Lover')"},
+                    "save": {"type": "boolean", "description": "Salvar resumo no Notepad"},
+                    "region": {"type": "string", "description": "Codigo do pais para trending (ex: BR, US)"},
+                    "url": {"type": "string", "description": "URL do video para get_info"}
+                },
+                "required": ["action"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "browser_control",
+            "description": "Controla navegadores web: abrir sites, buscar, clicar, preencher, scroll, screenshot, navegacao.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "action": {"type": "string", "description": "go_to | search | click | type | scroll | screenshot | back | forward | reload | close"},
+                    "browser": {"type": "string", "description": "chrome | edge | firefox | opera | brave"},
+                    "url": {"type": "string", "description": "URL para go_to"},
+                    "query": {"type": "string", "description": "Busca para search"},
+                    "selector": {"type": "string", "description": "CSS selector para click/type"},
+                    "text": {"type": "string", "description": "Texto para digitar ou clicar"},
+                    "direction": {"type": "string", "description": "up | down para scroll"},
+                    "amount": {"type": "integer", "description": "Quantidade de scroll (default: 500)"},
+                    "key": {"type": "string", "description": "Tecla para press (ex: Enter, F5)"},
+                    "path": {"type": "string", "description": "Caminho para salvar screenshot"}
+                },
+                "required": ["action"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "computer_settings",
+            "description": "Controla o computador: volume, brilho, atalhos de teclado, fechar apps, fullscreen, WiFi, reiniciar, desligar, etc.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "action": {"type": "string", "description": "Acao a executar"},
+                    "description": {"type": "string", "description": "Descricao em linguagem natural"},
+                    "value": {"type": "string", "description": "Valor opcional: nivel de volume, texto, etc."}
+                },
+                "required": []
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "computer_control",
+            "description": "Controle direto do computador: digitar, clicar, atalhos, scroll, mover mouse, screenshots, encontrar elementos.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "action": {"type": "string", "description": "type | click | double_click | right_click | hotkey | press | scroll | move | copy | paste | screenshot | wait | focus_window | screen_find | screen_click"},
+                    "text": {"type": "string", "description": "Texto para digitar ou colar"},
+                    "x": {"type": "integer", "description": "Coordenada X"},
+                    "y": {"type": "integer", "description": "Coordenada Y"},
+                    "keys": {"type": "string", "description": "Combinacao de teclas (ex: ctrl+c)"},
+                    "key": {"type": "string", "description": "Tecla unica (ex: enter)"},
+                    "direction": {"type": "string", "description": "up | down | left | right"},
+                    "amount": {"type": "integer", "description": "Quantidade de scroll (default: 3)"},
+                    "seconds": {"type": "number", "description": "Segundos para wait"},
+                    "title": {"type": "string", "description": "Titulo da janela para focus_window"},
+                    "description": {"type": "string", "description": "Descricao do elemento para screen_find/screen_click"},
+                    "path": {"type": "string", "description": "Caminho para salvar screenshot"}
+                },
+                "required": ["action"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "desktop_control",
+            "description": "Controla a area de trabalho: papel de parede, organizar, limpar, listar, estatisticas.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "action": {"type": "string", "description": "wallpaper | wallpaper_url | organize | clean | list | stats | task"},
+                    "path": {"type": "string", "description": "Caminho da imagem para wallpaper"},
+                    "url": {"type": "string", "description": "URL da imagem para wallpaper_url"},
+                    "mode": {"type": "string", "description": "by_type ou by_date para organize"},
+                    "task": {"type": "string", "description": "Tarefa da area de trabalho em linguagem natural"}
+                },
+                "required": ["action"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "code_helper",
+            "description": "Escreve, edita, explica, executa ou compila arquivos de codigo.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "action": {"type": "string", "description": "write | edit | explain | run | build | auto"},
+                    "description": {"type": "string", "description": "O que o codigo deve fazer ou que mudanca fazer"},
+                    "language": {"type": "string", "description": "Linguagem de programacao (default: python)"},
+                    "output_path": {"type": "string", "description": "Onde salvar o arquivo"},
+                    "file_path": {"type": "string", "description": "Caminho de arquivo existente"},
+                    "code": {"type": "string", "description": "Codigo bruto para explain"},
+                    "args": {"type": "string", "description": "Argumentos CLI para run/build"},
+                    "timeout": {"type": "integer", "description": "Timeout em segundos (default: 30)"}
+                },
+                "required": ["action"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "dev_agent",
+            "description": "Cria projetos completos multi-arquivo do zero: planeja, escreve arquivos, instala deps, executa e corrige erros.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "description": {"type": "string", "description": "O que o projeto deve fazer"},
+                    "language": {"type": "string", "description": "Linguagem (default: python)"},
+                    "project_name": {"type": "string", "description": "Nome da pasta do projeto"},
+                    "timeout": {"type": "integer", "description": "Timeout de execucao em segundos (default: 30)"}
+                },
+                "required": ["description"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "game_updater",
+            "description": "Ferramenta para Steam/Epic Games: instalar, baixar, atualizar, listar jogos, status de download.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "action": {"type": "string", "description": "update | install | list | download_status | schedule | cancel_schedule | schedule_status"},
+                    "platform": {"type": "string", "description": "steam | epic | both (default: both)"},
+                    "game_name": {"type": "string", "description": "Nome do jogo"},
+                    "app_id": {"type": "string", "description": "Steam AppID para install"},
+                    "hour": {"type": "integer", "description": "Hora para update agendado 0-23 (default: 3)"},
+                    "minute": {"type": "integer", "description": "Minuto para update agendado 0-59 (default: 0)"},
+                    "shutdown_when_done": {"type": "boolean", "description": "Desligar PC quando download finalizar"}
+                },
+                "required": []
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "flight_finder",
+            "description": "Busca passagens de aviao no Google Flights. Use quando o usuario quiser comprar voos, buscar passagens, ver precos.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "origin": {"type": "string", "description": "Cidade ou aeroporto de origem (ex: Sao Paulo, GRU)"},
+                    "destination": {"type": "string", "description": "Cidade ou aeroporto de destino (ex: Paris, CDG)"},
+                    "date": {"type": "string", "description": "Data de saida (ex: 2026-09-15)"},
+                    "return_date": {"type": "string", "description": "Data de volta para ida e volta (opcional)"},
+                    "passengers": {"type": "integer", "description": "Numero de passageiros (default: 1)"},
+                    "cabin": {"type": "string", "description": "Classe: economy | premium | business | first"},
+                    "save": {"type": "boolean", "description": "Salvar resultado no Notepad"}
+                },
+                "required": ["origin", "destination", "date"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "screen_process",
+            "description": "Captura a tela ou webcam e analisa. Use quando o usuario perguntar o que esta na tela ou quiser que voce veja algo.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "angle": {"type": "string", "description": "screen para capturar display, camera para webcam"},
+                    "text": {"type": "string", "description": "Pergunta ou instrucao sobre a imagem"}
+                },
+                "required": ["text"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "weather_report",
+            "description": "Retorna o relatorio do tempo para uma cidade.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "city": {"type": "string", "description": "Nome da cidade"}
+                },
+                "required": ["city"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "reminder",
+            "description": "Agenda um lembrete para data e hora especificas.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "date": {"type": "string", "description": "Data no formato YYYY-MM-DD"},
+                    "time": {"type": "string", "description": "Hora no formato HH:MM (24h)"},
+                    "message": {"type": "string", "description": "Texto do lembrete"}
+                },
+                "required": ["date", "time", "message"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "system_status",
+            "description": "Retorna metricas do sistema em tempo real: uso de CPU, RAM, GPU, temperatura, uptime e numero de processos.",
+            "parameters": {
+                "type": "object",
+                "properties": {},
+                "required": []
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "manage_monitor",
+            "description": "Adiciona, remove ou lista topicos de monitoramento em background.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "action": {"type": "string", "description": "add | remove | list"},
+                    "topic": {"type": "string", "description": "Topico para monitorar ou parar de monitorar"}
+                },
+                "required": ["action"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "whatsapp_send",
+            "description": "Envia uma mensagem de texto via WhatsApp ou Telegram.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "receiver": {"type": "string", "description": "Nome do destinatario"},
+                    "message_text": {"type": "string", "description": "Texto da mensagem"},
+                    "platform": {"type": "string", "description": "Plataforma: WhatsApp, Telegram"}
+                },
+                "required": ["receiver", "message_text", "platform"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "file_processor",
+            "description": "Processa arquivos: imagens, PDFs, Word, CSV, JSON, codigo, audio, video, archives.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "file_path": {"type": "string", "description": "Caminho completo do arquivo"},
+                    "action": {"type": "string", "description": "describe | ocr | summarize | extract_text | analyze | explain | review | fix | run | transcribe | info"},
+                    "instruction": {"type": "string", "description": "Instrucao livre adicional"},
+                    "format": {"type": "string", "description": "Formato de destino para conversao"},
+                    "save": {"type": "boolean", "description": "Salvar resultado em arquivo"}
+                },
+                "required": []
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "calorie_counter",
+            "description": "Analisa comida pela WEBCAM e reporta calorias e valores nutricionais (carboidratos, acucar, fibra, proteina, gordura). Use quando o usuario perguntar sobre calorias de comida que esta segurando ou mostrando.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "query": {"type": "string", "description": "Pedido exato do usuario, verbatim, no idioma dele"}
+                },
+                "required": ["query"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "pushup_counter",
+            "description": "Conta flexoes ao vivo pela WEBCAM. Use quando o usuario quiser fazer flexoes e quiser que sejam contadas. A sessao pode durar alguns minutos.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "query": {"type": "string", "description": "Pedido exato do usuario, verbatim, no idioma dele"},
+                    "target": {"type": "number", "description": "Meta de repeticoes se o usuario informou uma (ex: 20)"}
+                },
+                "required": ["query"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "upload_video",
+            "description": "Faz upload de um video da Area de Trabalho para o TikTok com automacao completa do navegador. Use quando o usuario pedir para postar/enviar video no TikTok.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "description": {"type": "string", "description": "Ideia de legenda/caption do usuario, verbatim, no idioma dele"}
+                },
+                "required": ["description"]
             }
         }
     },

@@ -28,6 +28,7 @@ GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
 OPENCODE_API_KEY = os.environ.get("OPENCODE_API_KEY", "")
 OPENCLAUDE_API_KEY = os.environ.get("OPENCLAUDE_API_KEY", "")
 MIMO_API_KEY = os.environ.get("MIMO_API_KEY", "")
+NVIDIA_API_KEY = os.environ.get("NVIDIA_API_KEY", "")
 OPENCLAUDE_BASE_URL = os.environ.get("OPENCLAUDE_BASE_URL", "http://localhost:4000/api/v1")
 
 
@@ -63,9 +64,9 @@ ALLOWED_BASH = {
 }
 
 MODEL_ROUTING = {
-    "personality": {"provider": "groq", "model": "mixtral-8x7b-32768"},
-    "coding": {"provider": "groq", "model": "llama-3.1-70b-versatile"},
-    "reasoning": {"provider": "groq", "model": "llama-3.1-70b-versatile"},
+    "personality": {"provider": "groq", "model": "openai/gpt-oss-20b"},
+    "coding": {"provider": "groq", "model": "openai/gpt-oss-120b"},
+    "reasoning": {"provider": "groq", "model": "openai/gpt-oss-120b"},
     "premium": {"provider": "openai", "model": "gpt-4o"},
     "analysis": {"provider": "gemini", "model": "gemini-1.5-pro"},
 }

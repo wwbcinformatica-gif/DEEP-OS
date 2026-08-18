@@ -199,6 +199,7 @@ class LifecycleState:
     collected_tool_calls: list = field(default_factory=list)
     consecutive_tool_calls: int = 0
     think_only_count: int = 0
+    checklist_nudge_count: int = 0
     api_retry_count: int = 0
     last_bash_command: str = ""
     raw_finish_reason: str = ""
@@ -517,6 +518,49 @@ async def run_lifecycle(
             )
 
             if content_category == ContentCategory.HAS_RESPONSE:
+                # ── CHECKLIST WITHOUT EXECUTION DETECTION ──
+                # Models like qwen3.5 generate checklists but never emit tool_calls.
+                # Detect this and force a re-call with explicit nudge.
+                combined = (state.accumulated_content or "") + (state.accumulated_reasoning or "")
+                has_checklist = _has_checkboxes(combined)
+                has_tool_calls = bool(state.collected_tool_calls)
+                tools_were_executed = bool(state.tool_logs)
+
+                if has_checklist and not has_tool_calls and not tools_were_executed and state.checklist_nudge_count < 2:
+                    _log.warning(
+                        "[DEEP-AUREA] CHECKLIST_SEM_EXECUCAO: modelo gerou checkboxes mas NENHUMA tool call (passo %d)",
+                        state.step,
+                    )
+                    # Append the checklist content as assistant message
+                    assistant_msg = {
+                        "role": "assistant",
+                        "content": state.accumulated_content or None,
+                    }
+                    if state.accumulated_reasoning:
+                        reasoning_block = f"<think>\n{state.accumulated_reasoning}\n</think>\n"
+                        assistant_msg["content"] = reasoning_block + (assistant_msg.get("content") or "")
+                    state.messages.append(assistant_msg)
+
+                    # Inject explicit nudge to force tool calling
+                    state.messages.append({
+                        "role": "user",
+                        "content": (
+                            "ATENCAO: Voce apresentou um plano com checkboxes MAS NAO EXECUTOU NENHUMA FERRAMENTA. "
+                            "O plano serve de nada sem execucao!\n\n"
+                            "AGORA Execute IMEDIATAMENTE a primeira ferramenta do seu plano. "
+                            "Use tool_call nativo — NAO descreva em texto, CHAME a ferramenta.\n"
+                            "Exemplo: explorer(path=\"C:/Users\") ou bash(command=\"dir C:/Users\")\n\n"
+                            "EXECUTE AGORA. NAO envie mais texto."
+                        ),
+                    })
+
+                    # Reset accumulators for next iteration
+                    state.reset_stream_accumulators()
+                    state.has_presented_plan = True
+                    state.checklist_nudge_count += 1
+                    yield {"type": "thinking", "step": state.step, "content": "[CHECKLIST_SEM_EXECUCAO] Checklists detectadas sem execução. Forçando tool call..."}
+                    continue
+
                 state.transition(State.FINAL)
                 yield {"type": "state_change", "state": State.FINAL.value, "step": state.step}
                 answer = state.accumulated_content.strip()

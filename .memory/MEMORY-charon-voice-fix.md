@@ -167,8 +167,13 @@ Portadas todas as 20 ferramentas do WBC-Mark-L para o Charon do DEEP-AUREA.
 - `sounddevice` — Para screen_processor
 
 ### Arquivos Criados/Modificados
+<<<<<<< HEAD
 - `G:\DEEP-AUREA\config.py` — NOVO — Helper de compatibilidade com actions
 - `G:\DEEP-AUREA\backend\routes\voice_ws.py` — REESCRITO — 20 TOOL_DECLARATIONS + _execute_tool + receive_loop com tool_call handler
+=======
+- `C:\DEEP-AUREA\config.py` — NOVO — Helper de compatibilidade com actions
+- `C:\DEEP-AUREA\backend\routes\voice_ws.py` — REESCRITO — 20 TOOL_DECLARATIONS + _execute_tool + receive_loop com tool_call handler
+>>>>>>> d436640 (v2.0: GGUF auto-detection, GPU support, vision, thinking panel, monitor fix, portability scripts)
 
 ### Como funciona
 1. Usuário fala via microfone

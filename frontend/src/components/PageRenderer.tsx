@@ -39,6 +39,8 @@ interface PageRendererProps {
   setGeminiApiKey: (v: string) => void;
   mimoApiKey: string;
   setMimoApiKey: (v: string) => void;
+  nvidiaApiKey: string;
+  setNvidiaApiKey: (v: string) => void;
   oModels: { value: string; label: string }[];
   orModels: { value: string; label: string }[];
   llamacppModels: { value: string; label: string; available: boolean }[];
@@ -157,6 +159,8 @@ export default function PageRenderer(props: PageRendererProps) {
         setGeminiApiKey={props.setGeminiApiKey}
         mimoApiKey={props.mimoApiKey}
         setMimoApiKey={props.setMimoApiKey}
+        nvidiaApiKey={props.nvidiaApiKey}
+        setNvidiaApiKey={props.setNvidiaApiKey}
         oModels={props.oModels}
         orModels={props.orModels}
         llamacppModels={props.llamacppModels}

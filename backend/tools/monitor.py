@@ -1,4 +1,5 @@
 """Dashboard de Monitoramento — CPU, RAM, VRAM (GPU), logs."""
+import os
 import re
 import subprocess
 import time
@@ -38,9 +39,22 @@ def coletar_ram() -> dict:
 
 def coletar_vram() -> dict:
     """Coleta uso de VRAM via nvidia-smi. Fallback silencioso se não houver GPU NVIDIA."""
+    # Caminhos possíveis do nvidia-smi
+    nvidia_smi_paths = [
+        r"C:\Windows\System32\nvidia-smi.exe",
+        r"C:\Program Files\NVIDIA Corporation\NVSMI\nvidia-smi.exe",
+        "nvidia-smi",
+    ]
+    nvidia_smi = None
+    for p in nvidia_smi_paths:
+        if os.path.exists(p):
+            nvidia_smi = p
+            break
+    if not nvidia_smi:
+        return {"total_gb": 0, "used_gb": 0, "percent": 0}
     try:
         result = subprocess.run(
-            ["nvidia-smi", "--query-gpu=memory.used,memory.total", "--format=csv,nounits,noheader"],
+            [nvidia_smi, "--query-gpu=memory.used,memory.total", "--format=csv,nounits,noheader"],
             capture_output=True, text=True, timeout=5,
         )
         if result.returncode != 0:

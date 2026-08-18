@@ -1,4 +1,4 @@
-﻿import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import StatusIndicator from './StatusIndicator';
 
 interface OllamaStatus {
@@ -17,6 +17,7 @@ interface StatusBarProps {
   setThinkOpen?: (v: boolean) => void;
   charonPanel?: boolean;
   setCharonPanel?: (v: boolean) => void;
+  charonActive?: boolean;
   onCharonActive?: (active: boolean) => void;
   onCharonVoiceStatus?: (status: string) => void;
   onCharonTranscript?: (text: string) => void;
@@ -34,19 +35,19 @@ class MicProcessor extends AudioWorkletProcessor {
   constructor() {
     super();
     this._buf = [];
-    // 1600 samples = 100ms at 16kHz (recommended by Gemini Live API)
-    this._size = 1600;
+    this._size = 1024;
   }
   process(inputs) {
     const input = inputs[0];
     if (!input || !input[0]) return true;
     const ch = input[0];
-    // Downsample from 48kHz to 16kHz (take every 3rd sample)
-    // and convert to PCM16 in one pass
-    const downsampled = Math.floor(ch.length / 3);
+    const ratio = 3;
+    const downsampled = Math.floor(ch.length / ratio);
     const pcm16 = new Int16Array(downsampled);
     for (let i = 0; i < downsampled; i++) {
-      const s = Math.max(-1, Math.min(1, ch[i * 3]));
+      const idx = i * ratio;
+      const avg = (ch[idx] + ch[idx + 1] + ch[idx + 2]) / 3;
+      const s = Math.max(-1, Math.min(1, avg));
       pcm16[i] = s < 0 ? s * 0x8000 : s * 0x7fff;
     }
     for (let i = 0; i < pcm16.length; i++) this._buf.push(pcm16[i]);
@@ -70,7 +71,7 @@ class PlaybackProcessor extends AudioWorkletProcessor {
     this._writePos = 0;
     this._readPos = 0;
     this._avail = 0;
-    this._prebuf = 48000;
+    this._prebuf = 30000;
     this._started = false;
     this._consecutiveZeroes = 0;
     this._threshold = 144000;
@@ -140,6 +141,7 @@ const StatusBar: React.FC<StatusBarProps> = ({
   setThinkOpen,
   charonPanel,
   setCharonPanel,
+  charonActive,
   onCharonActive,
   onCharonVoiceStatus,
   onCharonTranscript,
@@ -162,6 +164,7 @@ const StatusBar: React.FC<StatusBarProps> = ({
   const startedRef = useRef(false);
   const audioBufRef = useRef<Int16Array[]>([]);
   const audioFlushRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const audioLevelTimeRef = useRef(0);
 
   // Expõe a função de envio de texto para o parent
   useEffect(() => {
@@ -321,10 +324,14 @@ const StatusBar: React.FC<StatusBarProps> = ({
           const pcm16 = new Int16Array(ev.data);
           const bytes = new Uint8Array(pcm16.buffer);
           if (ws.readyState === WebSocket.OPEN) ws.send(bytes);
-          // Calculate audio level for visual feedback
-          let sum = 0;
-          for (let i = 0; i < pcm16.length; i++) sum += Math.abs(pcm16[i]);
-          setAudioLevel(Math.min(1, (sum / pcm16.length / 0x8000) * 3));
+          // Calculate audio level (throttled to 100ms)
+          const now = performance.now();
+          if (now - audioLevelTimeRef.current > 100) {
+            audioLevelTimeRef.current = now;
+            let sum = 0;
+            for (let i = 0; i < pcm16.length; i++) sum += Math.abs(pcm16[i]);
+            setAudioLevel(Math.min(1, (sum / pcm16.length / 0x8000) * 3));
+          }
         };
 
         source.connect(node);
@@ -462,10 +469,14 @@ const StatusBar: React.FC<StatusBarProps> = ({
             const pcm16 = new Int16Array(ev.data);
             const bytes = new Uint8Array(pcm16.buffer);
             if (ws.readyState === WebSocket.OPEN) ws.send(bytes);
-            // Calculate audio level for visual feedback
-            let sum = 0;
-            for (let i = 0; i < pcm16.length; i++) sum += Math.abs(pcm16[i]);
-            setAudioLevel(Math.min(1, (sum / pcm16.length / 0x8000) * 3));
+            // Calculate audio level (throttled to 100ms)
+            const now2 = performance.now();
+            if (now2 - audioLevelTimeRef.current > 100) {
+              audioLevelTimeRef.current = now2;
+              let sum = 0;
+              for (let i = 0; i < pcm16.length; i++) sum += Math.abs(pcm16[i]);
+              setAudioLevel(Math.min(1, (sum / pcm16.length / 0x8000) * 3));
+            }
           };
 
           source.connect(node);
@@ -555,8 +566,13 @@ const StatusBar: React.FC<StatusBarProps> = ({
         </span>
         {setCharonPanel && (
           <button
-            onClick={() => setCharonPanel(!charonPanel)}
-            title="Contexto Charon"
+            onClick={() => {
+              // Só permite toggle manual quando Charon NÃO está ativo
+              if (!charonActive) {
+                setCharonPanel(!charonPanel);
+              }
+            }}
+            title={charonActive ? "Painel ativo com Charon" : "Contexto Charon"}
             style={{
               background: charonPanel ? 'rgba(180,120,255,0.15)' : 'transparent',
               border: '1px solid',
@@ -564,7 +580,7 @@ const StatusBar: React.FC<StatusBarProps> = ({
               borderRadius: 4,
               fontSize: '10px',
               color: charonPanel ? '#b478ff' : 'inherit',
-              cursor: 'pointer',
+              cursor: charonActive ? 'default' : 'pointer',
               padding: '2px 8px',
               display: 'flex',
               alignItems: 'center',
