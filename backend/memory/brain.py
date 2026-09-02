@@ -1,5 +1,5 @@
 """
-DEEP-AUREA — Cérebro Evolutivo (Brain)
+DEEP-OS — Cérebro Evolutivo (Brain)
 ============================================
 Neuroplasticidade Epistêmica: extrai aprendizados eternos de tarefas executadas.
 
@@ -18,7 +18,7 @@ from core.llm_native import complete_chat_with_tools
 from core.rag import rebuild_vectorstore
 
 BRAIN_EVOLUTION_PROMPT = """
-Você é o Cérebro Central do DEEP-AUREA. Sua função é a Neuroplasticidade Epistêmica: extrair aprendizados eternos.
+Você é o Cérebro Central do DEEP-OS. Sua função é a Neuroplasticidade Epistêmica: extrair aprendizados eternos.
 Analise a TAREFA executada e o LOG resumido de passos/erros.
 Gere um insight de conhecimento altamente compacto, técnico e direto (máximo 3 linhas) para que futuros agentes saibam exatamente como agir ou contornar esse problema direto da próxima vez.
 REGRAS:

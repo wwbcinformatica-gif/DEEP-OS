@@ -12,8 +12,8 @@ def home_dir() -> Path:
         return Path(raw).expanduser().resolve()
     base = os.environ.get("XDG_CONFIG_HOME")
     if base:
-        return (Path(base).expanduser() / "deep-aurea-browser").resolve()
-    return (Path.home() / ".config" / "deep-aurea-browser").resolve()
+        return (Path(base).expanduser() / "DEEP-OS-browser").resolve()
+    return (Path.home() / ".config" / "DEEP-OS-browser").resolve()
 
 
 def ensure_private_dir(path: Path) -> Path:

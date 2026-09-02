@@ -1,5 +1,5 @@
 """
-DEEP-AUREA â€” CLI Monitor Interativo
+DEEP-OS â€” CLI Monitor Interativo
 =========================================
 Painel de monitoramento em tempo real com formatação Rich/ANSI.
 
@@ -259,7 +259,7 @@ async def run_interactive(
     from agents.loop import run_agent
 
     print(f"\n{BOLD}{CYAN}{'='*60}{RESET}")
-    print(f"{BOLD}{CYAN}  DEEP-AUREA â€” CLI Monitor{RESET}")
+    print(f"{BOLD}{CYAN}  DEEP-OS â€” CLI Monitor{RESET}")
     print(f"{BOLD}{CYAN}{'='*60}{RESET}")
     print(f"  {BOLD}Tarefa:{RESET} {task[:80]}")
     print(f"  {BOLD}Provider:{RESET} {provider}")
@@ -299,7 +299,7 @@ async def run_interactive(
 
 def main():
     parser = argparse.ArgumentParser(
-        description="DEEP-AUREA â€” CLI Monitor Interativo",
+        description="DEEP-OS â€” CLI Monitor Interativo",
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument("task", help="Tarefa a ser executada pelo agente")

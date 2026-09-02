@@ -1,5 +1,0 @@
-FROM ./models/gguf/NemoMix-Unleashed-12B-Q4_K_M.gguf
-PARAMETER num_ctx 16384
-PARAMETER temperature 0.7
-PARAMETER top_p 0.9
-SYSTEM You are NemoMix-Unleashed-12B, a helpful AI assistant. Respond in Portuguese when asked.

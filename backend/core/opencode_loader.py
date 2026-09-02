@@ -1,7 +1,7 @@
 """
 OpenCode Agents & Skills Loader
 ================================
-Carrega agentes e skills da pasta .opencode/ do projeto DEEP-AUREA.
+Carrega agentes e skills da pasta .opencode/ do projeto DEEP-OS.
 
 Agentes sao arquivos .md com frontmatter YAML:
   - description, mode (primary/subagent), model, permission

@@ -7,6 +7,12 @@ agent:
 
     '
   toolset: agent
+agent_models:
+  architect: qwen3:14b
+  coder: qwen2.5-coder:14b
+  debugger: qwen2.5-coder:14b
+  jarvis: qwen2.5-coder:14b
+  planner: qwen3.5:9b
 display:
   accent_theme: dark
   compact: true
@@ -14,6 +20,11 @@ display:
   show_reasoning: true
   show_tool_calls: true
   streaming: true
+identity:
+  assistant_name: Charon
+  custom_color: ''
+  user_name: WBC
+  voice: Charon
 security:
   sandbox_enabled: false
 server:
@@ -51,26 +62,14 @@ terminal:
   cwd: .
   timeout: 600
 voice:
-  auto_send: true
-  auto_send_delay: 10
-  deep_mode_active: false
-  elevenlabs_voices: true
-  hybrid_mode: true
-  hybrid_voice: charon
-  jarvis_pitch: -15Hz
-  jarvis_rate: -5%
-  mic_active_on_start: false
-  tts_enabled: true
-  voice_pitch: -15Hz
-  voice_preset: dani-brandi
-  voice_rate: -5%
+  charon_toolset: basic
 watcher:
   ignore:
   - node_modules/**
   - dist/**
   - .git/**
 workspace:
-  name: DEEP-AUREA
+  name: DEEP-OS
 workspaces:
 - last_opened: ''
-  name: DEEP-AUREA
+  name: DEEP-OS

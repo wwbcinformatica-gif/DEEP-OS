@@ -18,6 +18,7 @@ interface StatusBarProps {
   charonPanel?: boolean;
   setCharonPanel?: (v: boolean) => void;
   charonActive?: boolean;
+  voiceName?: string;
   onCharonActive?: (active: boolean) => void;
   onCharonVoiceStatus?: (status: string) => void;
   onCharonTranscript?: (text: string) => void;
@@ -75,13 +76,29 @@ class PlaybackProcessor extends AudioWorkletProcessor {
     this._started = false;
     this._consecutiveZeroes = 0;
     this._threshold = 144000;
+    this._lastChunkHash = 0;
+    this._dupCount = 0;
     this.port.onmessage = (e) => {
       if (e.data && e.data.type === 'clear') {
         this._writePos = 0; this._readPos = 0; this._avail = 0;
         this._started = false; this._consecutiveZeroes = 0;
+        this._lastChunkHash = 0; this._dupCount = 0;
         return;
       }
       const pcm16 = new Int16Array(e.data);
+      // Deduplicacao: hash simples do chunk
+      let hash = 0;
+      const step = Math.max(1, Math.floor(pcm16.length / 16));
+      for (let i = 0; i < pcm16.length; i += step) {
+        hash = ((hash << 5) - hash + pcm16[i]) | 0;
+      }
+      if (hash !== 0 && hash === this._lastChunkHash) {
+        this._dupCount++;
+        if (this._dupCount > 2) return; // ignora 3+ duplicatas seguidas
+      } else {
+        this._dupCount = 0;
+      }
+      this._lastChunkHash = hash;
       for (let i = 0; i < pcm16.length; i++) {
         this._ring[this._writePos] = pcm16[i] / 32768;
         this._writePos = (this._writePos + 1) % this._ringSize;
@@ -142,6 +159,7 @@ const StatusBar: React.FC<StatusBarProps> = ({
   charonPanel,
   setCharonPanel,
   charonActive,
+  voiceName = 'Charon',
   onCharonActive,
   onCharonVoiceStatus,
   onCharonTranscript,
@@ -153,7 +171,13 @@ const StatusBar: React.FC<StatusBarProps> = ({
   theme,
   toggleTheme,
 }) => {
-  const [voiceStatus, setVoiceStatus] = useState('idle');
+  const [voiceStatus, setVoiceStatusRaw] = useState('idle');
+  const voiceStatusRef = useRef('idle');
+  const setVoiceStatus = (status: string) => {
+    voiceStatusRef.current = status;
+    setVoiceStatusRaw(status);
+  };
+  const [processMsg, setProcessMsg] = useState('');
   const [audioLevel, setAudioLevel] = useState(0);
   const wsRef = useRef<WebSocket | null>(null);
   const micCtxRef = useRef<AudioContext | null>(null);
@@ -165,6 +189,10 @@ const StatusBar: React.FC<StatusBarProps> = ({
   const audioBufRef = useRef<Int16Array[]>([]);
   const audioFlushRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const audioLevelTimeRef = useRef(0);
+  const lastResponseTimeRef = useRef(0);
+  const heartbeatCheckRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const lastAudioHashRef = useRef(0);
+  const dupCountRef = useRef(0);
 
   // Expõe a função de envio de texto para o parent
   useEffect(() => {
@@ -239,16 +267,30 @@ const StatusBar: React.FC<StatusBarProps> = ({
         let wsReady = false;
 
         ws.onopen = () => {
-          ws.send(JSON.stringify({ type: 'start', voice: 'Charon' }));
+          ws.send(JSON.stringify({ type: 'start', voice: voiceName }));
           wsReady = true;
         };
 
         ws.onmessage = async (e) => {
+          lastResponseTimeRef.current = Date.now();
           if (e.data instanceof Blob) {
             const buf = await e.data.arrayBuffer();
             const bytes = new Uint8Array(buf);
             if (bytes.length >= 2) {
               const pcm16 = new Int16Array(bytes.buffer, bytes.byteOffset, bytes.length / 2);
+              // Deduplicacao JS-level: hash do chunk
+              let hash = 0;
+              const step = Math.max(1, Math.floor(pcm16.length / 16));
+              for (let i = 0; i < pcm16.length; i += step) {
+                hash = ((hash << 5) - hash + pcm16[i]) | 0;
+              }
+              if (hash !== 0 && hash === lastAudioHashRef.current) {
+                dupCountRef.current++;
+                if (dupCountRef.current > 1) return; // ignora duplicatas
+              } else {
+                dupCountRef.current = 0;
+              }
+              lastAudioHashRef.current = hash;
               audioBufRef.current.push(pcm16);
             }
             setVoiceStatus('speaking');
@@ -256,12 +298,31 @@ const StatusBar: React.FC<StatusBarProps> = ({
           }
           try {
             const m = JSON.parse(e.data);
-            if (m.type === 'connected') { setVoiceStatus('listening'); onCharonActive?.(true); }
+            if (m.type === 'connected') { setVoiceStatus('listening'); setProcessMsg(''); onCharonActive?.(true); }
+            else if (m.type === 'status') { setProcessMsg(m.message || ''); }
             else if (m.type === 'transcript') { onCharonTranscriptFull?.(m.speaker || 'wbc', m.text || ''); }
-            else if (m.type === 'tool_result') { onCharonToolResult?.(m.tool || 'tool', m.result || ''); }
-            else if (m.type === 'turn_complete') setVoiceStatus('listening');
-            else if (m.type === 'error') { console.error('[Charon] Backend error:', m.message); setVoiceStatus('error'); }
-            else if (m.type === 'disconnected') { console.log('[Charon] Disconnected'); setVoiceStatus('idle'); onCharonActive?.(false); }
+            else if (m.type === 'tool_result') { setProcessMsg(''); onCharonToolResult?.(m.tool || 'tool', m.result || ''); }
+            else if (m.type === 'turn_complete') {
+              setVoiceStatus('listening'); setProcessMsg('');
+              // Limpa buffer de audio entre turns para evitar "disco arranhado"
+              audioBufRef.current = [];
+              if (playNodeRef.current) playNodeRef.current.port.postMessage({ type: 'clear' });
+            }
+            else if (m.type === 'error') {
+              console.error('[Charon] Backend error:', m.message);
+              setVoiceStatus('error');
+              setProcessMsg('');
+              // Auto-reconnect rapido apos erro
+              setTimeout(() => {
+                if (!stopped && wsRef.current === ws) {
+                  console.log('[Charon] Reconectando apos erro...');
+                  startedRef.current = false;
+                  wsRef.current = null;
+                  start();
+                }
+              }, 2000);
+            }
+            else if (m.type === 'disconnected') { console.log('[Charon] Disconnected'); setVoiceStatus('idle'); setProcessMsg(''); onCharonActive?.(false); }
           } catch {}
         };
 
@@ -335,6 +396,20 @@ const StatusBar: React.FC<StatusBarProps> = ({
         };
 
         source.connect(node);
+
+        // Heartbeat: verifica se o backend esta respondendo
+        heartbeatCheckRef.current = setInterval(() => {
+          if (stopped || !wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) return;
+
+          const timeSinceLastResponse = Date.now() - lastResponseTimeRef.current;
+          // Usa voiceStatusRef para evitar closure desatualizado
+          const currentStatus = voiceStatusRef.current;
+          // Se nao recebeu nada por 45 segundos (qualquer status ativo), forca reconexao
+          if (timeSinceLastResponse > 45000 && currentStatus !== 'idle' && currentStatus !== 'error' && currentStatus !== 'connecting') {
+            console.log(`[Charon] Backend nao respondeu por 45s (status: ${currentStatus}). Forcando reconexao...`);
+            ws.close();
+          }
+        }, 10000);
       } catch {
         setVoiceStatus('error');
       }
@@ -345,6 +420,7 @@ const StatusBar: React.FC<StatusBarProps> = ({
     return () => {
       stopped = true;
       startedRef.current = false;
+      if (heartbeatCheckRef.current) clearInterval(heartbeatCheckRef.current);
       if (wsRef.current) { wsRef.current.close(); wsRef.current = null; }
       if (micNodeRef.current) { micNodeRef.current.disconnect(); micNodeRef.current = null; }
       if (streamRef.current) { streamRef.current.getTracks().forEach(t => t.stop()); streamRef.current = null; }
@@ -381,7 +457,7 @@ const StatusBar: React.FC<StatusBarProps> = ({
 
   // Toggle ligar/desligar Charon
   const toggleCharon = () => {
-    if (voiceStatus === 'idle' || voiceStatus === 'error') {
+    if (voiceStatusRef.current === 'idle' || voiceStatusRef.current === 'error') {
       // Ligar: reconectar WebSocket
       startedRef.current = false;
       wsRef.current = null;
@@ -395,7 +471,7 @@ const StatusBar: React.FC<StatusBarProps> = ({
           let wsReady = false;
 
         ws.onopen = () => {
-          ws.send(JSON.stringify({ type: 'start', voice: 'Charon' }));
+          ws.send(JSON.stringify({ type: 'start', voice: voiceName }));
           wsReady = true;
         };
 
@@ -405,6 +481,18 @@ const StatusBar: React.FC<StatusBarProps> = ({
               const bytes = new Uint8Array(buf);
               if (bytes.length >= 2) {
                 const pcm16 = new Int16Array(bytes.buffer, bytes.byteOffset, bytes.length / 2);
+                let hash = 0;
+                const step = Math.max(1, Math.floor(pcm16.length / 16));
+                for (let i = 0; i < pcm16.length; i += step) {
+                  hash = ((hash << 5) - hash + pcm16[i]) | 0;
+                }
+                if (hash !== 0 && hash === lastAudioHashRef.current) {
+                  dupCountRef.current++;
+                  if (dupCountRef.current > 1) return;
+                } else {
+                  dupCountRef.current = 0;
+                }
+                lastAudioHashRef.current = hash;
                 audioBufRef.current.push(pcm16);
               }
               setVoiceStatus('speaking');
@@ -412,12 +500,17 @@ const StatusBar: React.FC<StatusBarProps> = ({
             }
             try {
               const m = JSON.parse(e.data);
-              if (m.type === 'connected') { setVoiceStatus('listening'); onCharonActive?.(true); }
+              if (m.type === 'connected') { setVoiceStatus('listening'); setProcessMsg(''); onCharonActive?.(true); }
+              else if (m.type === 'status') { setProcessMsg(m.message || ''); }
               else if (m.type === 'transcript') { onCharonTranscriptFull?.(m.speaker || 'wbc', m.text || ''); }
-              else if (m.type === 'tool_result') { onCharonToolResult?.(m.tool || 'tool', m.result || ''); }
-              else if (m.type === 'turn_complete') setVoiceStatus('listening');
-              else if (m.type === 'error') { console.error('[Charon] Backend error:', m.message); setVoiceStatus('error'); }
-              else if (m.type === 'disconnected') { console.log('[Charon] Disconnected'); setVoiceStatus('idle'); onCharonActive?.(false); }
+              else if (m.type === 'tool_result') { setProcessMsg(''); onCharonToolResult?.(m.tool || 'tool', m.result || ''); }
+              else if (m.type === 'turn_complete') {
+                setVoiceStatus('listening'); setProcessMsg('');
+                audioBufRef.current = [];
+                if (playNodeRef.current) playNodeRef.current.port.postMessage({ type: 'clear' });
+              }
+              else if (m.type === 'error') { console.error('[Charon] Backend error:', m.message); setVoiceStatus('error'); setProcessMsg(''); }
+              else if (m.type === 'disconnected') { console.log('[Charon] Disconnected'); setVoiceStatus('idle'); setProcessMsg(''); onCharonActive?.(false); }
             } catch {}
           };
 
@@ -428,10 +521,16 @@ const StatusBar: React.FC<StatusBarProps> = ({
 
           ws.onclose = () => {
             console.log('[Charon] WS closed');
-            if (voiceStatus !== 'idle') {
-              setVoiceStatus('idle');
-              onCharonActive?.(false);
-            }
+            const wasActive = voiceStatusRef.current !== 'idle';
+            // Limpar sempre o estado para permitir reconexao
+            if (micNodeRef.current) { micNodeRef.current.disconnect(); micNodeRef.current = null; }
+            if (streamRef.current) { streamRef.current.getTracks().forEach(t => t.stop()); streamRef.current = null; }
+            if (micCtxRef.current) { try { micCtxRef.current.close(); } catch {} micCtxRef.current = null; }
+            wsRef.current = null;
+            startedRef.current = false;
+            setVoiceStatus('idle');
+            voiceStatusRef.current = 'idle';
+            if (wasActive) onCharonActive?.(false);
           };
 
           // Wait for WebSocket to open (max 10s)
@@ -523,7 +622,7 @@ const StatusBar: React.FC<StatusBarProps> = ({
         <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
           <button
             onClick={toggleCharon}
-            title={voiceStatus === 'idle' || voiceStatus === 'error' ? 'Ligar Charon' : 'Desligar Charon'}
+            title={voiceStatus === 'idle' || voiceStatus === 'error' ? 'Ativar Charon (sempre ouvindo)' : 'Desligar Charon'}
             style={{
               background: voiceStatus === 'idle' || voiceStatus === 'error' ? 'transparent' : 'rgba(180,120,255,0.2)',
               border: '1px solid',
@@ -538,14 +637,20 @@ const StatusBar: React.FC<StatusBarProps> = ({
               gap: 4,
               whiteSpace: 'nowrap',
               fontWeight: 600,
+              animation: voiceStatus === 'listening' ? 'pulse 2s infinite' : 'none',
             }}
           >
             <span style={{ fontSize: 8 }}>⚡</span>
-            {voiceStatus === 'idle' || voiceStatus === 'error' ? 'Charon OFF' : 'Charon ON'}
+            {voiceStatus === 'idle' || voiceStatus === 'error' ? 'Charon' : voiceStatus === 'listening' ? 'Ouvindo...' : voiceStatus === 'speaking' ? 'Falando...' : 'Conectando...'}
           </button>
           {voiceStatus !== 'idle' && voiceStatus !== 'error' && (
             <>
               <div style={{ width: 7, height: 7, borderRadius: '50%', background: vColor, animation: voiceStatus === 'listening' ? 'pulse 1s infinite' : 'none' }} />
+              {processMsg && (
+                <span style={{ fontSize: 9, color: '#b478ff', maxWidth: 120, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={processMsg}>
+                  {processMsg}
+                </span>
+              )}
               <div style={{ width: 35, height: 5, background: '#222', borderRadius: 3, overflow: 'hidden' }}>
                 <div style={{ width: `${audioLevel * 100}%`, height: '100%', background: audioLevel > 0.6 ? '#f44' : audioLevel > 0.3 ? '#ff0' : '#0f0', transition: 'width 0.05s' }} />
               </div>

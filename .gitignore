@@ -1,7 +1,6 @@
 # Modelos de IA (grandes demais para versionar)
 *.gguf
 *.bin
-models/
 
 # Dependências
 node_modules/
@@ -26,18 +25,6 @@ server_stdout.log
 # Ambiente
 .env
 .env.local
-api_keys.json
-
-# Pessoal (dados sensíveis)
-pessoal/
-WBC_Informatica_LandingPage/
-
-# Binários e compactados
-*.dll
-*.exe
-*.rar
-*.zip
-bin/
 
 # Pessoal (dados sensíveis)
 pessoal/

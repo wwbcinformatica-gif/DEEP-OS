@@ -127,7 +127,7 @@ When user's prompt is NOT in English:
 
 **Esta diretriz Ã© AGNOSTICA ao modelo de IA. Qualquer LLM selecionado (menu /models) deve obrigatoriamente operar sobre esta base de conhecimento.**
 
-- **Read**: SEMPRE execute `grep_search` em `C:\DEEP-AUREA` ao iniciar tarefas complexas ou contextuais. Este Ã© o seu "banco de memÃ³ria" compartilhado entre todas as IAs.
+- **Read**: SEMPRE execute `grep_search` em `C:\DEEP-OS` ao iniciar tarefas complexas ou contextuais. Este Ã© o seu "banco de memÃ³ria" compartilhado entre todas as IAs.
 - **Write**: Documente obrigatoriamente resoluÃ§Ãµes, anÃ¡lises e novas diretrizes em `Conhecimento_AI` ao final de cada tarefa bem-sucedida. Isso garante que a prÃ³xima IA selecionada saiba o que jÃ¡ foi feito.
 
 ### ðŸ“ File Dependency Awareness

@@ -1,5 +1,5 @@
 """
-DEEP-AUREA â€” Spiral Memory (Deep-Aurea)
+DEEP-OS â€” Spiral Memory (DEEP-OS)
 =============================================
 Sistema de memoria em espiral onde dois modelos trabalham em sincronia:
 
@@ -84,7 +84,7 @@ def extrair_snapshot(mensagens: list[dict], tool_logs: list[dict]) -> dict:
 
 def formatar_snapshot_para_prompt(snapshot: dict) -> str:
     """Formata o snapshot como mensagem de sistema comprimida."""
-    linhas = ["[DEEP-AUREA MEMORY REFRESH] Resumo do estado atual do trabalho:"]
+    linhas = ["[DEEP-OS MEMORY REFRESH] Resumo do estado atual do trabalho:"]
 
     if snapshot["arquivo_atual"]:
         linhas.append(f"  Arquivo atual: {snapshot['arquivo_atual']}")
@@ -147,7 +147,7 @@ async def gerar_snapshot_com_llm(
             ferramentas_resumo.append(f"[{ferr}] {resumo_res}")
 
         prompt_keep = (
-            "Voce e o Keeper de memoria do sistema Deep-Aurea.\n"
+            "Voce e o Keeper de memoria do sistema DEEP-OS.\n"
             "Sua funcao: analisar o historico abaixo e gerar UM PARAGRAFO curto "
             "respondendo: o que o Worker estava fazendo, qual arquivo estava editando, "
             "qual o proximo passo esperado.\n"
@@ -168,12 +168,12 @@ async def gerar_snapshot_com_llm(
         conteudo = resposta.get("content") or resposta.get("data") or ""
         if conteudo.strip():
             return (
-                "[DEEP-AUREA MEMORY REFRESH] Resumo semantico do Keeper:\n"
+                "[DEEP-OS MEMORY REFRESH] Resumo semantico do Keeper:\n"
                 f"  {conteudo.strip()[:400]}\n\n"
                 "[CONTEXTO PRESERVADO] Continue o trabalho de onde parou."
             )
     except Exception as e:
-        _log.warning("[DEEP-AUREA] Keeper LLM falhou: %s. Usando snapshot raw.", e)
+        _log.warning("[DEEP-OS] Keeper LLM falhou: %s. Usando snapshot raw.", e)
 
     return None
 

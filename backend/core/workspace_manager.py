@@ -22,7 +22,7 @@ _log = logging.getLogger("wbc.workspace")
 
 
 def _resolve_proj_root() -> Path:
-    """Resolve a raiz do projeto DEEP-AUREA (3 níveis acima de core/)."""
+    """Resolve a raiz do projeto DEEP-OS (3 níveis acima de core/)."""
     return Path(__file__).resolve().parent.parent.parent
 
 

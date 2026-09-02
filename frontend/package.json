@@ -1,11 +1,14 @@
 {
-  "name": "DEEP-AUREA",
+  "name": "DEEP-OS",
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "vite",
-    "build": "vite build",
-    "preview": "vite preview"
+    "dev": "vite --mode development",
+    "dev:saas": "vite --mode saas --config vite.config.ts",
+    "build": "vite build --mode development",
+    "build:saas": "vite build --mode saas",
+    "preview": "vite preview",
+    "preview:saas": "vite preview --outDir dist-saas --port 4174"
   },
   "dependencies": {
     "@types/react": "^19.2.15",

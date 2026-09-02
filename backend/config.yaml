@@ -1,6 +1,13 @@
+identity:
+  assistant_name: DEEP-OS
+  custom_color: ''
+  user_name: Wilson
+  voice: Aoede
 llamacpp:
   gpu_enabled: true
   gpu_layers: 999
 ollama:
   gpu_enabled: true
   gpu_layers: -1
+voice:
+  charon_toolset: basic

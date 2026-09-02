@@ -55,24 +55,22 @@ export const SecurityToggle: React.FC = () => {
         disabled={loading}
         style={{
           width: 36,
-          height: 36,
-          borderRadius: 4,
-          border: `1px solid ${isSandboxEnabled ? 'var(--blue)' : 'var(--accent)'}`,
+          height: 20,
+          borderRadius: 10,
+          border: `1px solid ${isSandboxEnabled ? 'var(--accent)' : 'var(--line-strong)'}`,
           cursor: loading ? 'not-allowed' : 'pointer',
           opacity: loading ? 0.6 : 1,
           display: 'flex',
           alignItems: 'center',
-          justifyContent: 'center',
+          justifyContent: isSandboxEnabled ? 'flex-end' : 'flex-start',
           flexShrink: 0,
-          background: isSandboxEnabled ? 'var(--blue)' : 'var(--accent)',
-          color: '#fff',
-          fontFamily: 'var(--font-ui)',
-          fontSize: '14px',
+          background: isSandboxEnabled ? 'var(--accent)' : 'var(--bg-3)',
+          padding: '0 2px',
           transition: 'all 0.2s ease',
         }}
         title={isSandboxEnabled ? 'Modo Restrito - clique para mudar' : 'Modo Desenvolvedor - clique para mudar'}
       >
-        {isSandboxEnabled ? '🔒' : '🛠️'}
+        <div style={{ width: 14, height: 14, borderRadius: '50%', background: isSandboxEnabled ? 'var(--bg-2)' : 'var(--quiet)', boxShadow: '0 1px 2px rgba(0,0,0,0.3)', transition: 'all 0.2s' }} />
       </button>
     </div>
   );

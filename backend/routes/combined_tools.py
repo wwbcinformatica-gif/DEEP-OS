@@ -1,5 +1,5 @@
 """
-Tool declarations combinadas do Mark-L + DEEP-AUREA.
+Tool declarations combinadas do DEEP-OS.
 Descrições encurtadas para reduzir latência do Gemini Live.
 """
 import sys

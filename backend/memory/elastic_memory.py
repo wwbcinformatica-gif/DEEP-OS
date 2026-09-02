@@ -1,5 +1,5 @@
 """
-DEEP-AUREA â€” Memória Humana Elástica
+DEEP-OS â€” Memória Humana Elástica
 ==========================================
 Sistema de memória curto/longo prazo com busca semÃ¢ntica zero-dependência.
 

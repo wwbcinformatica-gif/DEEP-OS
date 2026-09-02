@@ -69,11 +69,7 @@ def _open_url(url: str) -> None:
         elif is_linux():
             subprocess.Popen(["xdg-open", url])
         else:
-<<<<<<< HEAD
-            subprocess.Popen(["cmd", "/c", "start", "", url], shell=False)
-=======
             subprocess.Popen(["cmd", "/c", "start", "", url.replace("&", "^&")], shell=False)
->>>>>>> d436640 (v2.0: GGUF auto-detection, GPU support, vision, thinking panel, monitor fix, portability scripts)
     except Exception as e:
         print(f"[YouTube] ⚠️ open_url failed: {e}")
 
@@ -294,14 +290,9 @@ def _handle_play(parameters: dict, player) -> str:
     video_url = _scrape_first_video_url(query)
 
     if video_url:
-<<<<<<< HEAD
-        print(f"[YouTube] ▶️ Opening: {video_url}")
-        _open_url(video_url)
-=======
         autoplay_url = video_url + "&autoplay=1"
         print(f"[YouTube] ▶️ Opening: {autoplay_url}")
         _open_url(autoplay_url)
->>>>>>> d436640 (v2.0: GGUF auto-detection, GPU support, vision, thinking panel, monitor fix, portability scripts)
         return f"Playing: {query}"
 
     print(f"[YouTube] ⚠️ Scrape failed, opening filtered search page")

@@ -1,5 +1,5 @@
 """
-Sistema de Licenciamento DEEP-AUREA
+Sistema de Licenciamento DEEP-OS
 ===================================
 Valida chaves de licença via API remota ou arquivo local.
 """
@@ -13,7 +13,7 @@ from pathlib import Path
 import httpx
 
 LICENSE_FILE = Path(__file__).resolve().parent.parent.parent / "data" / "license.json"
-LICENSE_API_URL = os.environ.get("LICENSE_API_URL", "https://api.deep-aurea.com/validate")
+LICENSE_API_URL = os.environ.get("LICENSE_API_URL", "https://api.DEEP-OS.com/validate")
 TIMEOUT_DAYS = int(os.environ.get("LICENSE_TIMEOUT_DAYS", "30"))
 
 
@@ -85,7 +85,7 @@ async def validate_license(license_key: str) -> dict:
 def generate_license_key(customer_id: str, days: int = 30) -> str:
     """Gera uma chave de licença (usado no painel administrativo)."""
     expiry = datetime.now() + timedelta(days=days)
-    raw = f"{customer_id}-{expiry.isoformat()}-deep-aurea-secret"
+    raw = f"{customer_id}-{expiry.isoformat()}-DEEP-OS-secret"
     return hashlib.sha256(raw.encode()).hexdigest()[:32]
 
 

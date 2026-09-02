@@ -1,5 +1,5 @@
 """
-DEEP-AUREA â€” Agent Loop
+DEEP-OS â€” Agent Loop
 =============================
 Refactored to use the Lifecycle Engine (state machine).
 
@@ -83,7 +83,7 @@ Estrutura:
 {chr(10).join(dirs[:10])}
 {chr(10).join(files[:5])}
 
-O projeto DEEP-AUREA e um Sistema Operacional de Agentes de IA (backend Python FastAPI + frontend React/TypeScript).
+O projeto DEEP-OS e um Sistema Operacional de Agentes de IA (backend Python FastAPI + frontend React/TypeScript).
 
 VOCÊ TEM ACESSO TOTAL A ESTE PROJETO!
 Use as ferramentas para navegar e manipular:
@@ -96,7 +96,7 @@ NÃO DIGA QUE NÃO TEM ACESSO - VOCÊ TEM! Use as ferramentas diretamente."""
         
         return context
     except Exception as e:
-        return f"Projeto: DEEP-AUREA (erro ao carregar contexto: {e})"
+        return f"Projeto: DEEP-OS (erro ao carregar contexto: {e})"
 
 
 async def run_agent(
@@ -178,7 +178,7 @@ async def run_agent(
         # Context Compression
         context_compression_enabled=True,
         max_context_tokens=200000,
-        # Spiral Memory (Deep-Aurea)
+        # Spiral Memory (DEEP-OS)
         spiral_memory_enabled=True,
         spiral_memory_interval=4,
         on_spiral_refresh=spiral_refresh,

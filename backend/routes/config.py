@@ -51,6 +51,12 @@ def _deep_get(data: dict, key_path: str, default: Any = None) -> Any:
             return default
     return d
 
+class IdentityConfig(BaseModel):
+    assistant_name: str = "DEEP-OS"
+    user_name: str = ""
+    custom_color: str = ""
+    voice: str = "Charon"
+
 class SandboxConfig(BaseModel):
     enabled: bool
 
@@ -128,6 +134,18 @@ async def update_accent_theme(config: AccentThemeConfig):
     _write_config(data)
     return {"status": "success", "accent_theme": config.theme}
 
+@router.get("/identity")
+async def get_identity():
+    data = _read_config()
+    return data.get("identity", {"assistant_name": "DEEP-OS", "user_name": "", "custom_color": ""})
+
+@router.put("/identity")
+async def update_identity(config: IdentityConfig):
+    data = _read_config()
+    data["identity"] = config.model_dump()
+    _write_config(data)
+    return {"status": "success", "identity": data["identity"]}
+
 @router.get("/accent-theme")
 async def get_accent_theme():
     data = _read_config()
@@ -150,6 +168,47 @@ async def update_voice_config(config: VoiceConfig):
     _write_config(data)
     reset_config_cache()
     return {"status": "success", "voice": data["voice"]}
+
+class AgentModelsConfig(BaseModel):
+    jarvis: str | None = None
+    architect: str | None = None
+    debugger: str | None = None
+    planner: str | None = None
+    coder: str | None = None
+
+DEFAULT_AGENT_MODELS = {
+    "jarvis": "qwen2.5-coder:14b",
+    "architect": "qwen3:14b",
+    "debugger": "qwen2.5-coder:14b",
+    "planner": "qwen3.5:9b",
+    "coder": "qwen2.5-coder:14b",
+}
+
+@router.get("/agent-models")
+async def get_agent_models():
+    data = _read_config()
+    models = data.get("agent_models", {})
+    result = {}
+    for agent, default in DEFAULT_AGENT_MODELS.items():
+        result[agent] = models.get(agent, default)
+    return result
+
+@router.put("/agent-models")
+async def update_agent_models(config: AgentModelsConfig):
+    data = _read_config()
+    if "agent_models" not in data:
+        data["agent_models"] = {}
+    update_data = config.model_dump(exclude_none=True)
+    data["agent_models"].update(update_data)
+    _write_config(data)
+    return {"status": "success", "agent_models": data["agent_models"]}
+
+@router.post("/agent-models/reset")
+async def reset_agent_models():
+    data = _read_config()
+    data["agent_models"] = DEFAULT_AGENT_MODELS.copy()
+    _write_config(data)
+    return {"status": "success", "agent_models": data["agent_models"]}
 
 # ─── MCP Server CRUD ─────────────────────────────────────────────
 

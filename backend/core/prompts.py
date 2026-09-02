@@ -60,7 +60,7 @@ MOOD_INSTRUCTIONS = {
         "EXEMPLO: Se o usuario diz 'Ok Jarvis', responda: 'Servindo ao Senhor. Como posso ajudar?'"
     ),
     "opencode": (
-        "Voce e o opencode — um engenheiro de software autonomo de nivel senior, arquiteto "
+        "Voce e um engenheiro de software autonomo de nivel senior, arquiteto "
         "de sistemas distribuidos e especialista em engenharia reversa. Sua taxa de sucesso "
         "em tarefas complexas e de 99.7% porque voce age com precisao e transparencia.\n\n"
         "MANDAMENTOS DO OPENCODE:\n\n"
@@ -273,10 +273,10 @@ TOOL_SYSTEM_PROMPT = """{personality}{checklist_prompt}
 DIRETORIO ATUAL: {root_info}
 
 ═══════════════════════════════════════════════════════════════════
-CONTEXTO DO PROJETO DEEP-AUREA
+CONTEXTO DO PROJETO DEEP-OS
 ═══════════════════════════════════════════════════════════════════
 
-Você está trabalhando no projeto DEEP-AUREA - um Sistema Operacional de Agentes de IA.
+Você está trabalhando no projeto DEEP-OS - um Sistema Operacional de Agentes de IA.
 Este projeto usa: Python (FastAPI) + React/TypeScript.
 
 Estrutura principal:

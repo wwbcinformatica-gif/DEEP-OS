@@ -1,4 +1,4 @@
-"""Browser automation API routes for DEEP-AUREA."""
+"""Browser automation API routes for DEEP-OS."""
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field

@@ -35,44 +35,93 @@ export default function ToolPanel() {
   const handleBash = () => callApi('/tool/bash', { command: content, workdir: '' });
 
   return (
-    <div className="p-4 bg-gray-800 text-gray-100 rounded-lg shadow-lg">
-      <h2 className="text-xl font-semibold mb-4">Tool Panel</h2>
-      <div className="mb-3">
-        <label className="block mb-1">Caminho</label>
+    <div style={{
+      padding: 16,
+      background: 'var(--bg-2)',
+      color: 'var(--ink)',
+      borderRadius: 8,
+      boxShadow: '0 2px 8px rgba(0,0,0,0.3)',
+    }}>
+      <h2 style={{ fontSize: 18, fontWeight: 600, marginBottom: 16 }}>Tool Panel</h2>
+      <div style={{ marginBottom: 12 }}>
+        <label style={{ display: 'block', marginBottom: 4 }}>Caminho</label>
         <input
           type="text"
-          className="w-full px-2 py-1 rounded bg-gray-700 text-white focus:outline-none"
+          style={{
+            width: '100%',
+            padding: '4px 8px',
+            borderRadius: 4,
+            background: 'var(--bg)',
+            color: 'var(--ink)',
+            border: '1px solid var(--line)',
+          }}
           value={path}
           onChange={(e) => setPath(e.target.value)}
           placeholder="ex.: data/interactions.db"
         />
       </div>
-      <div className="mb-3">
-        <label className="block mb-1">Conteúdo / Comando</label>
+      <div style={{ marginBottom: 12 }}>
+        <label style={{ display: 'block', marginBottom: 4 }}>Conteúdo / Comando</label>
         <textarea
-          className="w-full h-24 px-2 py-1 rounded bg-gray-700 text-white focus:outline-none"
+          style={{
+            width: '100%',
+            height: 96,
+            padding: '4px 8px',
+            borderRadius: 4,
+            background: 'var(--bg)',
+            color: 'var(--ink)',
+            border: '1px solid var(--line)',
+            resize: 'none',
+          }}
           value={content}
           onChange={(e) => setContent(e.target.value)}
           placeholder="texto para gravar ou comando bash"
         />
       </div>
-      <div className="flex space-x-2 mb-4">
+      <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
         <button
-          className="flex-1 px-3 py-1 bg-blue-600 hover:bg-blue-500 rounded transition"
+          style={{
+            flex: 1,
+            padding: '4px 12px',
+            background: '#2563eb',
+            color: 'white',
+            borderRadius: 4,
+            border: 'none',
+            cursor: loading ? 'not-allowed' : 'pointer',
+            opacity: loading ? 0.5 : 1,
+          }}
           onClick={handleRead}
           disabled={loading}
         >
           Read
         </button>
         <button
-          className="flex-1 px-3 py-1 bg-green-600 hover:bg-green-500 rounded transition"
+          style={{
+            flex: 1,
+            padding: '4px 12px',
+            background: '#16a34a',
+            color: 'white',
+            borderRadius: 4,
+            border: 'none',
+            cursor: loading ? 'not-allowed' : 'pointer',
+            opacity: loading ? 0.5 : 1,
+          }}
           onClick={handleWrite}
           disabled={loading}
         >
           Write
         </button>
         <button
-          className="flex-1 px-3 py-1 bg-purple-600 hover:bg-purple-500 rounded transition"
+          style={{
+            flex: 1,
+            padding: '4px 12px',
+            background: '#9333ea',
+            color: 'white',
+            borderRadius: 4,
+            border: 'none',
+            cursor: loading ? 'not-allowed' : 'pointer',
+            opacity: loading ? 0.5 : 1,
+          }}
           onClick={handleBash}
           disabled={loading}
         >
@@ -80,8 +129,16 @@ export default function ToolPanel() {
         </button>
       </div>
       {output && (
-        <div className="mt-3 p-2 bg-gray-900 rounded text-sm overflow-auto max-h-48">
-          <pre className="whitespace-pre-wrap">
+        <div style={{
+          marginTop: 12,
+          padding: 8,
+          background: 'var(--bg)',
+          borderRadius: 4,
+          fontSize: 12,
+          overflow: 'auto',
+          maxHeight: 192,
+        }}>
+          <pre style={{ whiteSpace: 'pre-wrap', margin: 0 }}>
             {output.status === 'ok'
               ? `STDOUT:\n${output.stdout}\nSTDERR:\n${output.stderr}`
               : `Erro:\n${output.stderr || 'Desconhecido'}`}

@@ -113,55 +113,19 @@ class GpuConfigPayload(BaseModel):
 @router.get("/ollama/status")
 async def ollama_status():
     result = _fetch_ollama_models()
-<<<<<<< HEAD
-    local_models = _fetch_local_gguf_models()
-    
-    # Adicionar modelos locais à lista
-    all_models = result.get("models", []).copy()
-    for local in local_models:
-        # Usar o filename como identificador único
-        if local["filename"] not in all_models:
-            all_models.append(local["filename"])
-    
-    return {
-        "running": result.get("running", False),
-        "models": all_models,
-        "local_models": local_models,
-=======
     return {
         "running": result.get("running", False),
         "models": result.get("models", []),
->>>>>>> d436640 (v2.0: GGUF auto-detection, GPU support, vision, thinking panel, monitor fix, portability scripts)
     }
 
 
 @router.get("/ollama/models")
 async def ollama_models():
-<<<<<<< HEAD
-    """Retorna lista de modelos instalados no Ollama + modelos locais GGUF."""
-=======
     """Retorna apenas modelos instalados no Ollama (sem GGUF locais)."""
->>>>>>> d436640 (v2.0: GGUF auto-detection, GPU support, vision, thinking panel, monitor fix, portability scripts)
     result = _fetch_ollama_models()
-    local_models = _fetch_local_gguf_models()
-    
-    # Combinar modelos
-    all_models = result.get("models", []).copy()
-    local_filenames = []
-    for local in local_models:
-        if local["filename"] not in all_models:
-            all_models.append(local["filename"])
-            local_filenames.append(local["filename"])
-    
     return {
         "running": result.get("running", False),
-<<<<<<< HEAD
-        "models": all_models,
-        "local_models": local_models,
-        "local_filenames": local_filenames,
-=======
         "models": result.get("models", []),
->>>>>>> d436640 (v2.0: GGUF auto-detection, GPU support, vision, thinking panel, monitor fix, portability scripts)
     }
 
 

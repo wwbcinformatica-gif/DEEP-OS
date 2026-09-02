@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import type { KnowItem } from '../lib/constants';
+import type { Provider, KnowItem } from '../lib/constants';
 import { API_BASE } from '../lib/constants';
+import GeneratePage from './GeneratePage';
+import MemoryPage from './MemoryPage';
 
 const btnStyle = (c = 'var(--muted)', b = 'var(--line-strong)'): React.CSSProperties => ({
   background: 'transparent',
@@ -28,9 +30,13 @@ const inputStyle = (): React.CSSProperties => ({
 interface Props {
   knows: KnowItem[];
   setKnows: React.Dispatch<React.SetStateAction<KnowItem[]>>;
+  prov: Provider;
+  model: string;
+  apiKey: string;
+  orApiKey: string;
 }
 
-export default function KnowledgePage({ knows, setKnows }: Props) {
+export default function KnowledgePage({ knows, setKnows, prov, model, apiKey, orApiKey }: Props) {
   const [localKnows, setLocalKnows] = useState<KnowItem[]>(knows);
   const [newK, setNewK] = useState('');
   const [feeding, setFeeding] = useState(false);
@@ -100,42 +106,21 @@ export default function KnowledgePage({ knows, setKnows }: Props) {
     ? localKnows.filter((k) => k.texto.toLowerCase().includes(kSearch.toLowerCase()))
     : [];
 
+  const sectionTitle: React.CSSProperties = { fontFamily: 'inherit', fontSize: '13px', fontWeight: 600, color: '#c586c0', margin: '0 0 4px' };
+  const sectionSub: React.CSSProperties = { fontFamily: 'inherit', fontSize: '13px', fontWeight: 600, color: '#4ec9b0', margin: '0 0 16px' };
+  const divider: React.CSSProperties = { border: 'none', borderTop: '1px solid var(--line)', margin: '24px 0' };
+
   return (
     <div style={{ flex: 1, overflow: 'auto', padding: '20px' }}>
-      <h2
-        style={{
-          fontFamily: 'inherit',
-          fontSize: '13px',
-          fontWeight: 600,
-          color: '#c586c0',
-          margin: '0 0 4px',
-        }}
-      >
-        // conhecimento
-      </h2>
-      <p
-        style={{
-          fontFamily: 'inherit',
-          fontSize: '13px',
-          fontWeight: 600,
-          color: '#4ec9b0',
-          margin: '0 0 16px',
-        }}
-      >
-        $ base de conhecimento do agente
-      </p>
+      {/* ── CONHECIMENTO ── */}
+      <h2 style={sectionTitle}>// conhecimento</h2>
+      <p style={sectionSub}>$ base de conhecimento do agente</p>
       <textarea
         value={newK}
         onChange={(e) => setNewK(e.target.value)}
         placeholder="Cole aqui o texto..."
         rows={4}
-        style={{
-          ...inputStyle(),
-          width: '100%',
-          resize: 'vertical',
-          lineHeight: 1.5,
-          marginBottom: '10px',
-        }}
+        style={{ ...inputStyle(), width: '100%', resize: 'vertical', lineHeight: 1.5, marginBottom: '10px' }}
       />
       <div style={{ display: 'flex', gap: '8px', marginBottom: '12px', alignItems: 'center' }}>
         <button onClick={addKnow} disabled={feeding} style={btnStyle('#4ec9b0', '#4ec9b0')}>
@@ -145,9 +130,7 @@ export default function KnowledgePage({ knows, setKnows }: Props) {
           $ refresh
         </button>
         {fedOk && (
-          <span
-            style={{ fontFamily: 'inherit', fontSize: '13px', fontWeight: 600, color: '#4ec9b0' }}
-          >
+          <span style={{ fontFamily: 'inherit', fontSize: '13px', fontWeight: 600, color: '#4ec9b0' }}>
             $ salvo!
           </span>
         )}
@@ -159,71 +142,43 @@ export default function KnowledgePage({ knows, setKnows }: Props) {
         style={{ ...inputStyle(), width: '100%', marginBottom: '8px' }}
       />
       {filtered.map((item) => (
-        <div
-          key={item.id}
-          style={{
-            border: '1px solid var(--line)',
-            borderRadius: '4px',
-            padding: '12px',
-            marginBottom: '6px',
-            background: 'var(--bg)',
-          }}
-        >
+        <div key={item.id} style={{ border: '1px solid var(--line)', borderRadius: '4px', padding: '12px', marginBottom: '6px', background: 'var(--bg)' }}>
           {editK?.id === item.id ? (
             <>
               <textarea
                 value={editK.texto}
                 onChange={(e) => setEditK({ ...editK, texto: e.target.value })}
                 rows={3}
-                style={{
-                  ...inputStyle(),
-                  width: '100%',
-                  resize: 'vertical',
-                  lineHeight: 1.5,
-                  marginBottom: '6px',
-                  borderColor: 'var(--accent)',
-                }}
+                style={{ ...inputStyle(), width: '100%', resize: 'vertical', lineHeight: 1.5, marginBottom: '6px', borderColor: 'var(--accent)' }}
               />
               <div style={{ display: 'flex', gap: '4px' }}>
-                <button onClick={saveKnow} style={btnStyle('var(--accent)', 'var(--accent)')}>
-                  $ salvar
-                </button>
-                <button onClick={() => setEditK(null)} style={btnStyle()}>
-                  $ cancelar
-                </button>
+                <button onClick={saveKnow} style={btnStyle('var(--accent)', 'var(--accent)')}>$ salvar</button>
+                <button onClick={() => setEditK(null)} style={btnStyle()}>$ cancelar</button>
               </div>
             </>
           ) : (
             <>
-              <p
-                style={{
-                  fontFamily: 'inherit',
-                  fontSize: '1em',
-                  fontWeight: 600,
-                  color: 'var(--ink)',
-                  margin: '0 0 8px',
-                  lineHeight: 1.5,
-                  maxHeight: '56px',
-                  overflow: 'hidden',
-                }}
-              >
+              <p style={{ fontFamily: 'inherit', fontSize: '1em', fontWeight: 600, color: 'var(--ink)', margin: '0 0 8px', lineHeight: 1.5, maxHeight: '56px', overflow: 'hidden' }}>
                 {item.texto}
               </p>
               <div style={{ display: 'flex', gap: '4px' }}>
-                <button
-                  onClick={() => setEditK({ id: item.id, texto: item.texto })}
-                  style={btnStyle()}
-                >
-                  $ editar
-                </button>
-                <button onClick={() => delKnow(item.id)} style={btnStyle('#f44747', '#f44747')}>
-                  $ excluir
-                </button>
+                <button onClick={() => setEditK({ id: item.id, texto: item.texto })} style={btnStyle()}>$ editar</button>
+                <button onClick={() => delKnow(item.id)} style={btnStyle('#f44747', '#f44747')}>$ excluir</button>
               </div>
             </>
           )}
         </div>
       ))}
+
+      <hr style={divider} />
+
+      {/* ── GERAR ── */}
+      <GeneratePage prov={prov} model={model} apiKey={apiKey} orApiKey={orApiKey} />
+
+      <hr style={divider} />
+
+      {/* ── MEMORIA ── */}
+      <MemoryPage />
     </div>
   );
 }

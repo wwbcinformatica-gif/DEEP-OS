@@ -1,0 +1,55 @@
+#D6EAF8        214  234  248
+
+depois pode remover os monitores de processo da janela para sobrar mais espaço e implementar eles do lado direito la no topo da descrição -> ◈
+DEEP-AUREA
+/
+DEEP-AUREA mas deixar os monitores um pouco menores e estreitos para economizar mais espaço  
+
+quero que o menu config fique do lado direito e menu Gerar,Conhecimento,Memoria, &Agentes, Arquitetura,MCP,Monitor  fique dentro do menu config mas quero que o menu config seja uma janela ou uma aba com novo modal
+ para que a janela principal do projeto fique somente com a raiz do lado esquerdo com o chat central com terminal e chat do charon e contexto lado direito sem mexer no formato principal do projeto
+
+
+quando clicar em salvar configurações  dar uma atualizada na pagina
+
+
+deu certo o gemini live tem outras vozes feminina tambem ou só a voz do charon ?
++ Thought: 547ms
+✱Grep "GEMINI_VOICES|voices" in C:\DEEP-AUREA\backend\routes\voice_ws.py (3 matches)
++ Thought: 339ms
+→Read C:\DEEP-AUREA\backend\routes\voice_ws.py [offset=23, limit=30]
++ Thought: 474ms
+O Gemini Live tem estas vozes disponíveis:
+Voz	Tipo
+Charon	Masculina (atual)
+Kore	Feminina
+Leda	Feminina
+Puck	Masculina
+Sage	Masculina
+Fenrir	Masculina
+Achird	Masculina
+Orus	Masculina
+Para mudar a voz do Charon, você pode:
+1. Falar "mude sua voz para Kore" ou "use a voz Leda"
+2. Ou eu posso adicionar um seletor de voz na aba Assistente
+Quer que eu adicione um seletor de voz feminina nas configurações?
+▣  General · MiMo V2.5 Free · 42.5s
+
+
+QUERO QUE TENHA UM TOGLE COM TRES NIVEIS DE ESCOLHA 
+
+Opção 1: ESTABILIDADE MINIMA (18 tools)
+
+Opção 2: EQUILÍBRIO (20 tools) - RECOMENDADO
+
+Opção 3: COMPLETA (28 tools)
+Manter todas (modos FULL)
+
+FERRAMENTAS QUE MENOS USO : 
+|  3 | weather_report | Relatório do tempo por cidade | ✅ MANTER |
+| 14 | close_camera | Fechar câmera | ⚠️ OPCIONAL |
+| 18 | game_updater | Steam/Epic Games - atualizar jogos | ❌ REMOVER |
+| 19 | flight_finder | Buscar passagens de avião | ❌ REMOVER |
+| 20 | manage_monitor | Monitoramento em background | ❌ REMOVER |
+
+
+

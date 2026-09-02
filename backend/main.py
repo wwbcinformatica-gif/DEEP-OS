@@ -1,5 +1,5 @@
 """
-WBC Agent v2.1 — Backend modular estilo AntiGravity
+DEEP-OS — Backend modular
 FastAPI + LangChain + Memória Vetorial + Multi-Agentes
 """
 import sys as _sys
@@ -25,6 +25,7 @@ from slowapi.util import get_remote_address
 from core.config import DB_PATH, get_base_dir
 from core.logging_setup import get_logger, setup_logging
 from database.connection import init_db, set_db_path
+from middleware.tenant import TenantMiddleware, TenantContext
 
 logger = setup_logging(level="INFO", log_file="logs/wbc-backend.log")
 
@@ -33,7 +34,7 @@ init_db()
 
 limiter = Limiter(key_func=get_remote_address, default_limits=["60/minute"])
 
-app = FastAPI(title="DEEP-AUREA", version="2.2")
+app = FastAPI(title="DEEP-OS", version="1.0")
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
@@ -55,6 +56,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Middleware de isolamento multi-tenant
+app.add_middleware(TenantMiddleware)
 
 
 # ── Exception Handler Global ──────────────────────────────────────
@@ -130,10 +134,11 @@ from routes.workspace import router as workspace_router
 from routes.ws_terminal import router as ws_terminal_router
 from routes.voice_ws import router as voice_router
 from routes.llamacpp_route import router as llamacpp_router
-<<<<<<< HEAD
-=======
 from routes.browser import router as browser_router
->>>>>>> d436640 (v2.0: GGUF auto-detection, GPU support, vision, thinking panel, monitor fix, portability scripts)
+
+# ─── Rotas SaaS ────────────────────────────────────────────────────
+from routes.auth import router as auth_router
+from routes.admin import router as admin_router
 
 # ─── WorkspaceManager: carrega workspace persistido ─────────────────
 WorkspaceManager.get_instance().load_workspace()
@@ -169,17 +174,18 @@ app.include_router(config_router)
 app.include_router(workspace_router)
 app.include_router(agent_diagnostics_router)
 app.include_router(llamacpp_router)
-<<<<<<< HEAD
-=======
 app.include_router(browser_router)
->>>>>>> d436640 (v2.0: GGUF auto-detection, GPU support, vision, thinking panel, monitor fix, portability scripts)
+
+# ─── Rotas SaaS ────────────────────────────────────────────────────
+app.include_router(auth_router)
+app.include_router(admin_router)
 
 
 @app.get("/")
 async def root():
     return {
-        "app": "DEEP-AUREA",
-        "version": "2.2",
+        "app": "DEEP-OS",
+        "version=1.0",
         "endpoints": [
             "/chat", "/chat/stream",
             "/explorer", "/explorer/read",
@@ -216,7 +222,7 @@ async def status():
     return {
         "status": "ok",
         "base_dir": str(get_base_dir()),
-        "version": "2.2",
+        "version=1.0",
         "db": str(DB_PATH),
     }
 
@@ -239,13 +245,25 @@ async def license_status():
 @app.on_event("startup")
 async def startup():
     log = get_logger("startup")
-    log.info("Iniciando DEEP-AUREA v2.2")
+    log.info("Iniciando DEEP-OS v1.0 (SaaS Mode)")
     asyncio.create_task(_cleanup_stale_sessions())
 
     # Inicializa secrets manager
     from core.secrets import init_secrets
     init_secrets()
     log.info("Secrets manager inicializado")
+
+    # Inicializa banco administrativo
+    try:
+        from init_admin_db import init_admin_db
+        init_admin_db()
+        log.info("Banco administrativo inicializado")
+    except Exception as e:
+        log.warning("Erro ao inicializar banco admin: %s", e)
+
+    # Inicializa diretório de tenants
+    TenantContext.ensure_tenant_dirs()
+    log.info("Diretórios de tenants inicializados")
 
     # Verifica licença
     try:

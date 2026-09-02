@@ -1,5 +1,5 @@
 """
-DEEP-AUREA — Compressão de Contexto
+DEEP-OS — Compressão de Contexto
 =========================================
 Sumarização recursiva de blocos antigos THINK_ONLY e APPEND_OBSERVATION
 para liberar espaço de memória de trabalho sem perder o fio da meada.

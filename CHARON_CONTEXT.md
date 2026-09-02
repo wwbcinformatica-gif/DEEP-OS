@@ -1,9 +1,9 @@
-# CHARON — CONTEXTO
+# CONTEXTO DO PROJETO
 
-- **Desenvolvedor:** Wilson Barbosa Coimbra (WBC)
-- **Projeto:** DEEP-AUREA em C:\DEEP-AUREA
+- **Localizacao:** C:\DEEP-OS
 - **Servicos:** Frontend :5175 | Backend :8001 | WebSocket ws://localhost:8001/ws/voice
 - **Como iniciar:** START-TOTAL.bat | parar: STOP-TOTAL.bat
+- **NOMES:** O nome do projeto e DEEP-OS. O nome do assistente e do usuario estao no system prompt.
 
 ## Ferramentas (33)
 **Sistema:** open_app, open_program, close_program, system_status, computer_settings, computer_control
@@ -17,4 +17,4 @@
 1. Portugues brasileiro, direto e util
 2. Use ferramentas reais sempre
 3. Respostas curtas e naturais
-4. Reconheca Wilson como desenvolvedor
+4. Use APENAS o nome definido no system prompt se não tiver use default

@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useMemo, lazy, Suspense } from 'react';
 import { useTheme } from './hooks/useTheme';
 import { setSoundEnabled, playSound } from './lib/soundFx';
 import { showToast } from './components/Toast';
@@ -21,13 +21,28 @@ import EditorPanel from './components/EditorPanel';
 import ChatPanel from './components/ChatPanel';
 import StatusBar from './components/StatusBar';
 import TerminalPanel from './components/TerminalPanel';
-import ProcessPanel from './components/ProcessPanel';
+import MiniMonitors from './components/MiniMonitors';
+import ConfigModal from './components/ConfigModal';
 import CharonPanel from './components/CharonPanel';
 import ErrorBoundary from './components/ErrorBoundary';
 import PageRenderer from './components/PageRenderer';
 import MusicPlayer, { type MusicPlayerHandle } from './components/MusicPlayer';
 import ToastContainer from './components/Toast';
 import MediaPlayDialog from './components/MediaPlayDialog';
+
+// Lazy load SaaS components
+const SaaSApp = lazy(() => import('./components/saas/SaaSApp'));
+
+// Detecta modo SaaS pela porta ou variavel de ambiente
+const isSaaSMode = () => {
+  // Porta 5176 = modo SaaS
+  if (window.location.port === '5176') return true;
+  // Variavel de ambiente do Vite
+  if (import.meta.env.VITE_SaaS_MODE === 'true') return true;
+  // URL com /saas
+  if (window.location.pathname.includes('/saas')) return true;
+  return false;
+};
 
 // ─── Accent theme CSS application ─────────────────────────────────────
 
@@ -73,9 +88,14 @@ function lightenHex(hex: string, amount: number): string {
   return `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`;
 }
 
-function applyAccentTheme(themeKey: AccentTheme) {
-  const t = ACCENT_THEMES.find((t) => t.key === themeKey) || ACCENT_THEMES[0];
-  const hex = t.color;
+function applyAccentTheme(themeKey: AccentTheme, customColor?: string) {
+  let hex: string;
+  if (themeKey === 'custom' && customColor) {
+    hex = customColor;
+  } else {
+    const t = ACCENT_THEMES.find((t) => t.key === themeKey) || ACCENT_THEMES[0];
+    hex = t.color;
+  }
   // Convert hex to RGB for rgba usage
   const r = parseInt(hex.slice(1, 3), 16);
   const g = parseInt(hex.slice(3, 5), 16);
@@ -99,11 +119,41 @@ function applyAccentTheme(themeKey: AccentTheme) {
   try {
     const saved = JSON.parse(localStorage.getItem('wbc2') || '{}');
     const themeKey = saved.accentTheme || DEFAULT_ACCENT_THEME;
-    applyAccentTheme(themeKey);
+    const customColor = saved.customColor || '';
+    applyAccentTheme(themeKey, customColor);
   } catch {}
 })();
 
+// ─── Loading spinner para SaaS ─────────────────────────────────────
+const LoadingSpinner = () => (
+  <div style={{
+    display: 'flex',
+    justifyContent: 'center',
+    alignItems: 'center',
+    height: '100vh',
+    background: '#0f0f1a',
+    color: '#00d9ff',
+    fontSize: '18px'
+  }}>
+    <div>Carregando DEEP-OS SaaS...</div>
+  </div>
+);
+
+// ─── SaaS Wrapper com Suspense ─────────────────────────────────────
+function SaaSWrapper() {
+  return (
+    <Suspense fallback={<LoadingSpinner />}>
+      <SaaSApp />
+    </Suspense>
+  );
+}
+
 export default function App() {
+  // Detecta modo SaaS e renderiza componente apropriado
+  if (isSaaSMode()) {
+    return <SaaSWrapper />;
+  }
+
   const { theme, toggleTheme } = useTheme();
 
   // ── Chat state ────────────────────────────────────────────────────────
@@ -117,22 +167,16 @@ export default function App() {
   const [charonPanel, setCharonPanel] = useState(true);
   const [charonTranscripts, setCharonTranscripts] = useState<{speaker: string; text: string; time: string}[]>([]);
   const [voiceMode, setVoiceMode] = useState(false);
-<<<<<<< HEAD
-=======
   const voiceModeRef = useRef(false);
->>>>>>> d436640 (v2.0: GGUF auto-detection, GPU support, vision, thinking panel, monitor fix, portability scripts)
   const [deepSilenceSec, setDeepSilenceSec] = useState(30);
   const [charonActive, setCharonActive] = useState(false);
   const [charonVoiceStatus, setCharonVoiceStatus] = useState<string>('idle');
   const charonSendTextRef = useRef<((text: string) => void) | null>(null);
   const savedProvRef = useRef<{ prov: Provider; model: string } | null>(null);
 
-<<<<<<< HEAD
-=======
   // Sincroniza voiceModeRef com o state
   useEffect(() => { voiceModeRef.current = voiceMode; }, [voiceMode]);
 
->>>>>>> d436640 (v2.0: GGUF auto-detection, GPU support, vision, thinking panel, monitor fix, portability scripts)
   // Quando WBC liga: troca provider local por cloud
   // Quando WBC desliga: restaura provider local
   useEffect(() => {
@@ -148,15 +192,12 @@ export default function App() {
     }
   }, [charonActive]);
 
-<<<<<<< HEAD
-=======
   // Quando Charon ativa: abre o painel. Quando desativa: fecha o painel
   // (pula no primeiro render para nao sobrescrever layout salvo)
   useEffect(() => {
     if (layoutLoadedRef.current) setCharonPanel(charonActive);
   }, [charonActive]);
 
->>>>>>> d436640 (v2.0: GGUF auto-detection, GPU support, vision, thinking panel, monitor fix, portability scripts)
   // Handler para resultados de tools do Charon
   const handleCharonToolResult = (tool: string, result: string) => {
     const toolConfig: Record<string, { label: string; icon: string; color: string }> = {
@@ -268,7 +309,12 @@ export default function App() {
   const [voicePitch, setVoicePitch] = useState(50);
   // (reserved)
   const [accentTheme, setAccentTheme] = useState<AccentTheme>(DEFAULT_ACCENT_THEME);
+  const [customColor, setCustomColor] = useState('#D6EAF8');
+  const [assistantName, setAssistantName] = useState('DEEP-OS');
+  const [userName, setUserName] = useState('');
+  const [voiceName, setVoiceName] = useState('Charon');
   const [gpuEnabled, setGpuEnabled] = useState(true);
+  const [charonFullTools, setCharonFullTools] = useState('medium');
 
   const [planData, setPlanData] = useState<any>(null);
   const planTaskIdRef = useRef('');
@@ -287,14 +333,19 @@ export default function App() {
   const [chatH, setChatH] = useState(0); // 0 = fill available height
   const [termH, setTermH] = useState(220);
   const [termOpen, setTermOpen] = useState(true);
-  const [processW, setProcessW] = useState(200);
-  const dragging = useRef<'exp' | 'chat' | 'chat-h' | 'term' | 'process' | null>(null);
+  const dragging = useRef<'exp' | 'chat' | 'chat-h' | 'chat-charon' | null>(null);
 
   // ── Navigation ────────────────────────────────────────────────────────
   const [page, setPage] = useState<Page>('monitor');
   const [view, setView] = useState<'page' | 'file'>('page');
   const [helpOpen, setHelpOpen] = useState(false);
+  const [helpSections, setHelpSections] = useState<Record<string, boolean>>({});
+  const [configModalOpen, setConfigModalOpen] = useState(false);
   const helpRef = useRef<HTMLDivElement>(null);
+
+  const toggleHelpSection = (key: string) => {
+    setHelpSections(prev => ({ ...prev, [key]: !prev[key] }));
+  };
 
   // ── File tabs ─────────────────────────────────────────────────────────
   const [tabs, setTabs] = useState<FileTab[]>([]);
@@ -332,7 +383,6 @@ export default function App() {
       if (typeof saved.chatH === 'number') setChatH(saved.chatH);
       if (typeof saved.termH === 'number') setTermH(saved.termH);
       if (typeof saved.termOpen === 'boolean') setTermOpen(saved.termOpen);
-      if (typeof saved.processW === 'number') setProcessW(saved.processW);
       if (typeof saved.charonPanel === 'boolean') setCharonPanel(saved.charonPanel);
       if (typeof saved.thinkOpen === 'boolean') setThinkOpen(saved.thinkOpen);
     } catch {}
@@ -345,10 +395,10 @@ export default function App() {
     try {
       localStorage.setItem(
         LAYOUT_KEY,
-        JSON.stringify({ page, view, expW, chatW, chatH, termH, termOpen, processW, charonPanel, thinkOpen }),
+        JSON.stringify({ page, view, expW, chatW, chatH, termH, termOpen, charonPanel, thinkOpen }),
       );
     } catch {}
-  }, [initDone, page, view, expW, chatW, termH, termOpen, processW, charonPanel, thinkOpen]);
+  }, [initDone, page, view, expW, chatW, termH, termOpen, charonPanel, thinkOpen]);
 
   // ─── Effects ──────────────────────────────────────────────────────────
   useEffect(() => {
@@ -356,10 +406,12 @@ export default function App() {
     (async () => {
       let themeFromBackend: string | null = null;
       let sysPrFromBackend: string = '';
+      let identityFromBackend: { assistant_name?: string; user_name?: string; voice?: string } = {};
       try {
-        const [themeRes, configRes] = await Promise.all([
+        const [themeRes, configRes, identityRes] = await Promise.all([
           fetch(`${API_BASE}/api/config/accent-theme`),
           fetch(`${API_BASE}/api/config/agent`),
+          fetch(`${API_BASE}/api/config/identity`),
         ]);
         if (themeRes.ok) {
           const data = await themeRes.json();
@@ -368,6 +420,9 @@ export default function App() {
         if (configRes.ok) {
           const data = await configRes.json();
           if (data.system_prompt) sysPrFromBackend = data.system_prompt;
+        }
+        if (identityRes.ok) {
+          identityFromBackend = await identityRes.json();
         }
       } catch {
         /* backend offline */
@@ -382,8 +437,13 @@ export default function App() {
 
       // User's last choice (localStorage) takes precedence over backend default
       const theme = saved.accentTheme || themeFromBackend || DEFAULT_ACCENT_THEME;
+      const custom = saved.customColor || '';
 
       setAccentTheme(theme as AccentTheme);
+      if (custom) setCustomColor(custom);
+      setAssistantName(saved.assistantName || identityFromBackend.assistant_name || 'DEEP-OS');
+      setUserName(saved.userName || identityFromBackend.user_name || '');
+      setVoiceName(saved.voiceName || identityFromBackend.voice || 'Charon');
       if (saved.prov) setProv(saved.prov);
       if (saved.model) setModel(saved.model);
       if (saved.mood) setMood(saved.mood);
@@ -445,6 +505,9 @@ export default function App() {
         geminiApiKey,
         nvidiaApiKey,
         accentTheme,
+        assistantName,
+        userName,
+        voiceName,
       }),
     );
   }, [
@@ -467,6 +530,9 @@ export default function App() {
     geminiApiKey,
     nvidiaApiKey,
     accentTheme,
+    assistantName,
+    userName,
+    voiceName,
   ]);
 
   // Sync accent theme to backend config.yaml whenever it changes
@@ -486,6 +552,13 @@ export default function App() {
       .then((r) => r.json())
       .then((d) => {
         if (d.gpu_enabled !== undefined) setGpuEnabled(d.gpu_enabled);
+      })
+      .catch(() => {});
+    // Carrega config do Charon toolset
+    fetch(`${API_BASE}/api/config/voice`)
+      .then((r) => r.json())
+      .then((d) => {
+        if (d.charon_toolset !== undefined) setCharonFullTools(d.charon_toolset);
       })
       .catch(() => {});
   }, [initDone]);
@@ -510,11 +583,11 @@ export default function App() {
   // Apply accent theme CSS variables
   useEffect(() => {
     try {
-      applyAccentTheme(accentTheme);
+      applyAccentTheme(accentTheme, customColor);
     } catch (e) {
       console.warn('Nao foi possivel aplicar o tema de destaque', e);
     }
-  }, [accentTheme]);
+  }, [accentTheme, customColor]);
 
   // Atualiza a variável CSS global quando o tamanho da fonte mudar
   useEffect(() => {
@@ -588,14 +661,9 @@ export default function App() {
           if (d.models?.length) {
             setLlamacppModels(d.models.map((m: any) => ({
               value: m.id,
-<<<<<<< HEAD
-              label: m.available ? m.label : `${m.label} (não encontrado)`,
-              available: m.available,
-=======
               label: m.available ? `${m.label}${m.has_vision ? ' 👁️' : ''}` : `${m.label} (não encontrado)`,
               available: m.available,
               has_vision: m.has_vision,
->>>>>>> d436640 (v2.0: GGUF auto-detection, GPU support, vision, thinking panel, monitor fix, portability scripts)
             })));
           }
         })
@@ -1228,17 +1296,10 @@ export default function App() {
       rafId = requestAnimationFrame(() => {
         rafId = 0;
         if (dragging.current === 'exp') setExpW(Math.max(160, Math.min(400, e.clientX)));
-        else if (dragging.current === 'chat')
-          setChatW(
-            Math.max(
-              280,
-              Math.min(Math.round(window.innerWidth * 0.45), window.innerWidth - e.clientX),
-            ),
-          );
-        else if (dragging.current === 'process')
-          setProcessW(Math.max(180, Math.min(600, window.innerWidth - e.clientX)));
-        else if (dragging.current === 'term')
-          setTermH(Math.max(100, Math.min(500, window.innerHeight - e.clientY - 24)));
+        else if (dragging.current === 'chat-charon') {
+          const charonW = Math.max(200, Math.min(window.innerWidth - e.clientX, 600));
+          setChatW(charonW);
+        }
         else if (dragging.current === 'chat-h')
           setChatH(
             Math.max(
@@ -1316,11 +1377,11 @@ export default function App() {
     return () => window.removeEventListener('keydown', onKey);
   });
 
-  const drag = (which: 'exp' | 'chat' | 'chat-h' | 'term' | 'process') => (e: React.MouseEvent) => {
+  const drag = (which: 'exp' | 'chat' | 'chat-h' | 'chat-charon') => (e: React.MouseEvent) => {
     e.preventDefault();
     dragging.current = which;
     document.body.style.cursor =
-      which === 'term' || which === 'chat-h' ? 'row-resize' : 'col-resize';
+      which === 'chat-h' ? 'row-resize' : 'col-resize';
     document.body.style.userSelect = 'none';
   };
 
@@ -1480,6 +1541,7 @@ export default function App() {
           )}
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <MiniMonitors />
           <div ref={helpRef} style={{ position: 'relative' }}>
             <button
               onClick={() => setHelpOpen((p) => !p)}
@@ -1521,331 +1583,211 @@ export default function App() {
                 }}
               >
                 <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 12, color: 'var(--accent)' }}>
-                  DEEP-AUREA — Guia Completo
+                  DEEP-OS — Guia Completo
                 </div>
 
-                {/* Comandos de Chat */}
-                <div style={{ fontWeight: 700, fontSize: 12, color: 'var(--cyan)', marginTop: 8, marginBottom: 6 }}>
-                  COMANDOS DE CHAT
-                </div>
-                {[
-                  ['/goal <texto>', 'Definir objetivo de longo prazo'],
-                  ['/run <comando>', 'Executar comando no terminal'],
-                  ['/clear', 'Limpar contexto da conversa'],
-                  ['/status', 'Ver status do sistema'],
-                  ['/stop', 'Parar execucao atual'],
-                  ['/help', 'Mostrar esta ajuda'],
-                  ['/review', 'Revisao de codigo'],
-                  ['/build', 'Build do projeto'],
-                  ['/test', 'Executar testes'],
-                  ['/deploy', 'Deploy da aplicacao'],
-                  ['/logs', 'Ver logs do sistema'],
-                  ['/cancel', 'Cancelar tarefa'],
-                ].map(([cmd, desc]) => (
-                  <div key={cmd} style={{ marginBottom: 3, display: 'flex', gap: 8 }}>
-                    <code style={{ color: 'var(--accent)', fontFamily: 'monospace', minWidth: 160, whiteSpace: 'nowrap' }}>{cmd}</code>
-                    <span style={{ color: 'var(--muted)' }}>{desc}</span>
-                  </div>
-                ))}
+                {/* Helper para seção colapsável */}
+                {(() => {
+                  const sections: { key: string; title: string; color: string; items: JSX.Element }[] = [
+                    {
+                      key: 'chat', title: 'COMANDOS DE CHAT', color: 'var(--cyan)',
+                      items: <>
+                        {[
+                          ['/goal <texto>', 'Definir objetivo de longo prazo'],
+                          ['/run <comando>', 'Executar comando no terminal'],
+                          ['/clear', 'Limpar contexto da conversa'],
+                          ['/status', 'Ver status do sistema'],
+                          ['/stop', 'Parar execucao atual'],
+                          ['/help', 'Mostrar esta ajuda'],
+                          ['/review', 'Revisao de codigo'],
+                          ['/build', 'Build do projeto'],
+                          ['/test', 'Executar testes'],
+                          ['/deploy', 'Deploy da aplicacao'],
+                          ['/logs', 'Ver logs do sistema'],
+                          ['/cancel', 'Cancelar tarefa'],
+                        ].map(([cmd, desc]) => (
+                          <div key={cmd} style={{ marginBottom: 3, display: 'flex', gap: 8 }}>
+                            <code style={{ color: 'var(--accent)', fontFamily: 'monospace', minWidth: 160, whiteSpace: 'nowrap' }}>{cmd}</code>
+                            <span style={{ color: 'var(--muted)' }}>{desc}</span>
+                          </div>
+                        ))}
+                      </>
+                    },
+                    {
+                      key: 'voice', title: 'COMANDOS DE VOZ (PT-BR)', color: 'var(--green, #4caf50)',
+                      items: <>
+                        {[
+                          ['"novo contexto"', 'Limpar conversa atual'],
+                          ['"limpar contexto"', 'Limpar conversa atual'],
+                          ['"limpa tudo"', 'Limpar tudo'],
+                          ['"parar" / "cancelar"', 'Interromper execucao'],
+                          ['"ajuda" / "help"', 'Mostrar ajuda'],
+                          ['"status"', 'Ver status do sistema'],
+                        ].map(([cmd, desc]) => (
+                          <div key={cmd} style={{ marginBottom: 3, display: 'flex', gap: 8 }}>
+                            <code style={{ color: 'var(--green, #4caf50)', fontFamily: 'monospace', minWidth: 160, whiteSpace: 'nowrap' }}>{cmd}</code>
+                            <span style={{ color: 'var(--muted)' }}>{desc}</span>
+                          </div>
+                        ))}
+                      </>
+                    },
+                    {
+                      key: 'media', title: 'COMANDOS DE VOZ - MIDIA', color: 'var(--yellow, #ffc107)',
+                      items: <>
+                        {[
+                          ['"pausa" / "pausar musica"', 'Pausar reproducao'],
+                          ['"retomar" / "tocar musica"', 'Continuar reproducao'],
+                          ['"proxima musica"', 'Proxima faixa'],
+                          ['"musica anterior"', 'Faixa anterior'],
+                          ['"parar musica"', 'Parar e fechar midia'],
+                          ['"tocar no media"', 'Abrir no player interno MEDIA'],
+                          ['"fechar arquivo"', 'Fechar arquivo aberto'],
+                          ['"fechar video"', 'Fechar video reproduzindo'],
+                          ['"fechar tudo"', 'Fechar todos os arquivos'],
+                        ].map(([cmd, desc]) => (
+                          <div key={cmd} style={{ marginBottom: 3, display: 'flex', gap: 8 }}>
+                            <code style={{ color: 'var(--yellow, #ffc107)', fontFamily: 'monospace', fontSize: 11, minWidth: 200, whiteSpace: 'nowrap' }}>{cmd}</code>
+                            <span style={{ color: 'var(--muted)' }}>{desc}</span>
+                          </div>
+                        ))}
+                      </>
+                    },
+                    {
+                      key: 'charon', title: 'CHARON - ASSISTENTE DE VOZ', color: 'var(--purple, #b478ff)',
+                      items: <>
+                        <div style={{ fontSize: 11, color: 'var(--muted)', lineHeight: 1.5, marginBottom: 8 }}>
+                          O Charon e o assistente de voz do DEEP-OS (voz natural Gemini Live).
+                        </div>
+                        {[
+                          ['"deep ..." (ativacao)', 'Diga "deep" antes de um comando'],
+                          ['Falar normalmente', 'Converse direto com o Charon'],
+                          ['"criar pasta X"', 'Cria pasta via file_controller'],
+                          ['"tira print da tela"', 'Salva screenshot no Desktop'],
+                          ['"abre o arquivo X"', 'Abre arquivos no app padrao'],
+                          ['"para de ler"', 'Interrompe a fala atual'],
+                          ['"repetir"', 'Repete a ultima resposta'],
+                          ['"fechar aba"', 'Fecha aba do navegador'],
+                          ['Botao "charon"', 'Liga/desliga o Charon'],
+                          ['Botao "T"', 'Abre/fecha painel do Charon'],
+                        ].map(([cmd, desc]) => (
+                          <div key={cmd} style={{ marginBottom: 3, display: 'flex', gap: 8 }}>
+                            <code style={{ color: 'var(--purple, #b478ff)', fontFamily: 'monospace', fontSize: 11, minWidth: 170, whiteSpace: 'nowrap' }}>{cmd}</code>
+                            <span style={{ color: 'var(--muted)' }}>{desc}</span>
+                          </div>
+                        ))}
+                      </>
+                    },
+                    {
+                      key: 'tools', title: 'FERRAMENTAS DO CHARON', color: 'var(--purple, #b478ff)',
+                      items: <>
+                        {[
+                          ['youtube_video(query)', 'Abrir video no YouTube'],
+                          ['open_app(app_name)', 'Abrir aplicativo'],
+                          ['weather_report(city', 'Relatorio do tempo'],
+                          ['browser_control(action)', 'Controlar navegador'],
+                          ['computer_control(action)', 'Controlar PC'],
+                          ['computer_settings(action)', 'Configuracoes do sistema'],
+                          ['file_controller(action)', 'Gerenciar arquivos'],
+                          ['code_helper(instruction)', 'Revisar codigo'],
+                          ['dev_agent(instruction)', 'Agente autonomo'],
+                          ['file_processor(instruction)', 'Processar arquivos'],
+                          ['system_status()', 'Metricas CPU/RAM/GPU'],
+                          ['reminder(date, time)', 'Agendar lembrete'],
+                          ['web_search(query)', 'Pesquisar na internet'],
+                          ['send_message(receiver)', 'Enviar mensagem'],
+                          ['screen_process(angle)', 'Capturar tela/webcam'],
+                        ].map(([func, desc]) => (
+                          <div key={func} style={{ marginBottom: 3, display: 'flex', gap: 8 }}>
+                            <code style={{ color: 'var(--purple, #b478ff)', fontFamily: 'monospace', fontSize: 11, minWidth: 180, whiteSpace: 'nowrap' }}>{func}</code>
+                            <span style={{ color: 'var(--muted)' }}>{desc}</span>
+                          </div>
+                        ))}
+                      </>
+                    },
+                    {
+                      key: 'agents', title: 'MENCIONAR AGENTES', color: 'var(--magenta, #e040fb)',
+                      items: <>
+                        {[
+                          ['@general', 'Assistente geral full-stack'],
+                          ['@coder', 'Programador especialista'],
+                          ['@architect', 'Arquiteto de software'],
+                          ['@debugger', 'Especialista em debugging'],
+                          ['@planner', 'Planejador de tarefas'],
+                        ].map(([agent, desc]) => (
+                          <div key={agent} style={{ marginBottom: 3, display: 'flex', gap: 8 }}>
+                            <code style={{ color: 'var(--magenta, #e040fb)', fontFamily: 'monospace', minWidth: 120, whiteSpace: 'nowrap' }}>{agent}</code>
+                            <span style={{ color: 'var(--muted)' }}>{desc}</span>
+                          </div>
+                        ))}
+                      </>
+                    },
+                    {
+                      key: 'personalize', title: 'PERSONALIZACAO', color: 'var(--accent)',
+                      items: <>
+                        {[
+                          ['Nome do Assistente', 'Altere o nome no chat'],
+                          ['Seu Nome', 'Como o assistente te chama'],
+                          ['Cor da Interface', 'Cor personalizada do app'],
+                          ['Voz do Charon', '8 vozes Gemini Live'],
+                        ].map(([cmd, desc]) => (
+                          <div key={cmd} style={{ marginBottom: 3, display: 'flex', gap: 8 }}>
+                            <code style={{ color: 'var(--accent)', fontFamily: 'monospace', fontSize: 11, minWidth: 140, whiteSpace: 'nowrap' }}>{cmd}</code>
+                            <span style={{ color: 'var(--muted)' }}>{desc}</span>
+                          </div>
+                        ))}
+                      </>
+                    },
+                    {
+                      key: 'tips', title: 'DICAS', color: 'var(--cyan)',
+                      items: <>
+                        {[
+                          'Ative "auto" para enviar por voz automaticamente',
+                          'Clique no microfone para falar comandos',
+                          'Use "continue" para retomar tarefa interrompida',
+                          'O agente mostra checkboxes antes de executar',
+                          'Mude provedor/modelo em Config',
+                        ].map((tip, i) => (
+                          <div key={i} style={{ marginBottom: 3, color: 'var(--muted)' }}>
+                            {'\u2022'} {tip}
+                          </div>
+                        ))}
+                      </>
+                    },
+                    {
+                      key: 'config', title: 'CONFIGURACAO INICIAL', color: 'var(--cyan)',
+                      items: <>
+                        <div style={{ fontSize: 11, color: 'var(--muted)', lineHeight: 1.6 }}>
+                          <div style={{ marginBottom: 4 }}>{'\u2460'} Rode <code style={{ color: 'var(--accent)' }}>START-TOTAL.bat</code></div>
+                          <div style={{ marginBottom: 4 }}>{'\u2461'} Acesse <code style={{ color: 'var(--accent)' }}>http://localhost:5175</code></div>
+                          <div style={{ marginBottom: 4 }}>{'\u2462'} Configure 1 provedor em Config</div>
+                          <div style={{ marginBottom: 4 }}>{'\u2463'} Teste: "ola, tudo bem?"</div>
+                          <div style={{ marginBottom: 4 }}>{'\u2464'} Para voz, clique no microfone</div>
+                        </div>
+                      </>
+                    },
+                  ];
 
-                {/* Comandos de Voz */}
-                <div style={{ fontWeight: 700, fontSize: 12, color: 'var(--cyan)', marginTop: 12, marginBottom: 6 }}>
-                  COMANDOS DE VOZ (PT-BR)
-                </div>
-                {[
-                  ['"novo contexto"', 'Limpar conversa atual'],
-                  ['"limpar contexto"', 'Limpar conversa atual'],
-                  ['"limpa tudo"', 'Limpar tudo'],
-                  ['"parar" / "cancelar"', 'Interromper execucao'],
-                  ['"ajuda" / "help"', 'Mostrar ajuda'],
-                  ['"status"', 'Ver status do sistema'],
-                ].map(([cmd, desc]) => (
-                  <div key={cmd} style={{ marginBottom: 3, display: 'flex', gap: 8 }}>
-                    <code style={{ color: 'var(--green, #4caf50)', fontFamily: 'monospace', minWidth: 160, whiteSpace: 'nowrap' }}>{cmd}</code>
-                    <span style={{ color: 'var(--muted)' }}>{desc}</span>
-                  </div>
-                ))}
-
-                {/* Comandos de Voz - Midia */}
-                <div style={{ fontWeight: 700, fontSize: 12, color: 'var(--cyan)', marginTop: 12, marginBottom: 6 }}>
-                  COMANDOS DE VOZ - MIDIA
-                </div>
-                {[
-                  ['"pausa" / "pausar musica"', 'Pausar reproducao'],
-                  ['"retomar" / "tocar musica"', 'Continuar reproducao'],
-                  ['"proxima musica"', 'Proxima faixa'],
-                  ['"musica anterior"', 'Faixa anterior'],
-                  ['"parar musica" / "fechar musica"', 'Parar e fechar midia'],
-                  ['"tocar no media"', 'Abrir no player interno MEDIA'],
-                  ['"player interno"', 'Abrir no player interno MEDIA'],
-                  ['"tocar no windows media"', 'Abrir no Windows Media Player'],
-                  ['"tocar no windows"', 'Abrir no Windows Media Player'],
-                  ['"tocar no sistema"', 'Abrir no player do sistema'],
-                  ['"fechar arquivo"', 'Fechar arquivo aberto'],
-                  ['"fechar video"', 'Fechar video reproduzindo'],
-                  ['"fechar tudo"', 'Fechar todos os arquivos'],
-                ].map(([cmd, desc]) => (
-                  <div key={cmd} style={{ marginBottom: 3, display: 'flex', gap: 8 }}>
-                    <code style={{ color: 'var(--yellow, #ffc107)', fontFamily: 'monospace', fontSize: 11, minWidth: 200, whiteSpace: 'nowrap' }}>{cmd}</code>
-                    <span style={{ color: 'var(--muted)' }}>{desc}</span>
-                  </div>
-                ))}
-
-                {/* Charon - Assistente de Voz */}
-                <div style={{ fontWeight: 700, fontSize: 12, color: 'var(--purple, #b478ff)', marginTop: 12, marginBottom: 6 }}>
-                  Charon - ASSISTENTE DE VOZ
-                </div>
-                <div style={{ fontSize: 11, color: 'var(--muted)', lineHeight: 1.5, marginBottom: 8 }}>
-                  o Charon e o assistente de voz do DEEP-AUREA (voz natural Gemini Live). Fale com ele pelo microfone ou digite no painel Charon (botao "T" na barra de status).
-                </div>
-                {[
-                  ['"aurea ..." (palavra de ativacao)', 'Diga "aurea" antes de um comando para ativar o modo de voz do chat central'],
-                  ['Falar normalmente', 'Converse direto com o Charon — ele executa ferramentas de verdade (arquivos, pastas, apps, web, computador)'],
-                  ['"criar pasta X"', 'Cria pasta em Documents/Desktop via file_controller'],
-                  ['"tira print da tela"', 'Salva screenshot com data/hora no Desktop (nunca sobrescreve)'],
-                  ['"abre o arquivo config.py"', 'Abre arquivos (img, pdf, doc, txt, html, xml) no aplicativo padrao'],
-                  ['"para de ler" / "cala boca" / "silencio"', 'Interrompe a leitura/fala atual'],
-                  ['"repetir" / "ler novamente"', 'Repete a ultima resposta falada'],
-                  ['"fechar aba" / "fechar aba ativa"', 'Fecha apenas a aba atual do navegador (Ctrl+W)'],
-                  ['"fechar navegador" / "fechar todas as abas"', 'Fecha toda a janela do navegador (Alt+F4)'],
-                  ['Digitar no painel Charon', 'Envia texto direto para o Charon; aparece no contexto e ele responde por voz'],
-                  ['Botao "charon" (⚡)', 'Liga/desliga o Charon na barra de status'],
-                  ['Botao "T"', 'Abre/fecha o painel de contexto do Charon (voce pode redimensionar)'],
-                ].map(([cmd, desc]) => (
-                  <div key={cmd} style={{ marginBottom: 3, display: 'flex', gap: 8 }}>
-                    <code style={{ color: 'var(--purple, #b478ff)', fontFamily: 'monospace', fontSize: 11, minWidth: 190, whiteSpace: 'nowrap' }}>{cmd}</code>
-                    <span style={{ color: 'var(--muted)' }}>{desc}</span>
-                  </div>
-                ))}
-
-                {/* Ferramentas do Agente */}
-                <div style={{ fontWeight: 700, fontSize: 12, color: 'var(--cyan)', marginTop: 12, marginBottom: 6 }}>
-                  FERRAMENTAS DO AGENTE
-                </div>
-                {[
-                  ['explorer(path)', 'Listar pastas e arquivos'],
-                  ['read(path)', 'Ler conteudo de arquivo'],
-                  ['write(path, content)', 'Criar/editar arquivo'],
-                  ['bash(command)', 'Executar comando no terminal'],
-                  ['delete(path)', 'Deletar arquivo ou pasta'],
-                  ['rename(old, new)', 'Renomear arquivo'],
-                  ['create_directory(path)', 'Criar pasta'],
-                  ['search(pattern, path)', 'Buscar texto em arquivos'],
-                  ['glob(pattern)', 'Buscar arquivos por padrao'],
-                  ['file_edit(path, old, new)', 'Editar com find-replace'],
-                  ['execute_python(code)', 'Executar codigo Python'],
-                  ['web_search(query)', 'Pesquisar na internet'],
-                  ['web_fetch(url)', 'Baixar conteudo de URL'],
-                  ['media_play(name, path)', 'Abrir midia no player interno'],
-                  ['close_app(process, path)', 'Fechar processo ou arquivo'],
-                  ['memory_write(ns, key, content)', 'Salvar na memoria'],
-                  ['memory_read(ns, key)', 'Ler da memoria'],
-                  ['fork_subagent(task)', 'Criar subagente'],
-                  ['task_create(subject)', 'Criar tarefa'],
-                ].map(([func, desc]) => (
-                  <div key={func} style={{ marginBottom: 3, display: 'flex', gap: 8 }}>
-                    <code style={{ color: 'var(--yellow, #ffc107)', fontFamily: 'monospace', fontSize: 11, minWidth: 190, whiteSpace: 'nowrap' }}>{func}</code>
-                    <span style={{ color: 'var(--muted)' }}>{desc}</span>
-                  </div>
-                ))}
-
-                {/* Ferramentas Charon - Voz e Webcam */}
-                <div style={{ fontWeight: 700, fontSize: 12, color: 'var(--purple, #b478ff)', marginTop: 12, marginBottom: 6 }}>
-                  FERRAMENTAS CHARON (VOZ / WEBCAM)
-                </div>
-                {[
-                  ['youtube_video(query)', 'Pesquisar e abrir video no YouTube'],
-                  ['open_app(app_name)', 'Abrir qualquer aplicativo'],
-                  ['weather_report(city)', 'Relatorio do tempo para uma cidade'],
-                  ['browser_control(action)', 'Controlar navegador (abrir URL, fechar aba)'],
-                  ['computer_control(action)', 'Controlar volume, brilho, WiFi, etc.'],
-                  ['computer_settings(action)', 'Configuracoes do sistema'],
-                  ['desktop_control(action)', 'Gerenciar area de trabalho'],
-                  ['file_controller(action)', 'Ler/gravar/listar arquivos e pastas'],
-                  ['code_helper(instruction)', 'Revisar e gerar codigo'],
-                  ['dev_agent(instruction)', 'Agente de desenvolvimento autonomo'],
-                  ['game_updater(action)', 'Verificar atualizacoes de jogos (Steam/Epic)'],
-                  ['flight_finder(origin, dest)', 'Buscar voos e precos'],
-                  ['file_processor(instruction)', 'Processar e resumir arquivos'],
-                  ['system_status()', 'Metricas de CPU, RAM, GPU, temperatura'],
-                  ['reminder(date, time, msg)', 'Agendar lembrete no sistema'],
-                  ['web_search(query)', 'Pesquisar na internet'],
-                  ['send_message(receiver, text, platform)', 'Enviar mensagem (WhatsApp, Telegram)'],
-                  ['screen_process(angle)', 'Capturar tela ou webcam'],
-                  ['calorie_counter(query)', 'Analise nutricional de comida via webcam'],
-                  ['pushup_counter(query, target)', 'Contar flexoes ao vivo pela webcam'],
-                  ['upload_video(description)', 'Upload de video para TikTok Studio'],
-                ].map(([func, desc]) => (
-                  <div key={func} style={{ marginBottom: 3, display: 'flex', gap: 8 }}>
-                    <code style={{ color: 'var(--purple, #b478ff)', fontFamily: 'monospace', fontSize: 11, minWidth: 200, whiteSpace: 'nowrap' }}>{func}</code>
-                    <span style={{ color: 'var(--muted)' }}>{desc}</span>
-                  </div>
-                ))}
-
-                {/* Comandos de Voz - Charon */}
-                <div style={{ fontWeight: 700, fontSize: 12, color: 'var(--purple, #b478ff)', marginTop: 12, marginBottom: 6 }}>
-                  COMANDOS DE VOZ - CHARON (NOVAS FERRAMENTAS)
-                </div>
-                {[
-                  ['"abra o YouTube / toque musica"', 'Pesquisar e abrir video no YouTube'],
-                  ['"abra o Chrome / Spotify"', 'Abrir qualquer aplicativo'],
-                  ['"qual o tempo em Sao Paulo"', 'Relatorio do tempo'],
-                  ['"abra o site google.com"', 'Abrir URL no navegador'],
-                  ['"quanto de RAM / CPU"', 'Metricas do sistema'],
-                  ['"tira print da tela"', 'Capturar tela'],
-                  ['"quantas calorias tem nessa comida"', 'Analise nutricional via webcam'],
-                  ['"vou fazer flexoes, conte"', 'Contar flexoes ao vivo'],
-                  ['"poste esse video no tiktok"', 'Upload automatico para TikTok'],
-                  ['"lembrete para 15/08 as 14h: reuniao"', 'Agendar lembrete'],
-                  ['"envie mensagem para Joao"', 'Enviar WhatsApp/Telegram'],
-                ].map(([cmd, desc]) => (
-                  <div key={cmd} style={{ marginBottom: 3, display: 'flex', gap: 8 }}>
-                    <code style={{ color: 'var(--purple, #b478ff)', fontFamily: 'monospace', fontSize: 11, minWidth: 220, whiteSpace: 'nowrap' }}>{cmd}</code>
-                    <span style={{ color: 'var(--muted)' }}>{desc}</span>
-                  </div>
-                ))}
-
-                {/* Mencoes */}
-                <div style={{ fontWeight: 700, fontSize: 12, color: 'var(--cyan)', marginTop: 12, marginBottom: 6 }}>
-                  MENCIONAR AGENTES
-                </div>
-                {[
-                  ['@general', 'Assistente geral full-stack'],
-                  ['@coder', 'Programador especialista'],
-                  ['@architect', 'Arquiteto de software'],
-                  ['@debugger', 'Especialista em debugging'],
-                  ['@writer', 'Escritor tecnico'],
-                  ['@planner', 'Planejador de tarefas'],
-                  ['@reviewer', 'Revisor de codigo'],
-                  ['@helper', 'Assistente geral'],
-                  ['@analyst', 'Analista de dados'],
-                ].map(([agent, desc]) => (
-                  <div key={agent} style={{ marginBottom: 3, display: 'flex', gap: 8 }}>
-                    <code style={{ color: 'var(--magenta, #e040fb)', fontFamily: 'monospace', minWidth: 120, whiteSpace: 'nowrap' }}>{agent}</code>
-                    <span style={{ color: 'var(--muted)' }}>{desc}</span>
-                  </div>
-                ))}
-
-                {/* Dicas */}
-                <div style={{ fontWeight: 700, fontSize: 12, color: 'var(--cyan)', marginTop: 12, marginBottom: 6 }}>
-                  DICAS
-                </div>
-                {[
-                  'Ative o checkbox "auto" para enviar por voz automaticamente',
-                  'Clique no microfone para falar seus comandos',
-                  'Use "continue" para retomar tarefa interrompida',
-                  'O agente mostra checkboxes antes de executar',
-                  'A barra de progresso acompanha as etapas em tempo real',
-                  'O painel MEDIA abre musicas e videos automaticamente',
-                  'Mude provedor/modelo em Config para melhor desempenho',
-                ].map((tip, i) => (
-                  <div key={i} style={{ marginBottom: 3, color: 'var(--muted)' }}>
-                    {'\u2022'} {tip}
-                  </div>
-                ))}
-
-                {/* Como Usar o Modelo de IA */}
-                <div style={{ fontWeight: 700, fontSize: 12, color: 'var(--cyan)', marginTop: 14, marginBottom: 6 }}>
-                  COMO USAR O MODELO DE IA
-                </div>
-                <div style={{ fontSize: 11, color: 'var(--muted)', lineHeight: 1.5, marginBottom: 8 }}>
-                  O DEEP-AUREA funciona como um assistente que aprende com voce. Quanto mais voce interage, mais ele aprende seus padroes e preferencias.
-                </div>
-                {[
-                  ['Conversa normal', 'Digite ou fale como se fosse um assistente. O agente entende portugues natural e responde em PT-BR.'],
-                  ['Tarefas complexas', 'Descreva o que precisa: "crie uma tela de login com React" ou "refatore este codigo Python". O agente quebra em etapas automaticamente.'],
-                  ['Comandos de voz', 'Ative o microfone e fale. Funciona para comandos longos como "abra o arquivo config.py e mude a porta para 8080".'],
-                  ['Continuar tarefa', 'Se a tarefa foi interrompida, digite "continue" para retomar de onde parou.'],
-                  ['Cancelar', 'Digite "cancel" ou "parar" a qualquer momento para interromper a execucao.'],
-                  ['Provedores', 'Mude entre Ollama (local, gratuito), Groq (rapido), OpenCode, MiMo, Gemini ou OpenAI em Config.'],
-                ].map(([cmd, desc]) => (
-                  <div key={cmd} style={{ marginBottom: 4, display: 'flex', gap: 8 }}>
-                    <code style={{ color: 'var(--accent)', fontFamily: 'monospace', fontSize: 11, minWidth: 130, whiteSpace: 'nowrap' }}>{cmd}</code>
-                    <span style={{ color: 'var(--muted)', fontSize: 11 }}>{desc}</span>
-                  </div>
-                ))}
-
-                {/* Como o Modelo Aprende */}
-                <div style={{ fontWeight: 700, fontSize: 12, color: 'var(--cyan)', marginTop: 14, marginBottom: 6 }}>
-                  COMO O MODELO APRENDE
-                </div>
-                <div style={{ fontSize: 11, color: 'var(--muted)', lineHeight: 1.5, marginBottom: 8 }}>
-                  O sistema de memoria do DEEP-AUREA guarda o que voce faz, o que funciona e o que falha. Cada sessao alimenta o aprendizado.
-                </div>
-                {[
-                  ['Memoria Espiral', 'Guarda decisoes, solucoes e padroes entre sessoes. Voce nao precisa repetir instrucoes.'],
-                  ['Aprendizado por tarefa', 'Apos cada tarefa, o agente salva o que aprendeu: o que funcionou, o que falhou, e por que.'],
-                  ['Memoria vetorial (FAISS)', 'Busca automatica por conhecimento similar quando voce faz uma pergunta nova.'],
-                  ['Cerebro / FAQ', 'Extrai insights automaticos das tarefas e cria uma base de conhecimento consultavel.'],
-                  ['Correcao do usuario', 'Se voce corrige o agente, ele salva como regra para nao repetir o erro.'],
-                ].map(([cmd, desc]) => (
-                  <div key={cmd} style={{ marginBottom: 4, display: 'flex', gap: 8 }}>
-                    <code style={{ color: 'var(--green, #4caf50)', fontFamily: 'monospace', fontSize: 11, minWidth: 130, whiteSpace: 'nowrap' }}>{cmd}</code>
-                    <span style={{ color: 'var(--muted)', fontSize: 11 }}>{desc}</span>
-                  </div>
-                ))}
-
-                {/* Exemplos Praticos */}
-                <div style={{ fontWeight: 700, fontSize: 12, color: 'var(--cyan)', marginTop: 14, marginBottom: 6 }}>
-                  EXEMPLOS PRATICOS
-                </div>
-                <div style={{ fontSize: 11, color: 'var(--muted)', lineHeight: 1.6 }}>
-                  <div style={{ marginBottom: 6 }}>
-                    <b style={{ color: 'var(--ink)' }}>Criar um componente React:</b><br />
-                    <code style={{ color: 'var(--accent)', fontSize: 10 }}>"Crie um componente Button com variantes primary, secondary e danger usando Tailwind"</code>
-                  </div>
-                  <div style={{ marginBottom: 6 }}>
-                    <b style={{ color: 'var(--ink)' }}>Corrigir bug:</b><br />
-                    <code style={{ color: 'var(--accent)', fontSize: 10 }}>"O login retorna 401 mas as credenciais estao corretas, investigue o backend"</code>
-                  </div>
-                  <div style={{ marginBottom: 6 }}>
-                    <b style={{ color: 'var(--ink)' }}>Refatorar codigo:</b><br />
-                    <code style={{ color: 'var(--accent)', fontSize: 10 }}>"Refatore o arquivo chat.py para usar async/await em todas as chamadas HTTP"</code>
-                  </div>
-                  <div style={{ marginBottom: 6 }}>
-                    <b style={{ color: 'var(--ink)' }}>Explicar codigo:</b><br />
-                    <code style={{ color: 'var(--accent)', fontSize: 10 }}>"Explique o que faz a funcao run_lifecycle no lifecycle.py"</code>
-                  </div>
-                  <div style={{ marginBottom: 6 }}>
-                    <b style={{ color: 'var(--ink)' }}>Deploy:</b><br />
-                    <code style={{ color: 'var(--accent)', fontSize: 10 }}>"Configure o Docker Compose para rodar backend + frontend + banco SQLite"</code>
-                  </div>
-                </div>
-
-                {/* API do Sistema */}
-                <div style={{ fontWeight: 700, fontSize: 12, color: 'var(--cyan)', marginTop: 14, marginBottom: 6 }}>
-                  APIs DO SISTEMA
-                </div>
-                {[
-                  ['POST /cron', 'Criar tarefa agendada (ex: "verificar estoque a cada hora")'],
-                  ['GET /cron', 'Listar tarefas agendadas ativas'],
-                  ['POST /cron/{id}/run', 'Executar uma tarefa agendada agora'],
-                  ['POST /triggers', 'Criar trigger em tabela do banco (executa acao quando dados mudam)'],
-                  ['GET /triggers', 'Listar triggers ativos'],
-                  ['GET /secrets', 'Listar variaveis de ambiente (.env)'],
-                  ['POST /secrets', 'Adicionar/editar chave de API'],
-                  ['GET /secrets/validate', 'Ver quais provedores estao configurados'],
-                  ['GET /logs', 'Ler logs com filtros (nivel, data, texto)'],
-                  ['GET /logs/stats', 'Estatisticas: erros recentes, contagem por nivel'],
-                ].map(([cmd, desc]) => (
-                  <div key={cmd} style={{ marginBottom: 3, display: 'flex', gap: 8 }}>
-                    <code style={{ color: 'var(--yellow, #ffc107)', fontFamily: 'monospace', fontSize: 10, minWidth: 150, whiteSpace: 'nowrap' }}>{cmd}</code>
-                    <span style={{ color: 'var(--muted)', fontSize: 11 }}>{desc}</span>
-                  </div>
-                ))}
-
-                {/* Configuracao Inicial */}
-                <div style={{ fontWeight: 700, fontSize: 12, color: 'var(--cyan)', marginTop: 14, marginBottom: 6 }}>
-                  CONFIGURACAO INICIAL
-                </div>
-                <div style={{ fontSize: 11, color: 'var(--muted)', lineHeight: 1.6 }}>
-                  <div style={{ marginBottom: 4 }}>{'\u2460'} Rode <code style={{ color: 'var(--accent)' }}>START-TOTAL.bat</code> para iniciar backend + frontend</div>
-                  <div style={{ marginBottom: 4 }}>{'\u2461'} Acesse <code style={{ color: 'var(--accent)' }}>http://localhost:5175</code></div>
-                  <div style={{ marginBottom: 4 }}>{'\u2462'} Va em <b style={{ color: 'var(--ink)' }}>Config</b> e configure pelo menos 1 provedor (Groq e gratuito)</div>
-                  <div style={{ marginBottom: 4 }}>{'\u2463'} Abra o chat e teste: "ola, tudo bem?"</div>
-                  <div style={{ marginBottom: 4 }}>{'\u2464'} Para voz, clique no microfone e permita acesso ao microfone</div>
-                  <div style={{ marginBottom: 4 }}>{'\u2465'} Explore as tabs: Conhecimento, Memoria, Agentes, Arquitetura</div>
-                </div>
+                  return sections.map(s => (
+                    <div key={s.key} style={{ marginBottom: 2 }}>
+                      <div
+                        onClick={() => toggleHelpSection(s.key)}
+                        style={{
+                          fontWeight: 700, fontSize: 11, color: s.color,
+                          cursor: 'pointer', padding: '4px 0', display: 'flex',
+                          alignItems: 'center', gap: 6, userSelect: 'none',
+                        }}
+                      >
+                        <span style={{ fontSize: 8, transition: 'transform 0.2s', transform: helpSections[s.key] ? 'rotate(90deg)' : 'rotate(0deg)' }}>{'\u25B6'}</span>
+                        {s.title}
+                      </div>
+                      {helpSections[s.key] && (
+                        <div style={{ paddingLeft: 12, paddingBottom: 4 }}>
+                          {s.items}
+                        </div>
+                      )}
+                    </div>
+                  ));
+                })()}
 
                 <div
                   style={{
@@ -1857,7 +1799,7 @@ export default function App() {
                   }}
                 >
                   <div style={{ marginBottom: 4 }}>
-                    <b style={{ color: 'var(--ink)' }}>DEEP-AUREA v2.2</b> — Agent OS
+                    <b style={{ color: 'var(--ink)' }}>DEEP-OS v1.0</b> — Agent OS
                   </div>
                   <div>Desenvolvedor: Wilson Barbosa Coimbra</div>
                   <div>Copyright \u00a9 Empresa: WBC 2026</div>
@@ -1866,7 +1808,7 @@ export default function App() {
             )}
           </div>
           <span style={{ fontSize: 10, color: 'var(--quiet)', letterSpacing: '1px' }}>
-            AGENT OS v2.2
+            AGENT OS v1.0
           </span>
         </div>
       </div>
@@ -1883,44 +1825,28 @@ export default function App() {
           flexShrink: 0,
         }}
       >
-        {/* Navigation tabs */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0', padding: '0 4px' }}>
-          {[
-            { id: 'generate' as Page, icon: '>', label: 'Gerar' },
-            { id: 'knowledge' as Page, icon: '#', label: 'Conhecimento' },
-            { id: 'memory' as Page, icon: '@', label: 'Memoria' },
-            { id: 'agents' as Page, icon: '&', label: 'Agentes' },
-            { id: 'architecture' as Page, icon: '\u25C8', label: 'Arquitetura' },
-            { id: 'mcp' as Page, icon: '~', label: 'MCP' },
-            { id: 'monitor' as Page, icon: '>', label: 'Monitor' },
-            { id: 'settings' as Page, icon: '~', label: 'Config' },
-          ].map((it) => {
-            const active = view === 'page' && page === it.id;
-            return (
-              <button
-                key={it.id}
-                onClick={() => {
-                  setPage(it.id);
-                  setView('page');
-                  playSound('click_menu');
-                }}
-                style={{
-                  padding: '6px 12px',
-                  fontSize: '11px',
-                  fontWeight: 600,
-                  border: 'none',
-                  cursor: 'pointer',
-                  borderRadius: '3px',
-                  background: active ? 'var(--accent)' : 'transparent',
-                  color: active ? 'var(--selection-fg)' : 'var(--cyan)',
-                  fontFamily: 'inherit',
-                  transition: 'all 0.15s',
-                }}
-              >
-                {it.icon} {it.label}
-              </button>
-            );
-          })}
+        {/* Config button - opens modal */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0', padding: '0 4px', order: -1 }}>
+          <button
+            onClick={() => setConfigModalOpen(true)}
+            style={{
+              padding: '6px 14px',
+              fontSize: '11px',
+              fontWeight: 600,
+              border: '1px solid var(--line)',
+              cursor: 'pointer',
+              borderRadius: '4px',
+              background: 'var(--bg-2)',
+              color: 'var(--cyan)',
+              fontFamily: 'inherit',
+              transition: 'all 0.15s',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6,
+            }}
+          >
+            <span>\u2699</span> Config
+          </button>
         </div>
 
         {/* Music Player */}
@@ -1939,37 +1865,13 @@ export default function App() {
             </svg>
           </button>
           <button
-            onClick={() => setTermOpen(!termOpen)}
-            style={{ background: 'none', border: 'none', color: termOpen ? 'var(--accent)' : 'var(--muted)', cursor: 'pointer', padding: '4px 6px', fontSize: '12px' }}
-            title="Toggle Terminal"
-          >
-            <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
-              <rect x="1" y="1" width="14" height="14" rx="2" fill="none" stroke="currentColor" strokeWidth="1.2"/>
-              <path d="M4 6L7 8.5L4 11" fill="none" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/>
-              <line x1="9" y1="11" x2="12" y2="11" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/>
-            </svg>
-          </button>
-          <button
-            onClick={() => setChatW(chatW > 0 ? 0 : 480)}
-            style={{ background: 'none', border: 'none', color: chatW > 0 ? 'var(--accent)' : 'var(--muted)', cursor: 'pointer', padding: '4px 6px', fontSize: '12px' }}
-            title="Toggle Chat"
+            onClick={() => setCharonPanel(!charonPanel)}
+            style={{ background: 'none', border: 'none', color: charonPanel ? 'var(--accent)' : 'var(--muted)', cursor: 'pointer', padding: '4px 6px', fontSize: '12px' }}
+            title="Toggle Charon"
           >
             <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
               <rect x="1" y="2" width="9" height="12" rx="2" fill="none" stroke="currentColor" strokeWidth="1.2"/>
               <rect x="11" y="4" width="4" height="8" rx="1" fill="none" stroke="currentColor" strokeWidth="1.2"/>
-            </svg>
-          </button>
-          <button
-            onClick={() => setProcessW(processW > 0 ? 0 : 200)}
-            style={{ background: 'none', border: 'none', color: processW > 0 ? 'var(--accent)' : 'var(--muted)', cursor: 'pointer', padding: '4px 6px', fontSize: '12px' }}
-            title="Toggle Processos"
-          >
-            <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
-              <rect x="2" y="2" width="12" height="12" rx="1" fill="none" stroke="currentColor" strokeWidth="1.2"/>
-              <line x1="2" y1="5" x2="14" y2="5" stroke="currentColor" strokeWidth="1"/>
-              <line x1="5" y1="5" x2="5" y2="14" stroke="currentColor" strokeWidth="1"/>
-              <circle cx="8" cy="9" r="1.5" fill="currentColor"/>
-              <circle cx="11" cy="9" r="1" fill="currentColor" opacity="0.5"/>
             </svg>
           </button>
           <div style={{ width: 1, height: 20, background: 'var(--line)', margin: '0 6px' }} />
@@ -2042,254 +1944,16 @@ export default function App() {
 
         {DragH('h', drag('exp'))}
 
-        {/* CENTER + RIGHT */}
+        {/* CHAT — takes remaining space */}
         <div
           style={{
             flex: 1,
-            display: 'flex',
-            flexDirection: 'column',
-            overflow: 'hidden',
             minWidth: 0,
-          }}
-        >
-          {/* EDITOR */}
-          <div
-            style={{
-              flex: 1,
-              display: 'flex',
-              flexDirection: 'column',
-              background: 'var(--bg-editor)',
-              overflow: 'hidden',
-              minHeight: 0,
-            }}
-          >
-            <div
-              style={{
-                display: 'flex',
-                borderBottom: '1px solid var(--line)',
-                background: 'var(--bg)',
-                minHeight: '36px',
-                flexShrink: 0,
-                overflow: 'hidden',
-              }}
-            >
-              <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
-                {tabs.map((tab) => {
-                  const active = view === 'file' && activeTab === tab.id;
-                  return (
-                    <div
-                      key={tab.id}
-                      onClick={() => {
-                        setActiveTab(tab.id);
-                        setView('file');
-                      }}
-                      style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        padding: '6px 12px',
-                        cursor: 'pointer',
-                        minWidth: 90,
-                        maxWidth: 180,
-                        borderRight: '1px solid var(--line)',
-                        background: active ? 'var(--bg-active)' : 'transparent',
-                        borderBottom: active ? '2px solid var(--accent)' : '2px solid transparent',
-                      }}
-                    >
-                      <span
-                        style={{
-                          fontSize: '11px',
-                          color: active ? 'var(--ink)' : 'var(--muted)',
-                          overflow: 'hidden',
-                          textOverflow: 'ellipsis',
-                          whiteSpace: 'nowrap',
-                          flex: 1,
-                          fontWeight: 600,
-                          fontFamily: 'inherit',
-                        }}
-                      >
-                        {tab.name}
-                      </span>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          closeTab(tab.id);
-                        }}
-                        style={{
-                          background: 'none',
-                          border: 'none',
-                          color: 'var(--muted)',
-                          cursor: 'pointer',
-                          fontSize: '12px',
-                          marginLeft: '6px',
-                          padding: '1px',
-                          lineHeight: 1,
-                          flexShrink: 0,
-                          fontFamily: 'inherit',
-                        }}
-                      >
-                        ✕
-                      </button>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-            <div
-              style={{
-                flex: 1,
-                overflow: 'hidden',
-                display: 'flex',
-                flexDirection: 'column',
-                minHeight: 0,
-              }}
-            >
-              {view === 'file' && curTab ? (
-                <EditorPanel
-                  tabs={tabs}
-                  curTab={activeTab}
-                  setCurTab={(id) => {
-                    setActiveTab(id);
-                    setView('file');
-                  }}
-                  closeTab={closeTab}
-                  setTabContent={setTabContent}
-                  saveFile={saveFile}
-                />
-              ) : (
-                <ErrorBoundary>
-                  <PageRenderer
-                    page={page}
-                    prov={prov}
-                    setProv={setProv}
-                    model={model}
-                    setModel={setModel}
-                    mood={mood}
-                    setMood={setMood}
-                    temp={temp}
-                    setTemp={setTemp}
-                    sysPr={sysPr}
-                    setSysPr={setSysPr}
-                    snd={snd}
-                    setSnd={setSnd}
-                    bright={bright}
-                    setBright={setBright}
-                    fsize={fsize}
-                    setFsize={setFsize}
-                    apiKey={apiKey}
-                    setApiKey={setApiKey}
-                    orApiKey={orApiKey}
-                    setOrApiKey={setOrApiKey}
-                    groqApiKey={groqApiKey}
-                    setGroqApiKey={setGroqApiKey}
-                    openaiApiKey={openaiApiKey}
-                    setOpenaiApiKey={setOpenaiApiKey}
-                    geminiApiKey={geminiApiKey}
-                    setGeminiApiKey={setGeminiApiKey}
-                    mimoApiKey={mimoApiKey}
-                    setMimoApiKey={setMimoApiKey}
-                    nvidiaApiKey={nvidiaApiKey}
-                    setNvidiaApiKey={setNvidiaApiKey}
-                    oModels={oModels}
-                    orModels={orModels}
-                    llamacppModels={llamacppModels}
-                    customM={customM}
-                    setCustomM={setCustomM}
-                    showCust={showCust}
-                    setShowCust={setShowCust}
-                    voicePreset={voicePreset}
-                    setVoicePreset={setVoicePreset}
-                    jarvisRate={jarvisRate}
-                    setJarvisRate={setJarvisRate}
-                    voicePitch={voicePitch}
-                    setVoicePitch={setVoicePitch}
-                    deepSilenceSec={deepSilenceSec}
-                    setDeepSilenceSec={setDeepSilenceSec}
-                    ollSt={ollSt}
-                    knows={knows}
-                    setKnows={setKnows}
-                    expRoot={expRoot}
-                    accentTheme={accentTheme}
-                    setAccentTheme={setAccentTheme}
-                    gpuEnabled={gpuEnabled}
-                    setGpuEnabled={setGpuEnabled}
-                    checklistSteps={checklistSteps}
-                    loading={loading}
-                    thinking={thinking}
-                    thinkOn={thinkOn}
-                    thinkOpen={thinkOpen}
-                    setThinkOpen={setThinkOpen}
-                    toolLogs={toolLogs}
-                  />
-                </ErrorBoundary>
-              )}
-            </div>
-          </div>
-
-          {/* TERMINAL DRAG */}
-          <div
-            onMouseDown={drag('term')}
-            onClick={() => !termOpen && setTermOpen(true)}
-            style={{
-              height: termOpen ? 4 : 20,
-              flexShrink: 0,
-              background: termOpen ? 'var(--line)' : 'transparent',
-              cursor: 'row-resize',
-              position: 'relative',
-              zIndex: 20,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-            }}
-            onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--accent-line)')}
-            onMouseLeave={(e) =>
-              (e.currentTarget.style.background = termOpen ? 'var(--line)' : 'transparent')
-            }
-          >
-            {!termOpen && (
-              <span style={{ fontSize: 10, color: 'var(--muted)', letterSpacing: 1, userSelect: 'none' }}>
-                ⌨ ABRIR TERMINAL
-              </span>
-            )}
-          </div>
-
-          {termOpen && (
-            <div
-              style={{
-                height: termH,
-                flexShrink: 0,
-                display: 'flex',
-                flexDirection: 'column',
-                overflow: 'hidden',
-              }}
-            >
-              <TerminalPanel termOpen={termOpen} setTermOpen={setTermOpen} expRoot={expRoot} />
-            </div>
-          )}
-        </div>
-
-        {DragH('h', drag('chat'))}
-
-        {/* CHAT — wrapped for height control */}
-        <div
-          style={{
-            width: chatW,
-            minWidth: 280,
-            flexShrink: 0,
-            height: chatH > 0 ? chatH : undefined,
-            alignSelf: chatH > 0 ? 'flex-end' : undefined,
             display: 'flex',
             flexDirection: 'column',
-            borderLeft: '1px solid var(--line)',
-            background: 'var(--bg)',
             overflow: 'hidden',
           }}
         >
-          {/* CHAT HEIGHT DRAG — top edge, drag upward to expand (terminal-style) */}
-          <div className="drag-handle-chat-h" onMouseDown={drag('chat-h')}>
-            <span className="grip-dot" />
-            <span className="grip-dot" />
-            <span className="grip-dot" />
-          </div>
           <ChatPanel
             msgs={msgs}
             input={input}
@@ -2326,59 +1990,49 @@ export default function App() {
             onApproveTool={handleApproveTool}
             onRejectTool={handleRejectTool}
             checklistSteps={checklistSteps}
+            assistantName={assistantName}
           />
         </div>
 
-        {DragH('h', drag('process'))}
+        {/* DRAG HANDLE - Chat/Charon */}
+        {charonPanel && (
+          <div
+            onMouseDown={drag('chat-charon')}
+            className="drag-handle-h"
+          />
+        )}
 
-        {/* PROCESSOS / WBC */}
-        <div
-          style={{
-            width: processW,
-            flexShrink: 0,
-            display: 'flex',
-            flexDirection: 'column',
-            borderLeft: '1px solid var(--line)',
-            background: 'var(--bg)',
-            overflow: 'hidden',
-            minHeight: 0,
-          }}
-        >
-          {charonPanel ? (
+        {/* CHARON PANEL (right side) */}
+        {charonPanel && (
+          <div
+            style={{
+              width: chatW,
+              flexShrink: 0,
+              display: 'flex',
+              flexDirection: 'column',
+              borderLeft: '1px solid var(--line)',
+              background: 'var(--bg)',
+              overflow: 'hidden',
+              minHeight: 0,
+            }}
+          >
             <CharonPanel
               visible={charonPanel}
-<<<<<<< HEAD
-              onClose={() => setCharonPanel(false)}
-=======
               onClose={() => {
-                // Só permite fechar quando Charon NÃO está ativo
                 if (!charonActive) {
                   setCharonPanel(false);
                 }
               }}
->>>>>>> d436640 (v2.0: GGUF auto-detection, GPU support, vision, thinking panel, monitor fix, portability scripts)
               transcripts={charonTranscripts}
-              voiceName="Charon"
+              voiceName={voiceName}
               voiceStatus={charonVoiceStatus}
               onSendText={(text) => {
                 setCharonTranscripts(prev => [...prev, { speaker: 'user', text, time: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) }]);
                 charonSendTextRef.current?.(text);
               }}
             />
-          ) : (
-            <ProcessPanel
-              loading={loading}
-              stream={stream}
-              thinking={thinking}
-              thinkOn={thinkOn}
-              toolLogs={toolLogs}
-              model={model}
-              prov={prov}
-              thinkingLog={[]}
-              showThoughts={false}
-            />
-          )}
-        </div>
+          </div>
+        )}
       </div>
 
       {/* STATUS BAR */}
@@ -2393,10 +2047,8 @@ export default function App() {
         setThinkOpen={setThinkOpen}
         charonPanel={charonPanel}
         setCharonPanel={setCharonPanel}
-<<<<<<< HEAD
-=======
         charonActive={charonActive}
->>>>>>> d436640 (v2.0: GGUF auto-detection, GPU support, vision, thinking panel, monitor fix, portability scripts)
+        voiceName={voiceName}
         onCharonActive={setCharonActive}
         onCharonVoiceStatus={setCharonVoiceStatus}
         onCharonToolResult={handleCharonToolResult}
@@ -2422,6 +2074,55 @@ export default function App() {
           onCancel={handleMediaCancel}
         />
       )}
+
+      {/* Config Modal */}
+      <ConfigModal
+        open={configModalOpen}
+        onClose={() => setConfigModalOpen(false)}
+        prov={prov}
+        model={model}
+        apiKey={apiKey}
+        orApiKey={orApiKey}
+        knows={knows}
+        setKnows={setKnows}
+        mood={mood} setMood={setMood}
+        temp={temp} setTemp={setTemp}
+        sysPr={sysPr} setSysPr={setSysPr}
+        snd={snd} setSnd={setSnd}
+        bright={bright} setBright={setBright}
+        fsize={fsize} setFsize={setFsize}
+        geminiApiKey={geminiApiKey} setGeminiApiKey={setGeminiApiKey}
+        mimoApiKey={mimoApiKey} setMimoApiKey={setMimoApiKey}
+        nvidiaApiKey={nvidiaApiKey} setNvidiaApiKey={setNvidiaApiKey}
+        voicePreset={voicePreset} setVoicePreset={setVoicePreset}
+        jarvisRate={jarvisRate} setJarvisRate={setJarvisRate}
+        voicePitch={voicePitch} setVoicePitch={setVoicePitch}
+        accentTheme={accentTheme} setAccentTheme={setAccentTheme}
+        customColor={customColor} setCustomColor={setCustomColor}
+        assistantName={assistantName} setAssistantName={setAssistantName}
+        userName={userName} setUserName={setUserName}
+        voiceName={voiceName} setVoiceName={setVoiceName}
+        gpuEnabled={gpuEnabled} setGpuEnabled={setGpuEnabled}
+        charonFullTools={charonFullTools} setCharonFullTools={setCharonFullTools}
+        ollSt={ollSt}
+        oModels={oModels}
+        orModels={orModels}
+        llamacppModels={llamacppModels}
+        customM={customM} setCustomM={setCustomM}
+        showCust={showCust} setShowCust={setShowCust}
+        expRoot={expRoot}
+        groqApiKey={groqApiKey} setGroqApiKey={setGroqApiKey}
+        openaiApiKey={openaiApiKey} setOpenaiApiKey={setOpenaiApiKey}
+        deepSilenceSec={deepSilenceSec} setDeepSilenceSec={setDeepSilenceSec}
+        loading={loading}
+        thinking={thinking}
+        thinkOn={thinkOn}
+        thinkOpen={thinkOpen}
+        setThinkOpen={setThinkOpen}
+        toolLogs={toolLogs}
+        termOpen={termOpen}
+        setTermOpen={setTermOpen}
+      />
     </div>
   );
 }

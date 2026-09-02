@@ -1,5 +1,5 @@
 """
-DEEP-AUREA Toolset System
+DEEP-OS Toolset System
 ==========================
 Adapted from Hermes Agent's toolset composition system.
 

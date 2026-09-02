@@ -1,5 +1,5 @@
 """
-DEEP-AUREA — Lifecycle State Machine
+DEEP-OS — Lifecycle State Machine
 ========================================
 Finite state machine for the LLM agent execution cycle.
 
@@ -351,7 +351,7 @@ def extract_observation(tool_result: Any) -> str:
 
 def log_transition(from_state: State, to_state: State, detail: str = "", step: int = 0):
     _log.info(
-        "[DEEP-AUREA] Transição: %s -> %s %s%s",
+        "[DEEP-OS] Transição: %s -> %s %s%s",
         from_state.value,
         to_state.value,
         f"(passo {step})" if step else "",

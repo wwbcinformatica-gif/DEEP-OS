@@ -1,4 +1,4 @@
-# DEEP-AUREA — Completed Features & Patterns
+# DEEP-OS — Completed Features & Patterns
 _Extracted from MEMORY.md §Discovered durable knowledge. Completed implementation patterns no longer in active development._
 
 ## Completed Feature Patterns

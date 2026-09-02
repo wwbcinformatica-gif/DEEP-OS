@@ -19,7 +19,7 @@ type VoicePreset =
   | 'eleven-ingmar'
   | 'dani-brandi';
 
-type Tab = 'geral' | 'aparencia' | 'voz' | 'agente' | 'dev';
+type Tab = 'geral' | 'aparencia' | 'dev';
 
 interface Props {
   prov: Provider;
@@ -70,8 +70,18 @@ interface Props {
   ollSt: { running: boolean; models: string[] } | undefined;
   accentTheme: AccentTheme;
   setAccentTheme: (v: AccentTheme) => void;
+  customColor: string;
+  setCustomColor: (v: string) => void;
+  assistantName: string;
+  setAssistantName: (v: string) => void;
+  userName: string;
+  setUserName: (v: string) => void;
+  voiceName: string;
+  setVoiceName: (v: string) => void;
   gpuEnabled: boolean;
   setGpuEnabled: (v: boolean) => void;
+  charonFullTools: boolean;
+  setCharonFullTools: (v: boolean) => void;
 }
 
 const base: React.CSSProperties = {
@@ -113,8 +123,6 @@ function btnStyle(c: string, b?: string): React.CSSProperties {
 const TABS: { key: Tab; label: string }[] = [
   { key: 'geral', label: 'Geral' },
   { key: 'aparencia', label: 'Aparencia' },
-  { key: 'voz', label: 'Voz' },
-  { key: 'agente', label: 'Agente' },
   { key: 'dev', label: 'Dev' },
 ];
 
@@ -141,13 +149,12 @@ export default function SettingsPage(props: Props) {
     sysPr, setSysPr, snd, setSnd, bright, setBright, fsize, setFsize,
     apiKey, setApiKey, orApiKey, setOrApiKey, groqApiKey, setGroqApiKey,
     openaiApiKey, setOpenaiApiKey, geminiApiKey, setGeminiApiKey,
-<<<<<<< HEAD
-    mimoApiKey, setMimoApiKey, oModels, orModels, llamacppModels, customM, setCustomM,
-=======
     mimoApiKey, setMimoApiKey, nvidiaApiKey, setNvidiaApiKey, oModels, orModels, llamacppModels, customM, setCustomM,
->>>>>>> d436640 (v2.0: GGUF auto-detection, GPU support, vision, thinking panel, monitor fix, portability scripts)
     showCust, setShowCust, voicePreset, setVoicePreset, jarvisRate, setJarvisRate,
-    voicePitch, setVoicePitch, deepSilenceSec, setDeepSilenceSec, accentTheme, setAccentTheme, gpuEnabled, setGpuEnabled,
+    voicePitch, setVoicePitch, deepSilenceSec, setDeepSilenceSec, accentTheme, setAccentTheme,
+    customColor, setCustomColor, assistantName, setAssistantName, userName, setUserName,
+    voiceName, setVoiceName,
+    gpuEnabled, setGpuEnabled, charonFullTools, setCharonFullTools,
   } = props;
   const [toast, setToast] = useState('');
   const [activeTab, setActiveTab] = useState<Tab>('geral');
@@ -180,6 +187,7 @@ export default function SettingsPage(props: Props) {
       if (saved.showToolCalls !== undefined) setShowToolCalls(saved.showToolCalls);
       if (saved.compactMode !== undefined) setCompactMode(saved.compactMode);
       if (saved.language) setLanguage(saved.language);
+      if (saved.charonFullTools !== undefined) setCharonFullTools(saved.charonFullTools);
     } catch {}
     fetch(`${API_BASE}/api/config`)
       .then((r) => (r.ok ? r.json() : null))
@@ -222,8 +230,8 @@ export default function SettingsPage(props: Props) {
   const Toggle = ({ value, onChange, label }: { value: boolean; onChange: () => void; label: string }) => (
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '4px 0' }}>
       <span style={s({ fontSize: '11px' })}>{label}</span>
-      <div onClick={onChange} style={{ width: 34, height: 18, borderRadius: 3, cursor: 'pointer', position: 'relative', background: value ? 'var(--accent)' : 'var(--line-strong)', flexShrink: 0 }}>
-        <div style={{ width: 14, height: 14, borderRadius: 2, background: 'var(--muted)', position: 'absolute', top: 2, left: value ? 18 : 2, transition: 'left 0.2s' }} />
+      <div onClick={onChange} style={{ width: 34, height: 18, borderRadius: 9, cursor: 'pointer', position: 'relative', background: value ? 'var(--accent)' : 'var(--bg-3)', border: '1px solid var(--line-strong)', flexShrink: 0, transition: 'background 0.2s' }}>
+        <div style={{ width: 12, height: 12, borderRadius: '50%', background: value ? 'var(--bg-2)' : 'var(--quiet)', position: 'absolute', top: 2, left: value ? 18 : 3, transition: 'all 0.2s', boxShadow: '0 1px 2px rgba(0,0,0,0.3)' }} />
       </div>
     </div>
   );
@@ -231,18 +239,22 @@ export default function SettingsPage(props: Props) {
   const handleSave = async () => {
     localStorage.setItem(SETTINGS_KEY, JSON.stringify({
       prov, model, mood, temp, sysPr, snd, bright, fsize, voicePreset, jarvisRate, voicePitch,
-      apiKey, orApiKey, geminiApiKey, mimoApiKey, accentTheme, maxTurns, maxToolSteps, toolset,
-      imageInputMode, serverPort, serverHost, shell, watcherIgnore, showReasoning, showToolCalls,
-      compactMode, language,
+      apiKey, orApiKey, geminiApiKey, mimoApiKey, accentTheme, customColor, assistantName, userName, voiceName,
+      maxTurns, maxToolSteps, toolset, imageInputMode, serverPort, serverHost, shell, watcherIgnore,
+      showReasoning, showToolCalls, compactMode, language, charonFullTools,
     }));
     fetch(`${API_BASE}/api/config/accent-theme`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ theme: accentTheme }) }).catch(() => {});
+    fetch(`${API_BASE}/api/config/identity`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ assistant_name: assistantName, user_name: userName, custom_color: accentTheme === 'custom' ? customColor : '', voice: voiceName }) }).catch(() => {});
+    // Forca reconexao do Charon para usar novo identity
+    fetch(`${API_BASE}/voice/disconnect-all`, { method: 'POST' }).catch(() => {});
     fetch(`${API_BASE}/api/config`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ section: 'agent', values: { max_turns: maxTurns, max_tool_steps: maxToolSteps, toolset, image_input_mode: imageInputMode, personality: mood, system_prompt: sysPr || '' } }) }).catch(() => {});
     fetch(`${API_BASE}/api/config`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ section: 'display', values: { accent_theme: accentTheme, compact: compactMode, language, show_reasoning: showReasoning, show_tool_calls: showToolCalls, streaming: true } }) }).catch(() => {});
     fetch(`${API_BASE}/api/config`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ section: 'terminal', values: { backend: shell, cwd: '.', timeout: 600, allowed_commands: ['ls','dir','cat','type','echo','pwd','cd','mkdir','copy','move','del','git','npm','node','python','pip','curl','find','grep','rg','ollama'] } }) }).catch(() => {});
+    fetch(`${API_BASE}/api/config`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ section: 'voice', values: { charon_toolset: charonFullTools ? 'full' : 'basic' } }) }).catch(() => {});
     fetch(`${API_BASE}/api/config`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ section: 'server', values: { port: serverPort, hostname: serverHost } }) }).catch(() => {});
     fetch(`${API_BASE}/api/config`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ section: 'watcher', values: { ignore: watcherIgnore.split(',').map(s => s.trim()).filter(Boolean) } }) }).catch(() => {});
-    setToast('Configuracoes salvas!');
-    setTimeout(() => setToast(''), 2000);
+    setToast('Salvo! Clique em Charon para reconectar com novo nome.');
+    setTimeout(() => setToast(''), 3000);
   };
 
   return (
@@ -422,115 +434,23 @@ export default function SettingsPage(props: Props) {
             <Toggle value={gpuEnabled} onChange={() => setGpuEnabled(!gpuEnabled)} label={gpuEnabled ? 'GPU ativada (RTX 3060)' : 'GPU desativada'} />
           </div>
           <div style={card}>
+            <h3 style={h3}>Charon Tools</h3>
+            <select 
+              value={charonFullTools} 
+              onChange={(e) => setCharonFullTools(e.target.value)}
+              style={{ width: '100%', padding: '8px', borderRadius: 6, border: '1px solid var(--line-strong)', background: 'var(--bg-3)', color: 'var(--ink)' }}
+            >
+              <option value="basic">Estabilidade Minima (19 tools)</option>
+              <option value="medium">Equilibrio (22 tools) - Recomendado</option>
+              <option value="full">Completa (25 tools)</option>
+            </select>
+            <span style={{ fontSize: 9, color: 'var(--muted)', marginTop: 4, display: 'block' }}>
+              Basico: mais estavel | Equilibrio: recomendado | Completa: todas as tools
+            </span>
+          </div>
+          <div style={card}>
             <h3 style={h3}>Seguranca</h3>
             <SecurityToggle />
-          </div>
-        </div>
-      )}
-
-      {/* ── VOZ ── */}
-      {activeTab === 'voz' && (
-        <div style={{ maxWidth: 500 }}>
-          <div style={card}>
-            <h3 style={h3}>Voz</h3>
-            <p style={labelStyle}>Selecione uma voz em pt-BR para leitura</p>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginBottom: '12px' }}>
-              <div style={{ display: 'flex', gap: '6px' }}>
-                {[
-                  { key: 'google-female' as const, label: 'Natural' },
-                  { key: 'jarvis-cinematic' as const, label: 'Jarvis' },
-                  { key: 'google-male' as const, label: 'Masculina' },
-                ].map((v) => (
-                  <button key={v.key} onClick={() => setVoicePreset(v.key)} style={{ flex: 1, padding: '8px 10px', borderRadius: 6, border: voicePreset === v.key ? '1px solid var(--accent)' : '1px solid var(--line-strong)', background: voicePreset === v.key ? 'var(--accent)' : 'transparent', color: voicePreset === v.key ? 'var(--selection-fg)' : 'var(--muted)', cursor: 'pointer', fontSize: '11px', fontWeight: 600 }}>
-                    {v.label}
-                  </button>
-                ))}
-              </div>
-              <p style={{ ...s({ fontSize: '9px', color: 'var(--quiet)', margin: 0 }) }}>Edge TTS (streaming):</p>
-              <div style={{ display: 'flex', gap: '6px' }}>
-                {[
-                  { key: 'edge-francisca' as const, label: 'Francisca' },
-                  { key: 'edge-thalita' as const, label: 'Thalita' },
-                ].map((v) => (
-                  <button key={v.key} onClick={() => setVoicePreset(v.key)} style={{ flex: 1, padding: '6px 8px', borderRadius: 6, border: voicePreset === v.key ? '1px solid var(--accent)' : '1px solid var(--line-strong)', background: voicePreset === v.key ? 'var(--accent)' : 'transparent', color: voicePreset === v.key ? 'var(--selection-fg)' : 'var(--muted)', cursor: 'pointer', fontSize: '11px' }}>
-                    {v.label}
-                  </button>
-                ))}
-              </div>
-              <p style={{ ...s({ fontSize: '9px', color: 'var(--quiet)', margin: 0 }) }}>Google Natural:</p>
-              <div style={{ display: 'flex', gap: '6px' }}>
-                {[
-                  { key: 'dani-brandi' as const, label: 'Dani Brandi' },
-                ].map((v) => (
-                  <button key={v.key} onClick={() => setVoicePreset(v.key)} style={{ flex: 1, padding: '6px 8px', borderRadius: 6, border: voicePreset === v.key ? '1px solid var(--accent)' : '1px solid var(--line-strong)', background: voicePreset === v.key ? 'var(--accent)' : 'transparent', color: voicePreset === v.key ? 'var(--selection-fg)' : 'var(--muted)', cursor: 'pointer', fontSize: '11px' }}>
-                    {v.label}
-                  </button>
-                ))}
-              </div>
-              <p style={{ ...s({ fontSize: '9px', color: 'var(--quiet)', margin: 0 }) }}>ElevenLabs (requer API key):</p>
-              <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
-                {[
-                  { key: 'eleven-natasha' as const, label: 'Natasha' },
-                  { key: 'eleven-serafina' as const, label: 'Serafina' },
-                  { key: 'eleven-ivy' as const, label: 'Ivy' },
-                  { key: 'eleven-ingmar' as const, label: 'Ingmar' },
-                ].map((v) => (
-                  <button key={v.key} onClick={() => setVoicePreset(v.key)} style={{ flex: '1 0 45%', padding: '6px 8px', borderRadius: 6, border: voicePreset === v.key ? '1px solid var(--accent)' : '1px solid var(--line-strong)', background: voicePreset === v.key ? 'var(--accent)' : 'transparent', color: voicePreset === v.key ? 'var(--selection-fg)' : 'var(--muted)', cursor: 'pointer', fontSize: '11px' }}>
-                    {v.label}
-                  </button>
-                ))}
-              </div>
-              <p style={{ ...s({ fontSize: '10px', color: 'var(--muted)', margin: 0 }) }}>{VOICE_OPTIONS.find((o) => o.key === voicePreset)?.desc}</p>
-            </div>
-            <div style={{ display: 'grid', gap: '10px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                <span style={{ ...s(), minWidth: '56px' }}>Velocidade</span>
-                <input type="range" min="0" max="100" value={jarvisRate} onChange={(e) => setJarvisRate(+e.target.value)} style={rangeStyle} />
-                <span style={s({ minWidth: '32px', textAlign: 'right' })}>{jarvisRate}%</span>
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                <span style={{ ...s(), minWidth: '56px' }}>Tom</span>
-                <input type="range" min="-50" max="50" value={voicePitch - 50} onChange={(e) => setVoicePitch(+e.target.value + 50)} style={rangeStyle} />
-                <span style={s({ minWidth: '32px', textAlign: 'right' })}>{voicePitch > 50 ? '+' : ''}{voicePitch - 50}</span>
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                <span style={{ ...s(), minWidth: '56px' }} title="Tempo de silêncio no modo Aurea antes de enviar o comando">Escuta</span>
-                <input type="range" min="2" max="15" value={deepSilenceSec} onChange={(e) => setDeepSilenceSec(+e.target.value)} style={rangeStyle} />
-                <span style={s({ minWidth: '32px', textAlign: 'right' })}>{deepSilenceSec}s</span>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ── AGENTE ── */}
-      {activeTab === 'agente' && (
-        <div style={{ ...grid2, maxWidth: 700 }}>
-          <div style={{ ...card, gridColumn: '1 / -1' }}>
-            <h3 style={h3}>Prompt Personalizado</h3>
-            <p style={labelStyle}>Instrucao extra enviada ao modelo</p>
-            <textarea value={sysPr} onChange={(e) => setSysPr(e.target.value)} rows={3} placeholder='ex: "Responda sempre em portugues..."' style={{ ...inputStyle(), width: '100%', resize: 'vertical', lineHeight: 1.5 }} />
-          </div>
-          <div style={card}>
-            <h3 style={h3}>Agente</h3>
-            <div style={labelStyle}>Max Turns</div>
-            <input type="number" min="1" max="200" value={maxTurns} onChange={(e) => setMaxTurns(+e.target.value)} style={inputStyle()} />
-            <div style={{ ...labelStyle, marginTop: '8px' }}>Max Tool Steps</div>
-            <input type="number" min="1" max="500" value={maxToolSteps} onChange={(e) => setMaxToolSteps(+e.target.value)} style={inputStyle()} />
-          </div>
-          <div style={card}>
-            <h3 style={h3}>Toolset</h3>
-            <select value={toolset} onChange={(e) => setToolset(e.target.value)} style={selectStyle}>
-              <option value="agent">Agent (completo)</option>
-              <option value="developer">Developer</option>
-              <option value="readonly">Read Only</option>
-              <option value="minimal">Minimal</option>
-            </select>
-            <div style={{ ...labelStyle, marginTop: '8px' }}>Image Input Mode</div>
-            <select value={imageInputMode} onChange={(e) => setImageInputMode(e.target.value)} style={selectStyle}>
-              <option value="text">Text (descrito)</option>
-              <option value="image">Image (base64)</option>
-            </select>
           </div>
         </div>
       )}

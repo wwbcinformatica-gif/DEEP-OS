@@ -76,7 +76,7 @@ tools=[types.Tool(google_search=types.GoogleSearch())]
 
 ### System Instruction Atualizada
 ```
-"Voce e o Charon, assistente de voz do Deep-Aurea. 
+"Voce e o Charon, assistente de voz do DEEP-OS. 
 Fale em portugues brasileiro. Seja direto e util. 
 Voce tem acesso ao Google Search — use para pesquisar 
 qualquer assunto quando pedido."
@@ -137,7 +137,7 @@ const interrupt = () => {
 ## Sessão 6 — 20 Ferramentas Implementadas (2026-08-12)
 
 ### O que foi feito
-Portadas todas as 20 ferramentas do WBC-Mark-L para o Charon do DEEP-AUREA.
+Portadas todas as 20 ferramentas do WBC-Mark-L para o Charon do DEEP-OS.
 
 ### Ferramentas (20 total)
 1. `open_app` — Abrir aplicativos
@@ -167,13 +167,8 @@ Portadas todas as 20 ferramentas do WBC-Mark-L para o Charon do DEEP-AUREA.
 - `sounddevice` — Para screen_processor
 
 ### Arquivos Criados/Modificados
-<<<<<<< HEAD
-- `G:\DEEP-AUREA\config.py` — NOVO — Helper de compatibilidade com actions
-- `G:\DEEP-AUREA\backend\routes\voice_ws.py` — REESCRITO — 20 TOOL_DECLARATIONS + _execute_tool + receive_loop com tool_call handler
-=======
-- `C:\DEEP-AUREA\config.py` — NOVO — Helper de compatibilidade com actions
-- `C:\DEEP-AUREA\backend\routes\voice_ws.py` — REESCRITO — 20 TOOL_DECLARATIONS + _execute_tool + receive_loop com tool_call handler
->>>>>>> d436640 (v2.0: GGUF auto-detection, GPU support, vision, thinking panel, monitor fix, portability scripts)
+- `C:\DEEP-OS\config.py` — NOVO — Helper de compatibilidade com actions
+- `C:\DEEP-OS\backend\routes\voice_ws.py` — REESCRITO — 20 TOOL_DECLARATIONS + _execute_tool + receive_loop com tool_call handler
 
 ### Como funciona
 1. Usuário fala via microfone

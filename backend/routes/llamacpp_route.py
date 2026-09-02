@@ -1,18 +1,12 @@
 import json
 import subprocess
 import os
-<<<<<<< HEAD
-import time
-from pathlib import Path
-
-=======
 import re
 import time
 from pathlib import Path
 from typing import Dict
 
 import yaml
->>>>>>> d436640 (v2.0: GGUF auto-detection, GPU support, vision, thinking panel, monitor fix, portability scripts)
 from fastapi import APIRouter
 from pydantic import BaseModel
 
@@ -24,43 +18,6 @@ LLAMA_SERVER_EXE = BASE_DIR / "bin" / "vulkan" / "llama-server.exe"
 LLAMA_SERVER_PORT = 8080
 
 MODELS_DIR = BASE_DIR / "models"
-<<<<<<< HEAD
-
-GGUF_MODELS = {
-    "bonsai-27b": {
-        "file": str(MODELS_DIR / "ternary-gguf" / "27B" / "Ternary-Bonsai-27B-Q2_0.gguf"),
-        "label": "Ternary-Bonsai 27B Q2_0",
-        "ctx": 32768,
-    },
-    "bonsai-27b-1bit": {
-        "file": str(MODELS_DIR / "gguf" / "Bonsai-27B-Q1_0.gguf"),
-        "label": "Ternary-Bonsai 27B Q1_0",
-        "ctx": 32768,
-    },
-    "bonsai-27b-dspark": {
-        "file": str(MODELS_DIR / "gguf" / "27B" / "Bonsai-27B-dspark-Q4_1.gguf"),
-        "label": "Ternary-Bonsai 27B dspark Q4_1",
-        "ctx": 32768,
-    },
-    "llama-3.2-3b-gguf": {
-        "file": str(MODELS_DIR / "gguf" / "Llama-3.2-3B-Instruct-Q4_K_M.gguf"),
-        "label": "Llama 3.2 3B Q4_K_M",
-        "ctx": 8192,
-    },
-    "nemomix-12b-gguf": {
-        "file": str(MODELS_DIR / "gguf" / "NemoMix-Unleashed-12B-Q4_K_M.gguf"),
-        "label": "NemoMix 12B Q4_K_M",
-        "ctx": 8192,
-    },
-    "qwen2.5-7b-gguf": {
-        "file": str(MODELS_DIR / "gguf" / "Qwen2.5-7B-Instruct-Q4_K_M.gguf"),
-        "label": "Qwen 2.5 7B Q4_K_M",
-        "ctx": 8192,
-    },
-}
-
-
-=======
 CONFIG_PATH = BASE_DIR / "backend" / "config.yaml"
 
 
@@ -197,7 +154,6 @@ def _scan_gguf_models() -> Dict[str, dict]:
 GGUF_MODELS = _scan_gguf_models()
 
 
->>>>>>> d436640 (v2.0: GGUF auto-detection, GPU support, vision, thinking panel, monitor fix, portability scripts)
 def _check_llama_server() -> dict:
     try:
         r = subprocess.run(
@@ -231,10 +187,7 @@ def _current_loaded_model() -> str | None:
 
 def _start_llama_server(model_id: str) -> dict:
     info = GGUF_MODELS[model_id]
-<<<<<<< HEAD
-=======
     gpu = _get_gpu_config()
->>>>>>> d436640 (v2.0: GGUF auto-detection, GPU support, vision, thinking panel, monitor fix, portability scripts)
     template_file = str(LLAMA_SERVER_EXE.parent.parent / "models" / "chat-template.txt")
     cmd = [
         str(LLAMA_SERVER_EXE),
@@ -243,15 +196,12 @@ def _start_llama_server(model_id: str) -> dict:
         "--ctx-size", str(info["ctx"]),
         "--host", "0.0.0.0",
     ]
-<<<<<<< HEAD
-=======
     # GPU: -ngl 999 = todos os layers na GPU, 0 = CPU only
     if gpu["gpu_enabled"]:
         cmd.extend(["--n-gpu-layers", str(gpu["gpu_layers"])])
     # Adicionar mmproj para suporte a visao (imagens)
     if info.get("mmproj") and Path(info["mmproj"]).exists():
         cmd.extend(["--mmproj", info["mmproj"]])
->>>>>>> d436640 (v2.0: GGUF auto-detection, GPU support, vision, thinking panel, monitor fix, portability scripts)
     if Path(template_file).exists():
         cmd.extend(["--chat-template", f"file://{template_file}"])
     else:
@@ -262,11 +212,7 @@ def _start_llama_server(model_id: str) -> dict:
         stderr=subprocess.DEVNULL,
         creationflags=subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0,
     )
-<<<<<<< HEAD
-    return {"status": "starting", "model": model_id, "port": LLAMA_SERVER_PORT}
-=======
     return {"status": "starting", "model": model_id, "port": LLAMA_SERVER_PORT, "vision": bool(info.get("mmproj")), "gpu": gpu["gpu_enabled"]}
->>>>>>> d436640 (v2.0: GGUF auto-detection, GPU support, vision, thinking panel, monitor fix, portability scripts)
 
 
 def ensure_llamacpp_model(model_id: str, max_wait: int = 60) -> dict:
@@ -322,12 +268,9 @@ async def llamacpp_status():
 
 @router.get("/llamacpp/models")
 async def llamacpp_models():
-<<<<<<< HEAD
-=======
     """Retorna todos os modelos GGUF detectados automaticamente na pasta models/."""
     global GGUF_MODELS
     GGUF_MODELS = _scan_gguf_models()  # re-escaneia sempre para pegar novos arquivos
->>>>>>> d436640 (v2.0: GGUF auto-detection, GPU support, vision, thinking panel, monitor fix, portability scripts)
     status = _check_llama_server()
     current = _current_loaded_model()
     result = []
@@ -337,10 +280,6 @@ async def llamacpp_models():
         result.append({
             "id": mid,
             "label": info["label"],
-<<<<<<< HEAD
-            "available": exists,
-            "loaded": loaded,
-=======
             "file": info["file"],
             "size_gb": info.get("size_gb", 0),
             "ctx": info["ctx"],
@@ -348,13 +287,10 @@ async def llamacpp_models():
             "loaded": loaded,
             "has_vision": info.get("has_vision", False),
             "mmproj": info.get("mmproj"),
->>>>>>> d436640 (v2.0: GGUF auto-detection, GPU support, vision, thinking panel, monitor fix, portability scripts)
         })
     return {"running": status["running"], "current_model": current, "models": result}
 
 
-<<<<<<< HEAD
-=======
 @router.post("/llamacpp/refresh")
 async def llamacpp_refresh():
     """Forca re-escaneamento da pasta de modelos."""
@@ -388,7 +324,6 @@ async def llamacpp_set_gpu(payload: GpuConfigPayload):
     return {"status": "ok", "gpu_enabled": payload.gpu_enabled, "gpu_layers": payload.gpu_layers}
 
 
->>>>>>> d436640 (v2.0: GGUF auto-detection, GPU support, vision, thinking panel, monitor fix, portability scripts)
 @router.post("/llamacpp/start")
 async def llamacpp_start(payload: StartGGUFPayload):
     return ensure_llamacpp_model(payload.model_id)
@@ -396,13 +331,6 @@ async def llamacpp_start(payload: StartGGUFPayload):
 
 @router.post("/llamacpp/stop")
 async def llamacpp_stop():
-<<<<<<< HEAD
-    subprocess.run(
-        ["taskkill", "/f", "/im", "llama-server.exe"],
-        capture_output=True,
-    )
-    return {"status": "stopped"}
-=======
     """Para o llama-server e todos os processos filhos."""
     import ctypes
     # Método 1: taskkill com tree kill
@@ -424,5 +352,4 @@ async def llamacpp_stop():
         except Exception:
             pass
     return {"status": "stopped", "detail": result.stdout.strip() or "ok"}
->>>>>>> d436640 (v2.0: GGUF auto-detection, GPU support, vision, thinking panel, monitor fix, portability scripts)
 

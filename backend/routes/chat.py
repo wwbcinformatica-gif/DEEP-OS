@@ -575,8 +575,53 @@ def _load_config_system_prompt() -> str:
         return ""
 
 
+_identity_cache = {}
+_identity_cache_time = 0
+
+def _load_identity() -> dict:
+    """Carrega identity do config.yaml com cache."""
+    global _identity_cache, _identity_cache_time
+    import time
+    now = time.time()
+    if _identity_cache and (now - _identity_cache_time) < 5:
+        return _identity_cache
+    try:
+        import yaml
+        from pathlib import Path
+        config_path = Path(__file__).resolve().parent.parent.parent / "config.yaml"
+        with open(config_path, encoding="utf-8") as f:
+            data = yaml.safe_load(f) or {}
+        result = data.get("identity", {})
+        _identity_cache = result
+        _identity_cache_time = now
+        return result
+    except Exception:
+        return {}
+
+
 def build_system_prompt(msg: Message) -> str:
+    identity = _load_identity()
+    assistant_name = identity.get("assistant_name", "DEEP-OS") or "DEEP-OS"
+    user_name = identity.get("user_name", "") or "usuario"
+    
+    # Identidade sempre vai no inicio - separada do instruction
+    identity_block = (
+        f"═══════════════════════════════════════════════════════\n"
+        f" IDENTIDADE OBRIGATORIA - NAO ALTERE ESTE BLOCO\n"
+        f"═══════════════════════════════════════════════════════\n"
+        f"Seu nome e EXATAMENTE: {assistant_name}\n"
+        f"Nome do usuario: {user_name}\n\n"
+        f"REGRAS DE IDENTIDADE (SEMPRE SIGA):\n"
+        f"1. Quando perguntado 'qual seu nome', 'quem voce e', etc: responda '{assistant_name}'\n"
+        f"2. Chame o usuario por '{user_name}' nas saudacoes e quando apropriado\n"
+        f"3. NUNCA diga que voce e 'OpenCode', 'DEEP-OS', 'Jarvis' ou outro nome\n"
+        f"4. NUNCA diga 'sou um assistente de IA generico' - voce e {assistant_name}\n"
+        f"5. SEMPRE use '{assistant_name}' quando se referir a si mesmo\n"
+        f"═══════════════════════════════════════════════════════\n\n"
+    )
+    
     instruction = msg.system_prompt or _load_config_system_prompt() or MOOD_INSTRUCTIONS.get(msg.mood, MOOD_INSTRUCTIONS["opencode"])
+    
     user_root = msg.root.strip() if msg.root else ""
     user_path = msg.path.strip() if msg.path else ""
     if user_root:
@@ -597,8 +642,8 @@ def build_system_prompt(msg: Message) -> str:
         and not any(c in q for c in [".py", ".ts", ".js", ".json", ".md", ".html"])
     )
 
-    if is_greeting and msg.mood != "opencode":
-        return instruction
+    if is_greeting:
+        return identity_block + instruction
 
     from core.prompts import TASK_CHECKLIST_PROMPT
     prompt_base = TOOL_SYSTEM_PROMPT.format(
@@ -610,6 +655,7 @@ def build_system_prompt(msg: Message) -> str:
     if msg.system_prompt:
         prompt_base = msg.system_prompt + "\n\n" + prompt_base
 
+    prompt_base = identity_block + prompt_base
     prompt_base += PLANNING_PROTOCOL_REMINDER
 
     # Injeta skills relevantes
@@ -679,7 +725,7 @@ async def chat(request: Request, msg: Message):
     mentions = parse_at_mentions(msg.user)
     if mentions["agents"] or mentions["skills"]:
         msg = inject_mention_context(msg, mentions)
-    if is_task_message(msg.user) or msg.mood == "opencode":
+    if is_task_message(msg.user):
         return await handle_task(msg)
     return await handle_question(msg)
 
@@ -1148,7 +1194,7 @@ async def handle_task_stream(msg: Message) -> AsyncGenerator[dict, None]:
             max_think_only_loops=3,
             tool_timeout=60.0,
             consecutive_tool_limit=12,
-            planning_enforced=True,
+            planning_enforced=False,
         )
 
         def should_force_final_fn(consecutive: int) -> bool:
@@ -1482,7 +1528,7 @@ async def handle_slash_command(cmd: dict, msg: Message) -> AsyncGenerator[dict, 
         import asyncio
         import aiohttp
         from pathlib import Path
-        yield {"type": "thinking", "content": "Rodando diagnostico completo do DEEP-AUREA..."}
+        yield {"type": "thinking", "content": "Rodando diagnostico completo do DEEP-OS..."}
 
         checks = []
         warnings = []
@@ -1585,7 +1631,7 @@ async def handle_slash_command(cmd: dict, msg: Message) -> AsyncGenerator[dict, 
             checks.append(("Memoria Espiral", "config indisponivel", "yellow"))
 
         # Monta relatorio
-        report = "# /doctor — Diagnostico DEEP-AUREA\n\n"
+        report = "# /doctor — Diagnostico DEEP-OS\n\n"
 
         green_count = sum(1 for _, _, c in checks if c == "green")
         yellow_count = sum(1 for _, _, c in checks if c == "yellow") + len(warnings)
@@ -1838,7 +1884,7 @@ async def chat_stream(request: Request, msg: Message):
                                         return
                                     yield json.dumps(event, ensure_ascii=False) + "\n"
                                 return
-                            is_code_or_task = is_task_message(msg.user) or msg.mood == "opencode"
+                            is_code_or_task = is_task_message(msg.user)
                             if is_code_or_task:
                                 async for event in handle_task_stream(msg):
                                     if await request.is_disconnected():
@@ -1949,7 +1995,7 @@ async def chat_stream(request: Request, msg: Message):
                         return
                     yield json.dumps(event, ensure_ascii=False) + "\n"
                 return
-            is_code_or_task = is_task_message(msg.user) or msg.mood == "opencode"
+            is_code_or_task = is_task_message(msg.user)
             if is_code_or_task:
                 async for event in handle_task_stream(msg):
                     if await request.is_disconnected():
@@ -1977,7 +2023,7 @@ async def _process_queued_message(msg: Message, session_id: str):
 
         # Build the message content
         system_prompt = build_system_prompt(msg)
-        is_code_or_task = is_task_message(msg.user) or msg.mood == "opencode"
+        is_code_or_task = is_task_message(msg.user)
 
         # Process the message
         if is_code_or_task:

@@ -132,7 +132,41 @@ def get_agent_config(agent_type: str) -> dict:
     config["system_prompt"] = load_agent_prompt(agent_type)
     return config
 
+
+def _load_agent_models() -> dict:
+    """Load agent models from config.yaml."""
+    try:
+        import yaml
+        from pathlib import Path
+        config_path = Path(__file__).resolve().parent.parent.parent / "config.yaml"
+        with open(config_path, encoding="utf-8") as f:
+            data = yaml.safe_load(f) or {}
+        return data.get("agent_models", {})
+    except Exception:
+        return {}
+
+
 def resolve_model_for_task(task_type: str):
+    """Resolve model for agent task, checking config.yaml agent_models first."""
+    agent_models = _load_agent_models()
+    
+    # Check if agent has custom model in config.yaml
+    if task_type in agent_models:
+        model_name = agent_models[task_type]
+        # Determine provider from model name
+        if model_name.startswith("gpt-") or model_name.startswith("o1-"):
+            return "openai", model_name
+        elif model_name.startswith("claude-"):
+            return "openclaude", model_name
+        elif model_name.startswith("gemini-"):
+            return "gemini", model_name
+        elif model_name.startswith("deepseek-"):
+            return "openrouter", model_name
+        else:
+            # Default to ollama for local models
+            return "ollama", model_name
+    
+    # Fallback to hardcoded routing
     routing = MODEL_ROUTING.get(task_type, MODEL_ROUTING["personality"])
     return routing["provider"], routing["model"]
 

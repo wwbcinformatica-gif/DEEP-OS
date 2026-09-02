@@ -288,7 +288,7 @@ export default function ArchitecturePage() {
       <div style={styles.badge}>Plataforma de IA Local</div>
       <h1 style={styles.h1}>Arquitetura</h1>
       <p style={styles.subtitle}>
-        DEEP-AUREA e um Sistema Operacional de Agentes de IA rodando em <code>localhost</code>.
+        DEEP-OS e um Sistema Operacional de Agentes de IA rodando em <code>localhost</code>.
         Agentes orquestram ferramentas, memoria e LLMs multi-provedor para automatizar tarefas de engenharia de software.
       </p>
 

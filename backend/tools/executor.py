@@ -1,8 +1,5 @@
-﻿from fastapi import HTTPException
-<<<<<<< HEAD
-=======
+from fastapi import HTTPException
 from pathlib import Path
->>>>>>> d436640 (v2.0: GGUF auto-detection, GPU support, vision, thinking panel, monitor fix, portability scripts)
 
 from agents.fork import fork_subagent, get_subagent_result
 from agents.team import send_message, team_create, team_delete
@@ -29,11 +26,11 @@ from tools.web_fetch import tool_web_fetch
 from tools.web_search import tool_web_search
 from tools.document_reader import tool_read_document
 
-# ── Charon Actions (mesmas ferramentas do voice assistant) ──────────────────
+# -- Charon Actions (mesmas ferramentas do voice assistant) ------------------
 _ACTIONS_DIR = str(Path(__file__).resolve().parent.parent / "actions")
 _PROJECT_ROOT = str(Path(__file__).resolve().parent.parent.parent)
 import sys as _sys
-# backend primeiro para memory.brain ser encontrado antes do C:\DEEP-AUREA\memory
+# backend primeiro para memory.brain ser encontrado antes do C:\DEEP-OS\memory
 _BACKEND_DIR = str(Path(__file__).resolve().parent.parent)
 if _BACKEND_DIR not in _sys.path:
     _sys.path.insert(0, _BACKEND_DIR)
@@ -109,14 +106,14 @@ TOOL_REGISTRY = {
 }
 
 TOOL_METADATA = [
-    {"name": "read", "description": "Lê arquivo ou lista diretório", "params": {"path": "string", "root": "string (opcional)"}},
+    {"name": "read", "description": "L� arquivo ou lista diret�rio", "params": {"path": "string", "root": "string (opcional)"}},
     {"name": "write", "description": "Cria ou edita arquivo", "params": {"path": "string", "content": "string", "root": "string (opcional)"}},
-    {"name": "bash", "description": "Executa comandos no terminal. IMPORTANTE: Use sempre flags não-interativas (como -y, --yes, --quiet) para comandos npx, npm, pip, etc. Se o comando esperar interação do usuário, ele vai falhar ou travar.", "params": {"command": "string", "workdir": "string (opcional)"}},
+    {"name": "bash", "description": "Executa comandos no terminal. IMPORTANTE: Use sempre flags n�o-interativas (como -y, --yes, --quiet) para comandos npx, npm, pip, etc. Se o comando esperar intera��o do usu�rio, ele vai falhar ou travar.", "params": {"command": "string", "workdir": "string (opcional)"}},
     {"name": "explorer", "description": "Navega no explorador de arquivos", "params": {"path": "string", "root": "string (opcional)"}},
-    {"name": "explorer_read", "description": "Lê arquivo com syntax highlight", "params": {"path": "string", "root": "string (opcional)"}},
+    {"name": "explorer_read", "description": "L� arquivo com syntax highlight", "params": {"path": "string", "root": "string (opcional)"}},
     {"name": "search", "description": "Busca texto em arquivos (regex)", "params": {"pattern": "string", "path": "string", "include": "string"}},
     {"name": "grep", "description": "Busca recursiva com regex em arquivos", "params": {"pattern": "string", "path": "string", "include": "string"}},
-    {"name": "execute_python", "description": "Executa código Python em sandbox isolado", "params": {"code": "string"}},
+    {"name": "execute_python", "description": "Executa c�digo Python em sandbox isolado", "params": {"code": "string"}},
     {"name": "install_package", "description": "Instala pacote pip", "params": {"package": "string"}},
     {"name": "create_directory", "description": "Cria uma ou mais pastas", "params": {"path": "string", "root": "string (opcional)"}},
     {"name": "delete", "description": "Deleta arquivo ou pasta", "params": {"path": "string", "root": "string (opcional)"}},
@@ -231,7 +228,7 @@ async def init_mcp_plugin(name: str) -> dict:
 TOOL_REGISTRY["list_mcp_servers"] = list_mcp_servers
 TOOL_REGISTRY["init_mcp_plugin"] = init_mcp_plugin
 
-# ── Charon Actions (mesmas ferramentas do voice assistant) ──────────────────
+# -- Charon Actions (mesmas ferramentas do voice assistant) ------------------
 try:
     from actions.youtube_video import youtube_video as _yt_video
     from actions.open_app import open_app as _open_app_charon
@@ -252,9 +249,6 @@ try:
     from actions.file_processor import file_processor as _file_processor
     from actions.system_monitor import get_system_status as _system_status
     from actions.background_monitor import add_monitor, remove_monitor, list_monitors
-    from actions.calorie_counter import run as _calorie_counter
-    from actions.pushup_counter import run as _pushup_counter
-    from actions.upload_video import run as _upload_video
     _CHARON_ACTIONS_OK = True
     print("[Executor] Todas as actions do Charon importadas com sucesso")
 except ImportError as e:
@@ -276,10 +270,6 @@ if _CHARON_ACTIONS_OK:
     TOOL_REGISTRY["game_updater"] = _charon_wrapper_speak(_game_updater)
     TOOL_REGISTRY["flight_finder"] = _charon_wrapper_no_player(_flight_finder)
     TOOL_REGISTRY["file_processor"] = _charon_wrapper_speak(_file_processor)
-    TOOL_REGISTRY["calorie_counter"] = _charon_wrapper_speak(_calorie_counter)
-    TOOL_REGISTRY["pushup_counter"] = _charon_wrapper_speak(_pushup_counter)
-    TOOL_REGISTRY["upload_video"] = _charon_wrapper_speak(_upload_video)
-
     async def _tool_system_status(**kw):
         import asyncio
         return await asyncio.to_thread(_system_status)
@@ -314,7 +304,7 @@ if _CHARON_ACTIONS_OK:
         return {"error": "Specify action (add/remove/list) and a topic"}
     TOOL_REGISTRY["manage_monitor"] = _tool_manage_monitor
 
-# ── Task Management Tools ──────────────────────────────────
+# -- Task Management Tools ----------------------------------
 async def tool_task_create(subject: str, description: str = "", active_form: str = ""):
     task = await create_task(subject, description, active_form)
     return {"task_id": task.id, "subject": task.subject, "status": task.status}
@@ -348,7 +338,7 @@ TOOL_REGISTRY["task_update"] = tool_task_update
 TOOL_REGISTRY["task_list"] = tool_task_list
 TOOL_REGISTRY["task_stop"] = tool_task_stop
 
-# ── Agent Forking Tools ────────────────────────────────────
+# -- Agent Forking Tools ------------------------------------
 async def tool_fork_subagent(task: str, system_prompt: str = "", tools: list = None):
     return await fork_subagent(task, system_prompt, tools)
 
@@ -370,7 +360,7 @@ TOOL_REGISTRY["team_create"] = tool_team_create
 TOOL_REGISTRY["team_delete"] = tool_team_delete
 TOOL_REGISTRY["send_message"] = tool_send_message
 
-# ── Memory Tools ────────────────────────────────────────────
+# -- Memory Tools --------------------------------------------
 from memory.engine import memory_delete, memory_list, memory_read, memory_write
 
 TOOL_REGISTRY["memory_write"] = memory_write
@@ -378,7 +368,7 @@ TOOL_REGISTRY["memory_read"] = memory_read
 TOOL_REGISTRY["memory_list"] = memory_list
 TOOL_REGISTRY["memory_delete"] = memory_delete
 
-# ── Media Play Tool ────────────────────────────────────────
+# -- Media Play Tool ----------------------------------------
 async def tool_media_play(name: str = "", path: str = "", isVideo: bool = False):
     return {"action": "media_play", "payload": {"name": name, "path": path, "isVideo": isVideo}}
 

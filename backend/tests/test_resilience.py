@@ -1,5 +1,5 @@
 """
-DEEP-AUREA â€” Testes de Resiliência
+DEEP-OS â€” Testes de Resiliência
 ========================================
 Cobertura completa:
   1. Loop infinito simulador (State Hash Tracker)

@@ -92,8 +92,18 @@ interface PageRendererProps {
   expRoot: string;
   accentTheme: AccentTheme;
   setAccentTheme: (v: AccentTheme) => void;
+  customColor: string;
+  setCustomColor: (v: string) => void;
+  assistantName: string;
+  setAssistantName: (v: string) => void;
+  userName: string;
+  setUserName: (v: string) => void;
+  voiceName: string;
+  setVoiceName: (v: string) => void;
   gpuEnabled: boolean;
   setGpuEnabled: (v: boolean) => void;
+  charonFullTools: boolean;
+  setCharonFullTools: (v: boolean) => void;
   checklistSteps?: { label: string; status: string; error?: string }[];
   loading?: boolean;
   thinking?: string;
@@ -105,18 +115,25 @@ interface PageRendererProps {
 
 export default function PageRenderer(props: PageRendererProps) {
   const { page } = props;
-  if (page === 'knowledge') return <KnowledgePage knows={props.knows} setKnows={props.setKnows} />;
+  if (page === 'knowledge') return <KnowledgePage knows={props.knows} setKnows={props.setKnows} prov={props.prov} model={props.model} apiKey={props.apiKey} orApiKey={props.orApiKey} />;
   if (page === 'memory') return <MemoryPage />;
-  if (page === 'agents') return <AgentsPage />;
-  if (page === 'generate')
-    return (
-      <GeneratePage
-        prov={props.prov}
-        model={props.model}
-        apiKey={props.apiKey}
-        orApiKey={props.orApiKey}
-      />
-    );
+  if (page === 'agents') return (
+    <AgentsPage
+      mood={props.mood} setMood={props.setMood}
+      sysPr={props.sysPr} setSysPr={props.setSysPr}
+      voicePreset={props.voicePreset} setVoicePreset={props.setVoicePreset}
+      jarvisRate={props.jarvisRate} setJarvisRate={props.setJarvisRate}
+      voicePitch={props.voicePitch} setVoicePitch={props.setVoicePitch}
+      deepSilenceSec={props.deepSilenceSec} setDeepSilenceSec={props.setDeepSilenceSec}
+      accentTheme={props.accentTheme} setAccentTheme={props.setAccentTheme}
+      customColor={props.customColor} setCustomColor={props.setCustomColor}
+      assistantName={props.assistantName} setAssistantName={props.setAssistantName}
+      userName={props.userName} setUserName={props.setUserName}
+      voiceName={props.voiceName} setVoiceName={props.setVoiceName}
+      gpuEnabled={props.gpuEnabled} setGpuEnabled={props.setGpuEnabled}
+      charonFullTools={props.charonFullTools} setCharonFullTools={props.setCharonFullTools}
+    />
+  );
   if (page === 'monitor') return <MonitorPanel />;
   if (page === 'mcp') return <MCPPage />;
   if (page === 'architecture') return <ArchitecturePage />;
@@ -171,8 +188,18 @@ export default function PageRenderer(props: PageRendererProps) {
         ollSt={props.ollSt}
         accentTheme={props.accentTheme}
         setAccentTheme={props.setAccentTheme}
+        customColor={props.customColor}
+        setCustomColor={props.setCustomColor}
+        assistantName={props.assistantName}
+        setAssistantName={props.setAssistantName}
+        userName={props.userName}
+        setUserName={props.setUserName}
+        voiceName={props.voiceName}
+        setVoiceName={props.setVoiceName}
         gpuEnabled={props.gpuEnabled}
         setGpuEnabled={props.setGpuEnabled}
+        charonFullTools={props.charonFullTools}
+        setCharonFullTools={props.setCharonFullTools}
       />
     );
   }

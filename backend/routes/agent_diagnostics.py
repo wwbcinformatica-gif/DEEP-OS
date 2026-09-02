@@ -1,5 +1,5 @@
 """
-DEEP-AUREA — Agent Diagnostics & Run Routes
+DEEP-OS — Agent Diagnostics & Run Routes
 =================================================
 Endpoints para monitoramento e execução do agente:
   GET  /agent/diagnostics   — Histórico de falhas, ferramentas, taxa de circuit breaker

@@ -1,4 +1,4 @@
-﻿import React, { useEffect, useRef, useState, useCallback } from 'react';
+import React, { useEffect, useRef, useState, useCallback } from 'react';
 
 interface TranscriptEntry {
   speaker: string;
@@ -31,7 +31,7 @@ const CharonPanel: React.FC<CharonPanelProps> = ({ visible, onClose, transcripts
 
   const handleSend = () => {
     const text = inputText.trim();
-    if (!text || voiceStatus === 'idle' || !onSendText) return;
+    if (!text || voiceStatus === 'idle' || voiceStatus === 'processing' || !onSendText) return;
     onSendText(text);
     setInputText('');
   };
@@ -62,7 +62,7 @@ const CharonPanel: React.FC<CharonPanelProps> = ({ visible, onClose, transcripts
     window.addEventListener('mouseup', onUp);
   }, [textareaH]);
 
-  const isActive = voiceStatus !== 'idle' && voiceStatus !== 'error';
+  const isActive = voiceStatus !== 'idle' && voiceStatus !== 'error' && voiceStatus !== 'processing';
 
   if (!visible) return null;
 
@@ -92,15 +92,18 @@ const CharonPanel: React.FC<CharonPanelProps> = ({ visible, onClose, transcripts
             borderRadius: 3,
             background: voiceStatus === 'speaking' ? 'rgba(255,200,0,0.15)' :
                         voiceStatus === 'listening' ? 'rgba(0,200,0,0.15)' :
+                        voiceStatus === 'processing' ? 'rgba(255,128,0,0.15)' :
                         voiceStatus === 'error' ? 'rgba(255,0,0,0.15)' :
                         'rgba(255,255,255,0.05)',
             color: voiceStatus === 'speaking' ? '#ffc800' :
                    voiceStatus === 'listening' ? '#0c0' :
+                   voiceStatus === 'processing' ? '#f80' :
                    voiceStatus === 'error' ? '#f44' :
                    'var(--muted)',
           }}>
             {voiceStatus === 'speaking' ? ' falando' :
              voiceStatus === 'listening' ? ' ouvindo' :
+             voiceStatus === 'processing' ? ' processando...' :
              voiceStatus === 'connecting' ? ' conectando...' :
              voiceStatus === 'error' ? ' erro' :
              ' inativo'}
@@ -122,8 +125,18 @@ const CharonPanel: React.FC<CharonPanelProps> = ({ visible, onClose, transcripts
       }}>
         {transcripts.length === 0 ? (
           <div style={{ color: 'var(--muted)', textAlign: 'center', marginTop: 40 }}>
-            Nenhuma conversa ainda.<br />
-            Ative o microfone para começar.
+            {voiceStatus === 'idle' ? (
+              <>
+                Charon desligado.<br />
+                Clique em <span style={{ color: '#b478ff', fontWeight: 600 }}>⚡ Charon</span> na barra de status para ativar.<br />
+                <span style={{ fontSize: 10, opacity: 0.7 }}>Uma vez ativado, ficara sempre ouvindo.</span>
+              </>
+            ) : (
+              <>
+                Aguardando sua voz...<br />
+                <span style={{ fontSize: 10, opacity: 0.7 }}>Fale diretamente com o Charon</span>
+              </>
+            )}
           </div>
         ) : (
           transcripts.map((t, i) => (

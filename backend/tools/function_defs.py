@@ -1,5 +1,5 @@
 """
-DEEP-AUREA Tool Definitions
+DEEP-OS Tool Definitions
 ============================
 OpenAI-compatible function definitions for tool-calling agents.
 Can be filtered by toolset using ``get_tools_by_toolset()``.
@@ -12,15 +12,7 @@ TOOLS = [
         "type": "function",
         "function": {
             "name": "read",
-<<<<<<< HEAD
-            "description": "Le o conteudo de um arquivo ou lista arquivos de um diretorio. Aceita paths absolutos (ex: G:\\DEEP-AUREA, C:\\Users) ou relativos.",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "path": {"type": "string", "description": "Caminho do arquivo ou diretorio. Aceita paths absolutos (G:\\pasta) ou relativos (backend/core)"},
-                    "root": {"type": "string", "description": "Diretorio raiz do projeto (opcional)"}
-=======
-            "description": "Le o conteudo de um arquivo ou lista arquivos de um diretorio. Aceita paths absolutos (ex: C:\\DEEP-AUREA, C:\\Users) ou relativos. Retorna o conteudo COMPLETO por padrao. Use offset/limit para paginação se o arquivo for muito grande.",
+            "description": "Le o conteudo de um arquivo ou lista arquivos de um diretorio. Aceita paths absolutos (ex: C:\\DEEP-OS, C:\\Users) ou relativos. Retorna o conteudo COMPLETO por padrao. Use offset/limit para paginação se o arquivo for muito grande.",
             "parameters": {
                 "type": "object",
                 "properties": {
@@ -28,7 +20,6 @@ TOOLS = [
                     "root": {"type": "string", "description": "Diretorio raiz do projeto (opcional)"},
                     "offset": {"type": "integer", "description": "Pagina para ler (0=primeira). Use com limit para paginação."},
                     "limit": {"type": "integer", "description": "Caracteres por pagina (ex: 50000). Sem limit = arquivo completo."}
->>>>>>> d436640 (v2.0: GGUF auto-detection, GPU support, vision, thinking panel, monitor fix, portability scripts)
                 },
                 "required": ["path"]
             }
@@ -42,11 +33,7 @@ TOOLS = [
             "parameters": {
                 "type": "object",
                 "properties": {
-<<<<<<< HEAD
-                    "path": {"type": "string", "description": "Caminho do arquivo. Aceita paths absolutos (G:\\pasta\\arquivo.py)"},
-=======
                     "path": {"type": "string", "description": "Caminho do arquivo. Aceita paths absolutos (C:\\pasta\\arquivo.py)"},
->>>>>>> d436640 (v2.0: GGUF auto-detection, GPU support, vision, thinking panel, monitor fix, portability scripts)
                     "content": {"type": "string", "description": "Conteudo do arquivo"},
                     "root": {"type": "string", "description": "Diretorio raiz do projeto (opcional)"}
                 },
@@ -58,19 +45,11 @@ TOOLS = [
         "type": "function",
         "function": {
             "name": "bash",
-<<<<<<< HEAD
-            "description": "Executa um comando no terminal do sistema. Tem acesso TOTAL a todas as unidades (C:\\, D:\\, G:\\, etc).",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "command": {"type": "string", "description": "Comando a ser executado (ex: dir G:\\, ls C:\\Users)"},
-=======
             "description": "Executa um comando no terminal do sistema. Tem acesso TOTAL a todas as unidades (C:\\, D:\\, etc).",
             "parameters": {
                 "type": "object",
                 "properties": {
                     "command": {"type": "string", "description": "Comando a ser executado (ex: dir C:\\, ls C:\\Users)"},
->>>>>>> d436640 (v2.0: GGUF auto-detection, GPU support, vision, thinking panel, monitor fix, portability scripts)
                     "workdir": {"type": "string", "description": "Diretorio de trabalho (opcional)"}
                 },
                 "required": ["command"]
@@ -81,19 +60,11 @@ TOOLS = [
         "type": "function",
         "function": {
             "name": "explorer",
-<<<<<<< HEAD
-            "description": "Lista o conteudo de um diretorio. Aceita paths absolutos (ex: G:\\, C:\\Users\\Desktop).",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "path": {"type": "string", "description": "Caminho absoluto (G:\\pasta) ou subpasta relativa"},
-=======
             "description": "Lista o conteudo de um diretorio. Aceita paths absolutos (ex: C:\\, C:\\Users\\Desktop).",
             "parameters": {
                 "type": "object",
                 "properties": {
                     "path": {"type": "string", "description": "Caminho absoluto (C:\\pasta) ou subpasta relativa"},
->>>>>>> d436640 (v2.0: GGUF auto-detection, GPU support, vision, thinking panel, monitor fix, portability scripts)
                     "root": {"type": "string", "description": "Diretorio raiz (opcional)"}
                 },
                 "required": []

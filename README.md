@@ -1,4 +1,15 @@
-# 🧠 DEEP-AUREA
+# 🧠 DEEP-OS
+
+## 👨‍💻 Desenvolvedor
+
+| Campo | Valor |
+|-------|-------|
+| **Nome** | Wilson Barbosa Coimbra |
+| **Empresa** | WBC |
+| **Projeto** | DEEP-OS |
+
+© 2026 DEEP-OS — Desenvolvido por **Wilson Barbosa Coimbra** (empresa **WBC**). Todos os direitos reservados.
+
 
 **Sistema Operacional de Agentes de IA** — antigo WBC-ZERO-G 5.0
 
@@ -9,12 +20,12 @@ Plataforma full-stack que orquestra múltiplos agentes de IA especializados para
 ## 📁 Localização
 
 ```
-G:\DEEP-AUREA\
+C:\DEEP-OS\
 ```
 
 ---
 
-## 🌀 Spiral Memory (Deep-Aurea)
+## 🌀 Spiral Memory (DEEP-OS)
 
 Sistema de memória em espiral onde **dois modelos** trabalham em sincronia:
 
@@ -73,7 +84,7 @@ spiral_memory:
 ## 🏗️ Arquitetura
 
 ```
-C:\DEEP-AUREA\
+C:\DEEP-OS\
 ├── backend/          # FastAPI (Python) — servidor principal
 │   ├── agents/       # Orquestrador, loop, teams, fork
 │   ├── core/         # Lifecycle, LLM, RAG, prompts, segurança, spiral_memory
@@ -108,12 +119,12 @@ C:\DEEP-AUREA\
 
 ### Iniciar
 ```bash
-G:\DEEP-AUREA\START-TOTAL.bat
+C:\DEEP-OS\START-TOTAL.bat
 ```
 
 ### Menu rápido
 ```bash
-G:\DEEP-AUREA\run.bat
+C:\DEEP-OS\run.bat
 ```
 
 ### Acessos
@@ -152,7 +163,7 @@ Clean Code, Architecture, Database Design, i18n, Vulnerability Scanner, WebApp T
 
 ## 🎙️ Charon — Assistente de Voz
 
-O **Charon** é o assistente de voz do DEEP-AUREA, baseado no **Gemini Live** (audio nativo) com **20 ferramentas** de função.
+O **Charon** é o assistente de voz do DEEP-OS, baseado no **Gemini Live** (audio nativo) com **20 ferramentas** de função.
 
 ### Como usar
 - **Falar:** clique no microfone e fale diretamente com o Charon (ou diga "aurea" para ativar o modo de voz do chat central).
@@ -189,7 +200,7 @@ O **Charon** é o assistente de voz do DEEP-AUREA, baseado no **Gemini Live** (a
 2. A cada 4 passos, Lifecycle Engine chama Keeper
 3. Keeper varre tool_logs + mensagens recentes
 4. Gera snapshot (regras OU LLM)
-5. Injeta `[DEEP-AUREA MEMORY REFRESH]` no contexto do Worker
+5. Injeta `[DEEP-OS MEMORY REFRESH]` no contexto do Worker
 6. Worker continua de onde parou com memória fresca
 
 ---
@@ -204,12 +215,3 @@ O **Charon** é o assistente de voz do DEEP-AUREA, baseado no **Gemini Live** (a
 
 ---
 
-## 👨‍💻 Desenvolvedor
-
-| Campo | Valor |
-|-------|-------|
-| **Nome** | Wilson Barbosa Coimbra |
-| **Empresa** | WBC |
-| **Projeto** | DEEP-AUREA |
-
-© 2026 DEEP-AUREA — Desenvolvido por **Wilson Barbosa Coimbra** (empresa **WBC**). Todos os direitos reservados.

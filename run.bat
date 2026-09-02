@@ -1,6 +1,6 @@
 @echo off
 REM â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-REM  DEEP-AUREA â€” Quick Start Script
+REM  DEEP-OS â€” Quick Start Script
 REM  Comandos: run-tests, run-agent, run-server, clear-memory, help
 REM â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
@@ -33,7 +33,7 @@ REM â”€â”€â”€ run-tests â”€â”€â”€â”€â”€�
 :run_tests
 echo.
 echo ========================================
-echo  DEEP-AUREA â€” Executando Testes
+echo  DEEP-OS â€” Executando Testes
 echo ========================================
 echo.
 %PYTHON% "%BACKEND%\tests\test_resilience.py"
@@ -49,7 +49,7 @@ REM â”€â”€â”€ run-agent â”€â”€â”€â”€â”€�
 :run_agent
 echo.
 echo ========================================
-echo  DEEP-AUREA â€” CLI Monitor Interativo
+echo  DEEP-OS â€” CLI Monitor Interativo
 echo ========================================
 echo.
 if "%2"=="" (
@@ -64,7 +64,7 @@ REM â”€â”€â”€ run-server â”€â”€â”€â”€â”€
 :run_server
 echo.
 echo ========================================
-echo  DEEP-AUREA â€” Iniciando Servidor
+echo  DEEP-OS â€” Iniciando Servidor
 echo ========================================
 echo.
 %PYTHON% "%BACKEND%\main.py"
@@ -74,7 +74,7 @@ REM â”€â”€â”€ clear-memory â”€â”€â”€â”€â”�
 :clear_memory
 echo.
 echo ========================================
-echo  DEEP-AUREA â€” Limpando Memoria
+echo  DEEP-OS â€” Limpando Memoria
 echo ========================================
 echo.
 %PYTHON% -c "import asyncio, sys; sys.path.insert(0, '%BACKEND%'); from memory.elastic_memory import clear_long_term_memory; asyncio.run(clear_long_term_memory()); print('Memoria de longo prazo limpa.')"
@@ -84,7 +84,7 @@ REM â”€â”€â”€ stats â”€â”€â”€â”€â”€â”
 :show_stats
 echo.
 echo ========================================
-echo  DEEP-AUREA â€” Estatisticas
+echo  DEEP-OS â€” Estatisticas
 echo ========================================
 echo.
 %PYTHON% -c "import asyncio, sys; sys.path.insert(0, '%BACKEND%'); from memory.elastic_memory import get_memory_stats; import json; print(json.dumps(asyncio.run(get_memory_stats()), indent=2))"
@@ -94,7 +94,7 @@ REM â”€â”€â”€ diagnostics â”€â”€â”€â”€â”�
 :show_diagnostics
 echo.
 echo ========================================
-echo  DEEP-AUREA â€” Diagnostics
+echo  DEEP-OS â€” Diagnostics
 echo ========================================
 echo.
 echo Buscando anti-padroes no index.json...
@@ -104,7 +104,7 @@ goto :eof
 REM â”€â”€â”€ help â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 :help
 echo.
-echo  DEEP-AUREA â€” Quick Start
+echo  DEEP-OS â€” Quick Start
 echo  ============================
 echo.
 echo  Comandos:

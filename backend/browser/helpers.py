@@ -1,6 +1,6 @@
 """Browser control via CDP (Chrome DevTools Protocol).
 
-Core helpers adapted from browser-harness for DEEP-AUREA.
+Core helpers adapted from browser-harness for DEEP-OS.
 Agent-editable helpers can be added via workspace.
 """
 import base64, importlib.util, json, math, os, sys, time, urllib.request

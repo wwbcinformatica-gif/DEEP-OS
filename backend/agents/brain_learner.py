@@ -1,5 +1,5 @@
 """
-brain_learner.py â€” Motor de Neuroplasticidade Epistêmica do DEEP-AUREA
+brain_learner.py â€” Motor de Neuroplasticidade Epistêmica do DEEP-OS
 
 Responsabilidade:
 - Analisar o brain_log de cada tarefa executada pelo agente
@@ -21,7 +21,7 @@ from core.rag import rebuild_vectorstore
 # PROMPT DE SÃNTESE DE NEURÃ”NIO
 # â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 BRAIN_EVOLUTION_PROMPT = """
-Você é o Cérebro Central do DEEP-AUREA. Sua função é a Neuroplasticidade Epistêmica: extrair aprendizados eternos.
+Você é o Cérebro Central do DEEP-OS. Sua função é a Neuroplasticidade Epistêmica: extrair aprendizados eternos.
 Analise a TAREFA executada e o LOG resumido de passos/erros.
 Gere um insight de conhecimento altamente compacto, técnico e direto (máximo 3 linhas) para que futuros agentes (você ou outros modelos) saibam exatamente como agir ou contornar esse problema direto da próxima vez.
 

@@ -1,5 +1,5 @@
 import sqlite3, os
-db_path = r'C:\DEEP-AUREA\data\interactions.db'
+db_path = r'C:\DEEP-OS\data\interactions.db'
 conn = sqlite3.connect(db_path)
 cur = conn.cursor()
 cur.execute('''CREATE TABLE IF NOT EXISTS history (

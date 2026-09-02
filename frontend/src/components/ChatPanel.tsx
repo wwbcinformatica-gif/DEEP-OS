@@ -1,4 +1,4 @@
-﻿import React, { useRef, useEffect, useState, useCallback } from 'react';
+import React, { useRef, useEffect, useState, useCallback } from 'react';
 import type { Msg, TLog, FileTab, Provider, Mood } from '../lib/constants';
 import { API_BASE, MODELS, PROVIDERS, SETTINGS_KEY } from '../lib/constants';
 import MarkdownBlock from './MarkdownBlock';
@@ -26,11 +26,7 @@ interface ChatPanelProps {
   setModel: (v: string) => void;
   oModels: { value: string; label: string }[];
   orModels: { value: string; label: string }[];
-<<<<<<< HEAD
-  llamacppModels: { value: string; label: string; available: boolean }[];
-=======
   llamacppModels: { value: string; label: string; available: boolean; has_vision?: boolean }[];
->>>>>>> d436640 (v2.0: GGUF auto-detection, GPU support, vision, thinking panel, monitor fix, portability scripts)
   curTab: FileTab | undefined;
   chatW: number;
   send: (text?: string, images?: string[]) => void;
@@ -70,6 +66,7 @@ interface ChatPanelProps {
   onApproveTool: () => void;
   onRejectTool: () => void;
   checklistSteps: { label: string; status: string; error?: string }[];
+  assistantName?: string;
 }
 
 export default function ChatPanel({
@@ -108,6 +105,7 @@ export default function ChatPanel({
   onApproveTool,
   onRejectTool,
   checklistSteps,
+  assistantName,
 }: ChatPanelProps) {
   const chatEnd = useRef<HTMLDivElement>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
@@ -121,10 +119,7 @@ export default function ChatPanel({
   const [isListening, setIsListening] = useState(false);
   const [isJarvisVoice, setIsJarvisVoice] = useState(false);
   const [isDeepMode, setIsDeepMode] = useState(false);
-<<<<<<< HEAD
-=======
 
->>>>>>> d436640 (v2.0: GGUF auto-detection, GPU support, vision, thinking panel, monitor fix, portability scripts)
   const [wakeWordActive, setWakeWordActive] = useState(false);
   const [speechSupported, setSpeechSupported] = useState(false);
   const [autoSend, setAutoSend] = useState(() => {
@@ -284,7 +279,7 @@ export default function ChatPanel({
     return () => document.removeEventListener('mousedown', handler);
   }, []);
   // ── Wake word com fuzzy matching ──
-  const WAKE_WORDS = ['aurea', 'aureia', 'aure', 'auria', 'oreia', 'aureo', 'auria', 'aurea'];
+  const WAKE_WORDS = ['deep', 'diep', 'dip', 'deap', 'deepa', 'dipi', 'depe', 'drip'];
 
   const normalizePhonetic = (word: string): string => {
     let w = word.toLowerCase().trim()
@@ -296,10 +291,9 @@ export default function ChatPanel({
       'parei': 'pare', 'pár': 'pare', 'pári': 'pare', 'párê': 'pare', 'pae': 'pare',
       'pára': 'para', 'stope': 'stop', 'estope': 'stop', 'estop': 'stop',
       'cansela': 'cancela', 'kansela': 'cancela',
-      'dipi': 'aurea', 'depe': 'aurea', 'deap': 'aurea', 'deepa': 'aurea', 'diep': 'aurea',
-      'jeep': 'aurea', 'drip': 'aurea',
-      'aureia': 'aurea', 'auria': 'aurea', 'oreia': 'aurea', 'aure': 'aurea', 'aureo': 'aurea',
-      'auréa': 'aurea', 'aureía': 'aurea', 'áurea': 'aurea', 'áureia': 'aurea',
+      'dipi': 'deep', 'depe': 'deep', 'deap': 'deep', 'deepa': 'deep', 'diep': 'deep',
+      'jeep': 'deep', 'drip': 'deep',
+      'depp': 'deep', 'dep': 'deep', 'deeo': 'deep', 'deef': 'deep',
     };
     return phoneticMap[w] || w;
   };
@@ -346,21 +340,19 @@ export default function ChatPanel({
   const safeRestart = () => {
     if (isRestartingRef.current || isStartingRef.current) return;
     if (!userWantsListeningRef.current) return;
-<<<<<<< HEAD
-=======
     if (isSpeakingRef.current) return;
->>>>>>> d436640 (v2.0: GGUF auto-detection, GPU support, vision, thinking panel, monitor fix, portability scripts)
     isRestartingRef.current = true;
     try { recognitionRef.current?.stop(); } catch {}
     setTimeout(() => {
       isRestartingRef.current = false;
-<<<<<<< HEAD
-      if (userWantsListeningRef.current) {
-        try { isStartingRef.current = true; recognitionRef.current?.start(); } catch {}
-=======
       if (userWantsListeningRef.current && !isSpeakingRef.current) {
-        try { isStartingRef.current = true; recognitionRef.current?.start(); setIsListening(true); } catch {}
->>>>>>> d436640 (v2.0: GGUF auto-detection, GPU support, vision, thinking panel, monitor fix, portability scripts)
+        try {
+          isStartingRef.current = true;
+          recognitionRef.current?.start();
+          setIsListening(true);
+        } catch (e) {
+          isStartingRef.current = false;
+        }
       }
     }, 250);
   };
@@ -384,7 +376,16 @@ export default function ChatPanel({
     deepAtivoRef.current = false;
     setWakeWordActive(false);
     deepInputRef.current = '';
-    safeRestart();
+    // Para o recognition para nao escutar a propria resposta do TTS
+    try { recognitionRef.current?.stop(); } catch {}
+    setIsListening(false);
+    // Reinicia a escuta apos o TTS terminar (finishSpeaking chama safeRestart)
+    // ou apos 8s como safety net se o TTS nao estiver ativo
+    setTimeout(() => {
+      if (isDeepModeRef.current && userWantsListeningRef.current && !isSpeakingRef.current) {
+        safeRestart();
+      }
+    }, 8000);
   };
 
   const deepAtivar = (comandoInicial?: string) => {
@@ -426,7 +427,7 @@ export default function ChatPanel({
       return;
     }
 
-    // Modo Aurea
+    // Modo Deep
     if (isDeepModeRef.current) {
       if (!deepAtivoRef.current) {
         if (detectWakeWord(transcript)) {
@@ -434,7 +435,7 @@ export default function ChatPanel({
           const words = transcript.toLowerCase().split(/\s+/);
           const wakeIdx = words.findIndex(w => fuzzyMatch(w, WAKE_WORDS, 0.6));
           const afterDeep = wakeIdx >= 0 ? words.slice(wakeIdx + 1).join(' ') : '';
-          const cleanCmd = afterDeep ? transcript.replace(/^.*?(aurea|aureia|auria|oreia|áurea)\s*/i, '').trim() : '';
+          const cleanCmd = afterDeep ? transcript.replace(/^.*?(deep|diep|dip|deap|deepa|dipi|depe|drip)\s*/i, '').trim() : '';
           deepAtivar(cleanCmd || undefined);
         }
         return;
@@ -504,10 +505,6 @@ export default function ChatPanel({
     r.continuous = false;
     r.interimResults = false;
     r.onresult = (event: SpeechRecognitionEvent) => handleDeepResult(event);
-<<<<<<< HEAD
-    r.onerror = () => { if (userWantsListeningRef.current) setTimeout(() => { safeRestart(); }, 500); else setIsListening(false); };
-    r.onend = () => { isStartingRef.current = false; if (userWantsListeningRef.current) setTimeout(() => { safeRestart(); }, 200); else setIsListening(false); };
-=======
     r.onerror = () => {
       isStartingRef.current = false;
       if (userWantsListeningRef.current && !isSpeakingRef.current) setTimeout(() => { safeRestart(); }, 500);
@@ -518,11 +515,15 @@ export default function ChatPanel({
       if (userWantsListeningRef.current && !isSpeakingRef.current) setTimeout(() => { safeRestart(); }, 200);
       else if (!isSpeakingRef.current) setIsListening(false);
     };
->>>>>>> d436640 (v2.0: GGUF auto-detection, GPU support, vision, thinking panel, monitor fix, portability scripts)
     return r;
   };
 
   const toggleDeepMode = () => {
+    // Deep Mode desabilitado quando Charon esta ativo (conflito de microfone)
+    if (charonActive) {
+      console.log('[ChatPanel] Deep Mode desabilitado - Charon esta ativo');
+      return;
+    }
     const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition || (window as any).mozSpeechRecognition || (window as any).msSpeechRecognition;
     if (!SpeechRecognition) { setSpeechSupported(false); return; }
     if (!recognitionRef.current) {
@@ -548,7 +549,7 @@ export default function ChatPanel({
       deepAtivoRef.current = false;
       setWakeWordActive(false);
       try { recognition.start(); setIsListening(true); } catch (e) {
-        console.warn('Erro ao iniciar modo aurea:', e);
+        console.warn('Erro ao iniciar modo deep:', e);
         setIsDeepMode(false); isDeepModeRef.current = false;
       }
     }
@@ -578,8 +579,6 @@ export default function ChatPanel({
     handleSendRef.current = handleSend;
   });
 
-<<<<<<< HEAD
-=======
 
 
   const safeStartListening = () => {
@@ -600,7 +599,6 @@ export default function ChatPanel({
     }
   };
 
->>>>>>> d436640 (v2.0: GGUF auto-detection, GPU support, vision, thinking panel, monitor fix, portability scripts)
   const toggleMic = () => {
     const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition || (window as any).mozSpeechRecognition || (window as any).msSpeechRecognition;
     if (!SpeechRecognition) { setSpeechSupported(false); setIsListening(false); return; }
@@ -622,19 +620,12 @@ export default function ChatPanel({
       setIsListening(false);
     } else {
       userWantsListeningRef.current = true;
-<<<<<<< HEAD
-=======
       stopJarvis();
->>>>>>> d436640 (v2.0: GGUF auto-detection, GPU support, vision, thinking panel, monitor fix, portability scripts)
       try { recognition.start(); setIsListening(true); } catch (e) {
         console.warn('Erro ao iniciar reconhecimento:', e);
         setIsListening(false);
       }
     }
-<<<<<<< HEAD
-    try { window.speechSynthesis?.cancel?.(); } catch {}
-=======
->>>>>>> d436640 (v2.0: GGUF auto-detection, GPU support, vision, thinking panel, monitor fix, portability scripts)
   };
 
   const SpeechRecognitionCtor =
@@ -877,11 +868,7 @@ export default function ChatPanel({
   const lastSpokenMsgRef = useRef('');
   useEffect(() => {
     const finished = prevStreamRef.current && !stream;
-<<<<<<< HEAD
-    if (finished && voiceMode && !charonActive && stream === '' && msgs.length > 0) {
-=======
     if (finished && voiceMode && stream === '' && msgs.length > 0) {
->>>>>>> d436640 (v2.0: GGUF auto-detection, GPU support, vision, thinking panel, monitor fix, portability scripts)
       const lastBotMsg = [...msgs].reverse().find((m) => m.from === 'bot');
       if (lastBotMsg && lastBotMsg.text) {
         const now = Date.now();
@@ -896,8 +883,6 @@ export default function ChatPanel({
     }
     prevStreamRef.current = stream;
   }, [stream, voiceMode, msgs, speakText]);
-<<<<<<< HEAD
-=======
 
   // Quando ativa o ear e ja tem mensagem nao falada, fala agora
   useEffect(() => {
@@ -916,28 +901,12 @@ export default function ChatPanel({
   }, [voiceMode]);
 
 
->>>>>>> d436640 (v2.0: GGUF auto-detection, GPU support, vision, thinking panel, monitor fix, portability scripts)
 
   const handleSend = (text?: string) => {
     lastSpeakId.current++;
-<<<<<<< HEAD
-    lastSpokenMsgRef.current = ''; // reseta guard para próxima resposta ser falada
-    if (autoSendTimerRef.current) { clearTimeout(autoSendTimerRef.current); autoSendTimerRef.current = null; }
-    setAutoSendCountdown(0);
-    try {
-      window.speechSynthesis?.cancel?.();
-    } catch {}
-    if (audioRef.current) {
-      audioRef.current.pause();
-      audioRef.current.currentTime = 0;
-      audioRef.current.src = '';
-      audioRef.current = null;
-    }
-=======
     lastSpokenMsgRef.current = '';
     if (autoSendTimerRef.current) { clearTimeout(autoSendTimerRef.current); autoSendTimerRef.current = null; }
     setAutoSendCountdown(0);
->>>>>>> d436640 (v2.0: GGUF auto-detection, GPU support, vision, thinking panel, monitor fix, portability scripts)
     let msg = text ?? input;
     if (imagePreviews.length > 0) {
       const saved = JSON.parse(localStorage.getItem(SETTINGS_KEY) || '{}');
@@ -1055,6 +1024,28 @@ export default function ChatPanel({
     }
   };
 
+  // ─── Limpar provedor local (liberar RAM) ─────────────────
+  const cleanProvider = async () => {
+    // Para o llama-server se estiver rodando
+    if (prov === 'llamacpp') {
+      try {
+        await fetch(`${API_BASE}/llamacpp/stop`, { method: 'POST' });
+        console.log('[ChatPanel] llama-server parado via /llamacpp/stop');
+      } catch (e) {
+        console.warn('[ChatPanel] Erro ao parar llamacpp:', e);
+      }
+    }
+    // Para o ollama se estiver rodando
+    if (prov === 'ollama') {
+      try {
+        await fetch(`${API_BASE}/ollama/stop`, { method: 'POST' });
+        console.log('[ChatPanel] ollama parado via /ollama/stop');
+      } catch (e) {
+        console.warn('[ChatPanel] Erro ao parar ollama:', e);
+      }
+    }
+  };
+
   // ─── Plan pending detection ──────────────────────────────
   const pendingPlan = msgs.find((m) => m.planData && m.planStatus === 'pending');
 
@@ -1090,7 +1081,7 @@ export default function ChatPanel({
       {/* header */}
       <div className="panel-header">
         <span className="panel-title" style={{ color: 'var(--pink)' }}>
-          CHAT
+          {assistantName || 'CHAT'}
         </span>
         <div style={{ display: 'flex', gap: '4px' }}>
           {loading && (
@@ -1101,6 +1092,11 @@ export default function ChatPanel({
           <button className="btn" onClick={newChat}>
             + novo
           </button>
+          {(prov === 'llamacpp' || prov === 'ollama') && (
+            <button className="btn" onClick={cleanProvider} title="Limpar modelo da memoria RAM">
+              🧹 limpar
+            </button>
+          )}
         </div>
       </div>
 
@@ -1124,11 +1120,7 @@ export default function ChatPanel({
           className="select-input"
           style={{ flex: 1, padding: '3px 5px', fontSize: '11px' }}
         >
-<<<<<<< HEAD
-          {['ollama', 'llamacpp', 'openclaude', 'opencode', 'groq', 'openrouter', 'openai', 'gemini', 'mimo'].map(
-=======
           {PROVIDERS.map(
->>>>>>> d436640 (v2.0: GGUF auto-detection, GPU support, vision, thinking panel, monitor fix, portability scripts)
             (p) => (
               <option key={p} value={p}>
                 {p}
@@ -1193,7 +1185,7 @@ export default function ChatPanel({
                   letterSpacing: '-0.3px',
                 }}
               >
-                OC
+                {(assistantName || 'OC').charAt(0).toUpperCase()}
               </div>
             )}
             <div
@@ -1872,56 +1864,56 @@ export default function ChatPanel({
                 {voiceMode ? '🔊' : '🔇'}
               </button>
 
-              {/* MICROFONE */}
+              {/* MICROFONE - desabilitado quando Charon ativo */}
               <button
-                onClick={toggleMic}
+                onClick={charonActive ? undefined : toggleMic}
                 style={{
                   width: 36,
                   height: 36,
                   borderRadius: 4,
                   border: '1px solid var(--line)',
-                  cursor: SpeechRecognitionCtor ? 'pointer' : 'not-allowed',
+                  cursor: charonActive ? 'not-allowed' : SpeechRecognitionCtor ? 'pointer' : 'not-allowed',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
                   flexShrink: 0,
-                  background: isListening && !isDeepMode
-                    ? '#e53e3e'
-                    : SpeechRecognitionCtor ? 'transparent' : 'rgba(255, 122, 26, 0.12)',
-                  color: isListening && !isDeepMode ? '#fff' : SpeechRecognitionCtor ? 'var(--muted)' : '#999',
+                  background: charonActive ? 'rgba(100,100,100,0.1)' : isListening && !isDeepMode ? '#e53e3e' : 'transparent',
+                  color: charonActive ? '#666' : isListening && !isDeepMode ? '#fff' : 'var(--muted)',
                   fontFamily: 'var(--font-ui)',
                   fontSize: '16px',
                   transition: 'all 0.2s ease',
+                  opacity: charonActive ? 0.4 : 1,
                 }}
-                title={!SpeechRecognitionCtor ? 'Reconhecimento de voz não suportado' : isListening && !isDeepMode ? 'Gravando... clique para parar' : 'Clique para falar'}
-                disabled={!SpeechRecognitionCtor}
+                title={charonActive ? 'Desabilitado - Charon esta ativo' : !SpeechRecognitionCtor ? 'Reconhecimento de voz não suportado' : isListening && !isDeepMode ? 'Gravando... clique para parar' : 'Clique para falar'}
+                disabled={!SpeechRecognitionCtor || charonActive}
               >
                 {isListening && !isDeepMode ? '🔴' : '🎙️'}
               </button>
 
-              {/* MODO AUREA (wake word) */}
+              {/* MODO DEEP - desabilitado quando Charon ativo */}
               <button
-                onClick={toggleDeepMode}
+                onClick={charonActive ? undefined : toggleDeepMode}
                 style={{
                   width: 36,
                   height: 36,
                   borderRadius: 4,
-                  border: `1px solid ${isDeepMode ? 'var(--accent)' : 'var(--line)'}`,
-                  cursor: SpeechRecognitionCtor ? 'pointer' : 'not-allowed',
+                  border: `1px solid ${charonActive ? 'var(--line)' : isDeepMode ? 'var(--accent)' : 'var(--line)'}`,
+                  cursor: charonActive ? 'not-allowed' : SpeechRecognitionCtor ? 'pointer' : 'not-allowed',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
                   flexShrink: 0,
-                  background: isDeepMode ? (wakeWordActive ? '#e53e3e' : '#2d8659') : 'transparent',
-                  color: isDeepMode ? '#fff' : 'var(--muted)',
+                  background: charonActive ? 'rgba(100,100,100,0.1)' : isDeepMode ? (wakeWordActive ? '#e53e3e' : '#2d8659') : 'transparent',
+                  color: charonActive ? '#666' : isDeepMode ? '#fff' : 'var(--muted)',
                   fontFamily: 'var(--font-ui)',
                   fontSize: '11px',
                   fontWeight: 700,
                   letterSpacing: '-0.5px',
                   transition: 'all 0.2s ease',
+                  opacity: charonActive ? 0.4 : 1,
                 }}
-                title={!SpeechRecognitionCtor ? 'Reconhecimento de voz não suportado' : isDeepMode ? (wakeWordActive ? 'Ouvindo comando... (fale sua tarefa)' : 'Aguardando palavra "aurea"...') : 'Modo Aurea — escuta permanente, diga "aurea" para comandar'}
-                disabled={!SpeechRecognitionCtor}
+                title={charonActive ? 'Desabilitado - Charon esta ativo' : !SpeechRecognitionCtor ? 'Reconhecimento de voz não suportado' : isDeepMode ? (wakeWordActive ? 'Ouvindo comando... (fale sua tarefa)' : 'Aguardando palavra "deep"...') : 'Modo Deep — escuta permanente, diga "deep" para comandar'}
+                disabled={!SpeechRecognitionCtor || charonActive}
               >
                 {isDeepMode ? (wakeWordActive ? '🔴' : '👂') : 'A'}
               </button>

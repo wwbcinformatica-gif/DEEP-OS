@@ -440,12 +440,6 @@ def _open_native(url: str, browser_name: Optional[str]) -> str:
                 exe = _find_exe_windows(_WIN_EXE_HINTS.get(name, name))
         if exe:
             try:
-<<<<<<< HEAD
-                subprocess.Popen(
-                    [exe, url] if url else [exe],
-                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-                )
-=======
                 # Usa --new-tab para abrir como aba no Chrome existente
                 if url and "chrome" in name.lower():
                     subprocess.Popen(
@@ -457,7 +451,6 @@ def _open_native(url: str, browser_name: Optional[str]) -> str:
                         [exe, url] if url else [exe],
                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
                     )
->>>>>>> d436640 (v2.0: GGUF auto-detection, GPU support, vision, thinking panel, monitor fix, portability scripts)
                 return f"Opened in {name}: {url}" if url else f"Opened {name}."
             except Exception as e:
                 print(f"[Browser] Native launch failed for {name}: {e}")
@@ -504,10 +497,7 @@ class _BrowserSession:
         self._pw:      Playwright     | None = None
         self._context: BrowserContext | None = None
         self._page:    Page           | None = None
-<<<<<<< HEAD
-=======
         self._using_cdp: bool = False
->>>>>>> d436640 (v2.0: GGUF auto-detection, GPU support, vision, thinking panel, monitor fix, portability scripts)
 
     def start(self):
         if self._thread and self._thread.is_alive():
@@ -543,13 +533,9 @@ class _BrowserSession:
     async def _async_close(self):
         if self._context:
             try:
-<<<<<<< HEAD
-                await self._context.close()
-=======
                 # Nao fechar o Chrome se conectou via CDP (compartilhado)
                 if not self._using_cdp:
                     await self._context.close()
->>>>>>> d436640 (v2.0: GGUF auto-detection, GPU support, vision, thinking panel, monitor fix, portability scripts)
             except Exception:
                 pass
         if self._pw:
@@ -558,10 +544,7 @@ class _BrowserSession:
             except Exception:
                 pass
         self._context = self._page = None
-<<<<<<< HEAD
-=======
         self._using_cdp = False
->>>>>>> d436640 (v2.0: GGUF auto-detection, GPU support, vision, thinking panel, monitor fix, portability scripts)
 
     async def _adopt_page(self) -> Page:
         """
@@ -575,24 +558,15 @@ class _BrowserSession:
 
     async def _launch(self):
         """
-<<<<<<< HEAD
-        Tarayıcıyı gerçek kullanıcı profiliyle başlatır.
-        Context zaten açıksa hiçbir şey yapmaz.
-=======
         Lanca navegador com perfil do usuario.
         Context ja ativo nao faz nada.
->>>>>>> d436640 (v2.0: GGUF auto-detection, GPU support, vision, thinking panel, monitor fix, portability scripts)
         """
         if self._context is not None:
             return
 
         if self._spec is None:
             raise RuntimeError(
-<<<<<<< HEAD
-                f"'{self.browser_name}' bu platformda ({_OS}) desteklenmiyor."
-=======
                 f"'{self.browser_name}' nao suportado nesta plataforma ({_OS})."
->>>>>>> d436640 (v2.0: GGUF auto-detection, GPU support, vision, thinking panel, monitor fix, portability scripts)
             )
 
         engine_name = self._spec["engine"]
@@ -695,15 +669,11 @@ class _BrowserSession:
 
     async def _get_page(self) -> Page:
         await self._launch()
-<<<<<<< HEAD
-        # If somehow page got closed, open a fresh one
-=======
         # Se usando CDP, sempre usa a primeira aba disponivel (nao cria nova)
         if self._using_cdp and self._context.pages:
             self._page = self._context.pages[0]
             return self._page
         # Se pagina fechou, cria nova (apenas para Playwright local)
->>>>>>> d436640 (v2.0: GGUF auto-detection, GPU support, vision, thinking panel, monitor fix, portability scripts)
         if self._page is None or self._page.is_closed():
             self._page = await self._context.new_page()
             await asyncio.sleep(0.2)
@@ -728,8 +698,6 @@ class _BrowserSession:
 
         result_url = await _do_goto(page)
 
-<<<<<<< HEAD
-=======
         # Se usando CDP, NAO cria nova aba - apenas reporta erro
         if self._using_cdp:
             if result_url and result_url not in ("about:blank", "", None):
@@ -737,7 +705,6 @@ class _BrowserSession:
             return f"Nao foi possivel navegar para: {url}"
 
         # Playwright local: tenta nova aba se pagina em branco
->>>>>>> d436640 (v2.0: GGUF auto-detection, GPU support, vision, thinking panel, monitor fix, portability scripts)
         if result_url in ("about:blank", "", None, prev_url) and prev_url in ("about:blank", "", None):
             print(f"[Browser] Still blank after goto — retrying on new tab: {url}")
             try:
@@ -1050,37 +1017,10 @@ def browser_control(
         _log(player, result)
         return result
 
-<<<<<<< HEAD
-    # ── Gezinme HER ZAMAN native ─────────────────────────────────────────────
-    # go_to / search / new_tab siteyi kullanıcının kendi tarayıcısında açar —
-    # kendi profili, giriş yapılmış hesapları ve açılış sayfasıyla; tıpkı
-    # kullanıcının kendisi açmış gibi. about:blank'li kontrollü pencere burada
-    # asla açılmaz. Tek istisna: hâlihazırda süren bir otomasyon akışı varsa
-    # gezinme o pencerede devam eder (çok adımlı görevler bölünmesin diye).
-    if action in ("go_to", "search", "new_tab"):
-        if _registry.has(browser):
-            sess = _registry.get(browser)
-            try:
-                if action == "search":
-                    result = sess.run(sess.search(params.get("query", ""),
-                                                  params.get("engine", "google")))
-                elif action == "new_tab":
-                    result = sess.run(sess.new_tab(params.get("url", "")))
-                else:
-                    result = sess.run(sess.go_to(params.get("url", "")))
-            except concurrent.futures.TimeoutError:
-                result = f"Browser action '{action}' timed out (60s)."
-            except Exception as e:
-                result = f"Browser error ({action}): {e}"
-            _log(player, result)
-            return result
-
-=======
     # ── Gezinme SEMPRE usa navegador padrao do usuario ──────────────────────
     # go_to / search / new_tab abrem no navegador padrao (igual usuario clicando)
     # Nao cria sessao Playwright para navegacao simples
     if action in ("go_to", "search", "new_tab"):
->>>>>>> d436640 (v2.0: GGUF auto-detection, GPU support, vision, thinking panel, monitor fix, portability scripts)
         if action == "search":
             base    = _SEARCH_ENGINES.get(params.get("engine", "google").lower(),
                                           _SEARCH_ENGINES["google"])

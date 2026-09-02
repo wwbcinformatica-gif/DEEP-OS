@@ -1,5 +1,5 @@
 """
-DEEP-AUREA â€” Lifecycle Engine
+DEEP-OS â€” Lifecycle Engine
 ==================================
 Orchestrates the complete agent execution cycle using the state machine.
 
@@ -178,9 +178,9 @@ class LifecycleConfig:
     context_compression_enabled: bool = True
     max_context_tokens: int = 200000
     # Planning Toll Enforcement
-    planning_enforced: bool = True
+    planning_enforced: bool = False
     planning_check_steps: int = 1
-    # Spiral Memory (Deep-Aurea)
+    # Spiral Memory (DEEP-OS)
     spiral_memory_enabled: bool = False
     spiral_memory_interval: int = 4
     on_spiral_refresh: Callable[[int, list, list], Awaitable[str | None]] | None = None
@@ -288,7 +288,7 @@ async def run_lifecycle(
         if config.anti_loop_enabled and state.circuit_breaker.is_tripped():
             violation = state.circuit_breaker.get_violation_reason()
             _log.warning(
-                "[DEEP-AUREA] âš¡ DISJUNTOR ANTI-LOOP TRIPADO: %s (passo %d)",
+                "[DEEP-OS] âš¡ DISJUNTOR ANTI-LOOP TRIPADO: %s (passo %d)",
                 violation, state.step,
             )
             # Compila diagnostico amigavel
@@ -308,7 +308,7 @@ async def run_lifecycle(
                     error_summary=violation,
                 )
             except Exception as e:
-                _log.debug("[DEEP-AUREA] Falha ao registrar anti-padrao: %s", e)
+                _log.debug("[DEEP-OS] Falha ao registrar anti-padrao: %s", e)
 
             state.transition(State.FAILED)
             yield {"type": "state_change", "state": State.FAILED.value, "step": state.step}
@@ -337,7 +337,7 @@ async def run_lifecycle(
             # Permite compressão novamente após 5 passos (janela reabastece)
             state.compression_applied = False
 
-        # â”€â”€ Spiral Memory Refresh (Deep-Aurea) â”€â”€
+        # â”€â”€ Spiral Memory Refresh (DEEP-OS) â”€â”€
         if config.spiral_memory_enabled and config.on_spiral_refresh:
             if state.step > 1 and (
                 state.step - (getattr(state, "_last_spiral_refresh", 0)) >= config.spiral_memory_interval
@@ -350,16 +350,16 @@ async def run_lifecycle(
                         state.messages.append({"role": "system", "content": refresh_msg})
                         state._last_spiral_refresh = state.step
                         _log.info(
-                            "[DEEP-AUREA] ðŸŒ€ Refresh de memoria injetado no passo %d",
+                            "[DEEP-OS] ðŸŒ€ Refresh de memoria injetado no passo %d",
                             state.step,
                         )
                         yield {
                             "type": "thinking",
                             "step": state.step,
-                            "content": f"[DEEP-AUREA] Memoria espiral refrescada",
+                            "content": f"[DEEP-OS] Memoria espiral refrescada",
                         }
                 except Exception as e:
-                    _log.warning("[DEEP-AUREA] Erro no refresh: %s", e)
+                    _log.warning("[DEEP-OS] Erro no refresh: %s", e)
 
         state.transition(State.CALL_MODEL)
         yield {"type": "state_change", "state": State.CALL_MODEL.value, "step": state.step}
@@ -423,7 +423,7 @@ async def run_lifecycle(
                 if _has_checkboxes(combined_content) and _has_task_plan_json(combined_content):
                     state.has_presented_plan = True
                     _log.info(
-                        "[DEEP-AUREA] âœ… PLANNING PASS: modelo apresentou raciocinio + checkboxes + task_plan (passo %d)",
+                        "[DEEP-OS] âœ… PLANNING PASS: modelo apresentou raciocinio + checkboxes + task_plan (passo %d)",
                         state.step,
                     )
                     # â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
@@ -459,7 +459,7 @@ async def run_lifecycle(
 
                 else:
                     _log.warning(
-                        "[DEEP-AUREA] ðŸš« PLANNING TOLL: modelo tentou tool call sem planejamento (passo %d). Bloqueando.",
+                        "[DEEP-OS] ðŸš« PLANNING TOLL: modelo tentou tool call sem planejamento (passo %d). Bloqueando.",
                         state.step,
                     )
                     # Registra o assistant message original (com tool_calls) para historico
@@ -528,7 +528,7 @@ async def run_lifecycle(
 
                 if has_checklist and not has_tool_calls and not tools_were_executed and state.checklist_nudge_count < 2:
                     _log.warning(
-                        "[DEEP-AUREA] CHECKLIST_SEM_EXECUCAO: modelo gerou checkboxes mas NENHUMA tool call (passo %d)",
+                        "[DEEP-OS] CHECKLIST_SEM_EXECUCAO: modelo gerou checkboxes mas NENHUMA tool call (passo %d)",
                         state.step,
                     )
                     # Append the checklist content as assistant message
@@ -578,7 +578,7 @@ async def run_lifecycle(
                 if config.anti_loop_enabled:
                     cb_count = state.circuit_breaker.record_think_only()
                     _log.info(
-                        "[DEEP-AUREA] ðŸ”„ THINK_ONLY #%d/%d (circuit breaker)",
+                        "[DEEP-OS] ðŸ”„ THINK_ONLY #%d/%d (circuit breaker)",
                         cb_count, state.circuit_breaker.max_think_only,
                     )
 
@@ -590,7 +590,7 @@ async def run_lifecycle(
                     if state.state_hash_tracker.is_loop_detected():
                         consec = state.state_hash_tracker.get_consecutive_count()
                         _log.warning(
-                            "[DEEP-AUREA] ðŸ” LOOP DETECTADO: mesmo padrão de raciocínio repetido %d vezes (hash: %s)",
+                            "[DEEP-OS] ðŸ” LOOP DETECTADO: mesmo padrão de raciocínio repetido %d vezes (hash: %s)",
                             consec, h,
                         )
                         # Gera nudge contextualizado com historico de acoes
@@ -676,7 +676,7 @@ async def _call_model_with_retry(
         except Exception as e:
             state.api_retry_count += 1
             _log.warning(
-                "[DEEP-AUREA] API_ERROR tentativa %d/%d: %s",
+                "[DEEP-OS] API_ERROR tentativa %d/%d: %s",
                 attempt, config.max_api_retries, e,
             )
             if attempt < config.max_api_retries:
@@ -758,7 +758,7 @@ async def _call_model_with_stream(
         ), None
 
     except Exception as e:
-        _log.warning("[DEEP-AUREA] STREAM_ERROR: %s", e)
+        _log.warning("[DEEP-OS] STREAM_ERROR: %s", e)
         return None, str(e)
 
 
@@ -777,7 +777,7 @@ async def _handle_tool_calls(
     if config.anti_loop_enabled:
         cb_count = state.circuit_breaker.record_tool_call()
         _log.info(
-            "[DEEP-AUREA] ðŸ”§ Tool call #%d/%d (circuit breaker)",
+            "[DEEP-OS] ðŸ”§ Tool call #%d/%d (circuit breaker)",
             cb_count, state.circuit_breaker.max_tool_calls,
         )
 
@@ -790,7 +790,7 @@ async def _handle_tool_calls(
         if state.state_hash_tracker.is_loop_detected():
             consec = state.state_hash_tracker.get_consecutive_count()
             _log.warning(
-                "[DEEP-AUREA] ðŸ” LOOP DE AÃ‡ÃƒO DETECTADO: mesmo padrão repetido %d vezes (hash: %s)",
+                "[DEEP-OS] ðŸ” LOOP DE AÃ‡ÃƒO DETECTADO: mesmo padrão repetido %d vezes (hash: %s)",
                 consec, h,
             )
             # Gera nudge contextualizado com as ferramentas que estavam sendo chamadas

@@ -114,7 +114,7 @@ class SecurityConfig:
 
 @dataclass
 class SpiralMemoryConfig:
-    """Deep-Aurea spiral memory settings."""
+    """DEEP-OS spiral memory settings."""
 
     enabled: bool = True
     interval: int = 4

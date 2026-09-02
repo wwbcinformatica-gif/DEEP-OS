@@ -1,7 +1,7 @@
-# DEEP-AUREA — Discovered Knowledge
+# DEEP-OS — Discovered Knowledge
 _Cross-project discoveries extracted from MEMORY.md to stay under token budget._
 
-### Discovered (DEEP-AUREA)
+### Discovered (DEEP-OS)
 
 - **npm 11.x workspace:* doesn't resolve standalone (2026-07-02)**: Running `npm install` inside an example dir with `workspace:*` deps fails with EUNSUPPORTEDPROTOCOL. Must use `file:../../packages/backend` relative paths when installing outside monorepo root. Full `npm install` from monorepo root works fine with workspaces.
 - **llmrtc monorepo structure (2026-07-02)**: `@llmrtc/llmrtc-backend` at `packages/backend/`, `@llmrtc/llmrtc-web-client` at `packages/web-client/`, providers in `packages/providers/` (openai, elevenlabs, google, anthropic, etc.), examples in `examples/`. Workspaces configured in root package.json: `["packages/*", "packages/providers/*", "examples/*", "docs"]`.
