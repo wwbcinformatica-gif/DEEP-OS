@@ -1,3 +1,13 @@
+# ⚠️ REGRA CRÍTICA — PAINEL DIREITO CHARON
+
+**NUNCA altere o formato da transcricao do painel direito.**
+
+Cada palavra/trecho aparece como uma entrada SEPARADA com timestamp, empilhando em tempo real. NAO acumular em uma unica mensagem. NAO esperar turn_complete. Enviar cada pedaco imediatamente.
+
+Este formato e DEFINITIVO e sempre funcionou assim. Qualquer mudanca causa lentidao e quebra a conversa em tempo real.
+
+---
+
 **Ultima atualizacao:** 2026-09-04 (Sessao 28) - Portacao Mark-LI + Filtro de Contexto + Audio Fix
 
 ---

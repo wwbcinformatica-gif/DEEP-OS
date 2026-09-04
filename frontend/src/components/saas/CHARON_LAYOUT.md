@@ -1,3 +1,13 @@
+# ⚠️ AVISO CRÍTICO — FORMATO DEFINITIVO
+
+**NUNCA altere o formato da transcricao do painel direito.**
+
+Cada palavra/trecho aparece como uma entrada SEPARADA com timestamp, empilhando em tempo real. NAO acumular em uma unica mensagem. NAO esperar turn_complete. Enviar cada pedaco imediatamente.
+
+Este formato e DEFINITIVO e sempre funcionou assim. Qualquer mudanca causa lentidao e quebra a conversa em tempo real.
+
+---
+
 # CharonPage — Layout Oficial (NÃO ALTERAR)
 
 **Arquivo:** `frontend/src/components/saas/CharonPage.tsx`
