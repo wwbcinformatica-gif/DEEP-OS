@@ -29,6 +29,12 @@ server_stdout.log
 # Pessoal (dados sensíveis)
 pessoal/
 
+# Binários do llama.cpp (baixar separadamente)
+bin/
+
+# Fotos e capturas pessoais
+backend/pictures/
+
 # IDE
 .vscode/
 .idea/
