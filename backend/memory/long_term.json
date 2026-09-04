@@ -16,17 +16,17 @@
   "sessions": [
     {
       "date": "2026-09-04",
-      "summary": "O usuário indicou suas preferências de notícias, afirmando que tem interesse principalmente em conteúdos da Globo.",
-      "language": "portugues"
-    },
-    {
-      "date": "2026-09-04",
-      "summary": "O usuário cumprimentou o assistente e perguntou sobre as notícias do dia.",
-      "language": "portugues"
-    },
-    {
-      "date": "2026-09-04",
       "summary": "O usuário perguntou se a lista de ferramentas e recursos apresentada poderia ser exibida no chat central.",
+      "language": "portugues"
+    },
+    {
+      "date": "2026-09-04",
+      "summary": "O usuário apenas recebeu a saudação inicial e a oferta de ajuda do assistente Charon, sem ainda ter interagido ou apresentado sua solicitação.",
+      "language": "portugues"
+    },
+    {
+      "date": "2026-09-04",
+      "summary": "O usuário foi recebido pelo assistente Charon, que se colocou à disposição para ajudar com diversas tarefas de sistema, código e arquivos, sem que o usuário tenha feito uma solicitação ainda.",
       "language": "portugues"
     }
   ]

@@ -23,26 +23,11 @@ class MicProcessor extends AudioWorkletProcessor {
     super();
     this._buf = [];
     this._size = 1024;
-    this._silenceThreshold = 0.01;
-    this._silenceFrames = 0;
-    this._maxSilenceFrames = 5;
-    this._isSpeaking = false;
   }
   process(inputs) {
     const input = inputs[0];
     if (!input || !input[0]) return true;
     const ch = input[0];
-    let sum = 0;
-    for (let i = 0; i < ch.length; i++) sum += ch[i] * ch[i];
-    const rms = Math.sqrt(sum / ch.length);
-    if (rms > this._silenceThreshold) {
-      this._silenceFrames = 0;
-      this._isSpeaking = true;
-    } else {
-      this._silenceFrames++;
-      if (this._silenceFrames > this._maxSilenceFrames) this._isSpeaking = false;
-    }
-    if (!this._isSpeaking && this._silenceFrames > this._maxSilenceFrames) return true;
     const ratio = 3;
     const downsampled = Math.floor(ch.length / ratio);
     const pcm16 = new Int16Array(downsampled);
@@ -171,6 +156,11 @@ const CharonPage: React.FC = () => {
     setApiKey(savedKey);
     setVoiceName(savedVoice);
     setContextFilter(savedFilter);
+
+    // Auto-start: Charon sempre ouvindo (modo conversa continua)
+    if (!startedRef.current) {
+      connectVoice();
+    }
   }, []);
 
   useEffect(() => {
@@ -182,23 +172,11 @@ const CharonPage: React.FC = () => {
   const now = () => new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
 
   const addUserTranscript = useCallback((text: string) => {
-    setTranscripts(prev => {
-      const last = prev[prev.length - 1];
-      if (last && last.speaker === 'user') {
-        return [...prev.slice(0, -1), { ...last, text: last.text + ' ' + text }];
-      }
-      return [...prev, { speaker: 'user', text, time: now() }];
-    });
+    setTranscripts(prev => [...prev, { speaker: 'user', text, time: now() }]);
   }, []);
 
   const addCharonTranscript = useCallback((text: string) => {
-    setTranscripts(prev => {
-      const last = prev[prev.length - 1];
-      if (last && last.speaker === 'charon') {
-        return [...prev.slice(0, -1), { ...last, text: last.text + ' ' + text }];
-      }
-      return [...prev, { speaker: 'charon', text, time: now() }];
-    });
+    setTranscripts(prev => [...prev, { speaker: 'charon', text, time: now() }]);
   }, []);
 
   const addActivity = useCallback((text: string, speaker: string = 'system') => {
@@ -581,14 +559,20 @@ const CharonPage: React.FC = () => {
               ) : (
                 transcripts.map((t, i) => (
                   <div key={i} style={{
-                    ...s.messageItem,
-                    background: t.speaker === 'user' ? 'rgba(180,120,255,0.05)' : 'rgba(0,200,0,0.05)',
+                    marginBottom: 10,
+                    padding: '8px 10px',
                     borderRadius: 6,
+                    background: t.speaker === 'user' ? 'rgba(180,120,255,0.08)' : 'rgba(0,200,0,0.08)',
+                    borderLeft: `3px solid ${t.speaker === 'user' ? '#b478ff' : '#0c0'}`,
                   }}>
-                    <div style={s.messageSpeaker}>
-                      {t.speaker === 'user' ? '🎤 Voce' : '🔊 Charon'} - {t.time}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 4 }}>
+                      <span style={{ fontSize: 12 }}>{t.speaker === 'user' ? '👤' : '⚡'}</span>
+                      <span style={{ fontSize: 11, fontWeight: 600, color: t.speaker === 'user' ? '#b478ff' : '#0c0' }}>
+                        {t.speaker === 'user' ? 'Voce' : 'Charon'}
+                      </span>
+                      <span style={{ fontSize: 10, color: '#666', marginLeft: 'auto' }}>{t.time}</span>
                     </div>
-                    <div style={s.messageText}>{t.text}</div>
+                    <div style={{ color: '#ccc', whiteSpace: 'pre-wrap', fontSize: 12, lineHeight: 1.5 }}>{t.text}</div>
                   </div>
                 ))
               )}

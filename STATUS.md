@@ -8,6 +8,40 @@
 
 Portadas todas as funcionalidades do Mark-LI para o Charon do DEEP-OS. Corrigido audio engasgando/cortando com buffer intermediario e ring buffer maior. Adicionado filtro de contexto para focar em topicos relevantes. Atualizada chave do Gemini (anterior foi bloqueada por leaked). Painel central separado do painel de voz.
 
+### ⚠️ FORMATO DO PAINEL DIREITO — DEFINITIVO (NAO ALTERAR)
+
+**Formato correto:** Cada palavra/trecho da transcricao aparece como uma entrada SEPARADA com timestamp, empilhando em tempo real. NAO acumular em uma unica mensagem.
+
+```
+⚡ Charon · 15:45:50
+Boa tarde,
+⚡ Charon · 15:45:51
+WBC.
+⚡ Charon · 15:45:51
+Como
+⚡ Charon · 15:45:52
+posso
+⚡ Charon · 15:45:52
+ajudar
+⚡ Charon · 15:45:52
+hoje?
+👤 Voce · 15:45:57
+Olá, acharam tudo.
+```
+
+**Por quê:** Este é o comportamento original do Gemini Live API — envia a transcricao conforme fala (palavra por palavra). O frontend mostra cada pedaco como uma nova entrada. Isso da a sensacao de conversa em tempo real.
+
+**NUNCA fazer:**
+- Acumular palavras em uma unica mensagem (isso causa lentidao e delay)
+- Esperar turn_complete para mostrar (isso atrasa a transcricao)
+
+**SEMPRE fazer:**
+- Enviar cada palavra/trecho imediatamente via WebSocket
+- Mostrar cada pedaco como entrada separada no painel direito
+- Timestamp em cada entrada
+
+---
+
 ### 1. Portacao Mark-LI — Todas as Funcionalidades (NOVO)
 
 **Problema:** Charon do DEEP-OS nao tinha as funcionalidades avancadas do Mark-LI (affective dialog, proactive audio, visao real, monitores, etc).

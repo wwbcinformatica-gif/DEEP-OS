@@ -1,11 +1,16 @@
 """
-DEEP-AUREA — WebSocket de voz com Gemini Live API.
+DEEP-OS — WebSocket de voz com Gemini Live API.
+Portado do Mark-LI com todas as funcionalidades: affective dialog,
+proactive audio, visao real, phone relay, background monitor,
+system monitor, session memory, briefing 2-fases.
 """
 import asyncio
+import base64
 import json
 import logging
 import os
 import sys
+import time
 import traceback
 from datetime import datetime
 from pathlib import Path
@@ -71,13 +76,46 @@ try:
     from actions.flight_finder import flight_finder
     from actions.file_processor import file_processor
     from actions.system_monitor import get_system_status
-    from actions.background_monitor import add_monitor, remove_monitor, list_monitors
+    from actions.background_monitor import add_monitor, remove_monitor, list_monitors, check_all as monitor_check_all
     _ACTIONS_OK = True
     logger.info("Todas as 20 actions importadas com sucesso")
 except ImportError as e:
     logger.warning(f"nem todas as actions foram importadas: {e}")
 
-# ── Imports das Tools do DEEP-AUREA ──────────────────────────────────────────
+# Vision actions (Mark-LI)
+_VISION_OK = False
+try:
+    from actions.calorie_counter import calorie_counter
+    from actions.pushup_counter import pushup_counter
+    _VISION_OK = True
+except ImportError:
+    pass
+
+# Upload action
+_UPLOAD_OK = False
+try:
+    from actions.upload_video import upload_video
+    _UPLOAD_OK = True
+except ImportError:
+    pass
+
+# Proactive engine (Mark-LI)
+_PROACTIVE_OK = False
+try:
+    from actions.proactive import ProactiveEngine
+    _PROACTIVE_OK = True
+except ImportError:
+    pass
+
+# System monitor (Mark-LI)
+_SYSMON_OK = False
+try:
+    from actions.system_monitor import SystemMonitor
+    _SYSMON_OK = True
+except ImportError:
+    pass
+
+# ── Imports das Tools do DEEP-OS ──────────────────────────────────────────
 _TOOLS_OK = False
 try:
     from tools.system_tools import tool_read, tool_write
@@ -85,9 +123,9 @@ try:
     from tools.web_fetch import tool_web_fetch
     from tools.explorer import resolve_path
     _TOOLS_OK = True
-    print("[VoiceWS] Tools do DEEP-AUREA importadas com sucesso")
+    print("[VoiceWS] Tools do DEEP-OS importadas com sucesso")
 except ImportError as e:
-    print(f"[VoiceWS] Aviso: tools do DEEP-AUREA nao importadas: {e}")
+    print(f"[VoiceWS] Aviso: tools do DEEP-OS nao importadas: {e}")
 
 try:
     from memory.config_manager import get_brief_enabled
@@ -675,7 +713,7 @@ MEDIUM_TOOL_DECLARATIONS = [
 EXTRA_TOOL_DECLARATIONS = [
     {
         "name": "save_document",
-        "description": "Salva um documento organizado em C:\\DEEP-AUREA\\docs\\.",
+        "description": "Salva um documento organizado em C:\\DEEP-OS\\docs\\.",
         "parameters": {
             "type": "OBJECT",
             "properties": {
@@ -711,6 +749,43 @@ EXTRA_TOOL_DECLARATIONS = [
                 "key": {"type": "STRING", "description": "Chave do dado"}
             },
             "required": ["namespace", "key"]
+        }
+    },
+    {
+        "name": "calorie_counter",
+        "description": "Analisa alimentos pela camera/webca e reporta calorias e informacoes nutricionais (carboidratos, acucar, fibra, proteina, gordura). Use quando o usuario perguntar sobre calorias de comida que esta segurando.",
+        "parameters": {
+            "type": "OBJECT",
+            "properties": {
+                "food_description": {"type": "STRING", "description": "Descricao do alimento (opcional - a camera captura automaticamente)"},
+                "action": {"type": "STRING", "description": "analyze (padrao) ou history (ver historico)"}
+            },
+            "required": ["action"]
+        }
+    },
+    {
+        "name": "pushup_counter",
+        "description": "Conta flexoes (pushups) em tempo real pela camera. Use quando o usuario quiser contar flexoes.",
+        "parameters": {
+            "type": "OBJECT",
+            "properties": {
+                "target": {"type": "INTEGER", "description": "Numero alvo de flexoes (padrao: 20)"},
+                "action": {"type": "STRING", "description": "start (iniciar contagem) ou history (ver historico)"}
+            },
+            "required": ["action"]
+        }
+    },
+    {
+        "name": "upload_video",
+        "description": "Faz upload de um video para o TikTok Studio. Use quando o usuario quiser postar um video no TikTok.",
+        "parameters": {
+            "type": "OBJECT",
+            "properties": {
+                "caption": {"type": "STRING", "description": "Caption/descricao do video para o TikTok"},
+                "video_path": {"type": "STRING", "description": "Caminho do video (opcional - padrao: Desktop/video)"},
+                "action": {"type": "STRING", "description": "upload (padrao) ou status"}
+            },
+            "required": ["action"]
         }
     },
 ]
@@ -843,8 +918,24 @@ class VoiceSession:
         self._reconnecting = False
         self._interrupted = False
         self._audio_buffer: list[bytes] = []
+        # Mark-LI features
+        self._enhanced_live = False
+        self._is_speaking = False
+        self._speaking_lock = asyncio.Lock()
+        self._last_user_speech = time.monotonic()
+        self._session_log: list[str] = []
+        self._pending_vision = None
+        self._vision_busy = False
+        self._vision_last_time = 0.0
+        self._sys_monitor = SystemMonitor() if _SYSMON_OK else None
+        self._proactive = ProactiveEngine() if _PROACTIVE_OK else None
+        self._phone_audio_queue: asyncio.Queue = asyncio.Queue(maxsize=200)
+        self._phone_active = False
+        self._conn_backoff = 3
+        # Transcription buffers (accumulate words → send full sentence on turn_complete)
         self._in_buf: list[str] = []
         self._out_buf: list[str] = []
+        # Context filter (user-defined topics to focus on)
         self._context_filter: str = ""
 
     async def start(self, voice: str = "Charon"):
@@ -860,13 +951,16 @@ class VoiceSession:
         self._voice = _resolve_voice(voice)
         await self.ws.send_json({"type": "status", "message": "Conectando ao Gemini..."})
 
-        sys_instr = _build_system_instruction(self._voice, self._context_filter)
+        sys_instr = _build_system_instruction(self._voice)
         t_sys = (asyncio.get_event_loop().time() - t_start) * 1000
         print(f"[VoiceWS] System instruction pronta em {t_sys:.0f}ms ({len(sys_instr)} chars)")
 
         try:
-            self.client = genai.Client(api_key=api_key)
-            config = types.LiveConnectConfig(
+            self.client = genai.Client(
+                api_key=api_key,
+                http_options={"api_version": "v1alpha" if self._enhanced_live else "v1beta"}
+            )
+            config_dict = dict(
                 response_modalities=["AUDIO"],
                 output_audio_transcription={},
                 input_audio_transcription={},
@@ -882,6 +976,10 @@ class VoiceSession:
                     )
                 ),
             )
+            if self._enhanced_live:
+                config_dict["enable_affective_dialog"] = True
+                config_dict["proactivity"] = types.ProactivityConfig(proactive_audio=True)
+            config = types.LiveConnectConfig(**config_dict)
             active_tools = _get_active_tools()
             print(f"[VoiceWS] Conectando ao Gemini Live com {len(active_tools)} ferramentas...")
             self._cm = self.client.aio.live.connect(model=LIVE_MODEL, config=config)
@@ -893,6 +991,13 @@ class VoiceSession:
 
             self._receive_task = asyncio.create_task(self._receive_loop())
             self._keepalive_task = asyncio.create_task(self._keepalive_loop())
+            # Mark-LI background tasks
+            if self._sys_monitor:
+                asyncio.create_task(self._run_system_monitor())
+            if self._proactive:
+                asyncio.create_task(self._run_proactive_mode())
+            asyncio.create_task(self._run_background_monitor())
+            asyncio.create_task(self._relay_phone_audio())
             if not self._briefing_sent and (not _BRIEF_OK or get_brief_enabled()):
                 self._briefing_sent = True
                 asyncio.create_task(self._send_startup_briefing())
@@ -975,7 +1080,7 @@ class VoiceSession:
 
         # Notifica frontend que esta processando
         try:
-            await self.ws.send_json({"type": "transcript", "speaker": "Charon", "text": f"Processando {name}..."})
+            await self.ws.send_json({"type": "tool_start", "tool": name})
         except Exception:
             pass
 
@@ -1012,13 +1117,30 @@ class VoiceSession:
                 result = r or "Done."
 
             elif name == "screen_process":
-                angle = args.get("angle", "screen").lower()
-                if angle == "camera":
-                    img_b, mime_t = await loop.run_in_executor(None, _capture_camera)
-                    result = f"Camera captured: {len(img_b)} bytes. Image sent for analysis."
+                import time as _t_mod
+                _now = _t_mod.monotonic()
+                _cooldown = 4.0
+                if self._vision_busy or (_now - self._vision_last_time) < _cooldown:
+                    _wait = max(0, _cooldown - (_now - self._vision_last_time))
+                    print(f"[VoiceWS] Vision cooldown ({_wait:.1f}s) — ignorando")
+                    result = "Vision still processing. Please wait."
                 else:
-                    img_b, mime_t = await loop.run_in_executor(None, _capture_screen)
-                    result = f"Screen captured: {len(img_b)} bytes. Image sent for analysis."
+                    self._vision_busy = True
+                    self._vision_last_time = _now
+                    source = args.get("source", "screen").lower()
+                    user_text = args.get("text", args.get("instruction", "O que voce ve na tela?"))
+                    if source == "camera":
+                        img_b, mime_t = await loop.run_in_executor(None, _capture_camera)
+                        print(f"[VoiceWS] Camera: {len(img_b):,} bytes")
+                    else:
+                        img_b, mime_t = await loop.run_in_executor(None, _capture_screen)
+                        print(f"[VoiceWS] Screen: {len(img_b):,} bytes")
+                    self._pending_vision = (img_b, mime_t, user_text, source)
+                    result = (
+                        f"[VISION_ACTIVE] {source.capitalize()} captured. "
+                        f"Say ONE short natural sentence telling the user you are looking at their {source}. "
+                        f"Do NOT describe content — the image arrives in the NEXT message."
+                    )
 
             elif name == "close_camera":
                 result = "Camera closed."
@@ -1087,7 +1209,28 @@ class VoiceSession:
                 r = await loop.run_in_executor(None, lambda: download_image(url=url, save_path=save_path, filename=filename))
                 result = r or "Done."
 
-            # ── NOVAS FERRAMENTAS (DEEP-AUREA Tools) ─────────────────────────────
+            elif name == "calorie_counter":
+                if _VISION_OK:
+                    r = await loop.run_in_executor(None, lambda: calorie_counter(parameters=args, player=None))
+                    result = r or "Analyzing food..."
+                else:
+                    result = "calorie_counter not available (missing cv2/dependencies)"
+
+            elif name == "pushup_counter":
+                if _VISION_OK:
+                    r = await loop.run_in_executor(None, lambda: pushup_counter(parameters=args, player=None))
+                    result = r or "Starting pushup count..."
+                else:
+                    result = "pushup_counter not available (missing cv2/dependencies)"
+
+            elif name == "upload_video":
+                if _UPLOAD_OK:
+                    r = await loop.run_in_executor(None, lambda: upload_video(parameters=args, player=None))
+                    result = r or "Uploading video..."
+                else:
+                    result = "upload_video not available"
+
+            # ── NOVAS FERRAMENTAS (DEEP-OS Tools) ─────────────────────────────
             elif name == "bash":
                 import subprocess
                 cmd = args.get("command", "")
@@ -1150,7 +1293,7 @@ class VoiceSession:
                     # Caminho padrao organizado
                     from datetime import datetime as _dt
                     today = _dt.now()
-                    docs_dir = Path("C:/DEEP-AUREA/docs") / category
+                    docs_dir = Path("C:/DEEP-OS/docs") / category
                     docs_dir.mkdir(parents=True, exist_ok=True)
                     filename = f"{today.strftime('%Y%m%d')}_{safe_title}{ext}"
                     filepath = docs_dir / filename
@@ -1212,25 +1355,6 @@ hr {{ border: 1px solid #eee; }}
                 except Exception as e:
                     result = f"Erro: {e}"
 
-            elif name == "read_file":
-                from tools.system_tools import tool_read as _tool_read
-                path = args.get("path", "")
-                r = await _tool_read(path)
-                if "error" in r:
-                    result = r["error"]
-                elif r.get("type") == "directory":
-                    items = [i["name"] for i in r.get("items", [])[:50]]
-                    result = f"Pasta: {r.get('name', path)}\nItens: {len(items)}\n" + "\n".join(items)
-                else:
-                    result = r.get("content", str(r))
-
-            elif name == "write_file":
-                from tools.system_tools import tool_write as _tool_write
-                path = args.get("path", "")
-                content = args.get("content", "")
-                r = await _tool_write(path, content)
-                result = f"Arquivo salvo: {r.get('path', path)}" if r.get("status") == "ok" else str(r)
-
             elif name == "file_edit":
                 from tools.file_edit import tool_file_edit
                 path = args.get("path", "")
@@ -1287,33 +1411,162 @@ hr {{ border: 1px solid #eee; }}
 
         return types.FunctionResponse(id=fc.id, name=name, response={"result": result})
 
+    # ── Background Tasks (Mark-LI) ────────────────────────────────────────────
+
+    async def _run_system_monitor(self) -> None:
+        """Background task: voice alerts when metrics exceed thresholds."""
+        while self._running:
+            await asyncio.sleep(10)
+            if not self.session or not self._running:
+                continue
+            try:
+                alert = await asyncio.to_thread(self._sys_monitor.check)
+                if not alert:
+                    continue
+                if self._is_speaking or (time.monotonic() - self._last_user_speech) < 10:
+                    continue
+                await self.session.send_client_content(
+                    turns={"parts": [{"text": alert}]},
+                    turn_complete=True,
+                )
+            except Exception as e:
+                print(f"[VoiceWS] System monitor error: {e}")
+
+    async def _run_proactive_mode(self) -> None:
+        """Periodically checks if user silent long enough, then Gemini decides what to say."""
+        while self._running:
+            await asyncio.sleep(60)
+            if not self.session or not self._running:
+                continue
+            if self._is_speaking:
+                continue
+            if not self._proactive.should_trigger(self._last_user_speech):
+                continue
+            self._proactive.mark_triggered()
+            try:
+                from memory.memory_manager import load_memory
+                memory = await asyncio.to_thread(load_memory)
+                monitors = await asyncio.to_thread(list_monitors) if _ACTIONS_OK else []
+                recent = self._session_log[-8:] if self._session_log else []
+                prompt = self._proactive.build_prompt(
+                    memory=memory,
+                    monitors=monitors or None,
+                    recent_turns=recent or None,
+                )
+                await self.session.send_client_content(
+                    turns={"parts": [{"text": prompt}]},
+                    turn_complete=True,
+                )
+                print("[VoiceWS] Proactive check-in sent.")
+            except Exception as e:
+                print(f"[VoiceWS] Proactive error: {e}")
+
+    async def _run_background_monitor(self) -> None:
+        """Check user-configured topics periodically; speak alerts when new headlines appear."""
+        await asyncio.sleep(300)
+        while self._running:
+            if self.session and self._running:
+                if self._is_speaking or (time.monotonic() - self._last_user_speech) < 30:
+                    await asyncio.sleep(1800)
+                    continue
+                try:
+                    alerts = await asyncio.to_thread(monitor_check_all) if _ACTIONS_OK else []
+                    from memory.memory_manager import load_memory
+                    memory = await asyncio.to_thread(load_memory)
+                    lang = memory.get("identity", {}).get("language", {})
+                    lang_val = (lang.get("value", "") if isinstance(lang, dict) else str(lang)).strip() or "portugues"
+                    for alert in alerts:
+                        msg = (
+                            f"{alert}\n\n"
+                            f"Informe o usuario sobre este desenvolvimento naturalmente em {lang_val}. "
+                            "Uma frase breve apenas."
+                        )
+                        await self.session.send_client_content(
+                            turns={"parts": [{"text": msg}]},
+                            turn_complete=True,
+                        )
+                        await asyncio.sleep(6)
+                except Exception as e:
+                    print(f"[VoiceWS] Background monitor error: {e}")
+            await asyncio.sleep(1800)
+
+    async def _relay_phone_audio(self) -> None:
+        """Forward phone mic PCM chunks from queue into the Gemini Live session."""
+        while self._running:
+            try:
+                chunk = await asyncio.wait_for(self._phone_audio_queue.get(), timeout=1.0)
+            except asyncio.TimeoutError:
+                self._phone_active = False
+                continue
+            self._phone_active = True
+            if not self._is_speaking and self._running:
+                try:
+                    await self.session.send_realtime_input(
+                        media={"data": chunk, "mime_type": "audio/pcm;rate=16000"}
+                    )
+                except Exception:
+                    pass
+
+    async def _save_session_summary(self) -> None:
+        """Summarise the current session and save to long_term.json."""
+        log = self._session_log
+        if len(log) < 3:
+            return
+        self._session_log = []
+        try:
+            from memory.memory_manager import load_memory, save_session_summary
+            memory = load_memory()
+            lang_entry = memory.get("identity", {}).get("language", {})
+            lang = (lang_entry.get("value", "") if isinstance(lang_entry, dict) else str(lang_entry)).strip() or "portugues"
+            convo = "\n".join(log[-40:])
+            prompt = (
+                f"Resuma esta conversa em 1-2 frases em {lang}. "
+                "Foque no que o usuario fez ou discutiu. "
+                "Output APENAS o resumo:\n\n" + convo
+            )
+            client = genai.Client(api_key=_get_gemini_key())
+            resp = await asyncio.to_thread(
+                client.models.generate_content,
+                model="gemini-flash-latest",
+                contents=prompt,
+            )
+            summary = (resp.text or "").strip()
+            if summary:
+                save_session_summary(summary, lang)
+        except Exception as e:
+            print(f"[VoiceWS] Session summary error: {e}")
+
     async def _send_startup_briefing(self):
+        """Briefing: saudacao com nome do usuario + status do sistema ou temperatura local."""
         await asyncio.sleep(2)
         if not self.session or not self._running:
             return
 
+        identity = _load_identity()
+        assistant_name = identity.get("assistant_name", "") or self._voice
+        user_name = identity.get("user_name", "") or ""
         time_str = datetime.now().strftime("%H:%M")
         hour = datetime.now().hour
         greeting = "Bom dia" if hour < 12 else ("Boa tarde" if hour < 18 else "Boa noite")
 
-        identity = _load_identity()
-        assistant_name = identity.get("assistant_name", "") or self._voice
-        user_name = identity.get("user_name", "") or ""
+        # Saudacao simples com nome do usuario
+        if user_name:
+            saudacao = f"{greeting}, {user_name}. "
+        else:
+            saudacao = f"{greeting}. "
 
-        saudacao = f"{greeting}, {user_name}. " if user_name else f"{greeting}. "
         p1 = (
             f"{saudacao}Sao {time_str}. "
-            f"Sou o {assistant_name}, seu assistente de voz. "
-            f"Como posso ajudar?"
+            f"Sou o {assistant_name}. Como posso ajudar? Nao chame nenhuma tool."
         )
 
-        print(f"[VoiceWS] Enviando briefing: {p1}")
         self._turn_done_event.clear()
         try:
             await self.session.send_client_content(
                 turns={"parts": [{"text": p1}]},
                 turn_complete=True,
             )
+            print(f"[VoiceWS] Briefing enviado")
         except Exception as e:
             print(f"[VoiceWS] Erro ao enviar briefing: {e}")
 
@@ -1321,19 +1574,9 @@ hr {{ border: 1px solid #eee; }}
         if not self._running:
             return
 
-        # Log detalhado do que foi recebido
-        if response.server_content:
-            sc = response.server_content
-            has_data = bool(response.data)
-            has_tool = bool(response.tool_call)
-            has_turn_complete = bool(sc.turn_complete) if sc else False
-            now = asyncio.get_event_loop().time()
-            delay_ms = (now - self._last_response_time) * 1000
-            print(f"[VoiceWS] Recebido: data={has_data}, tool={has_tool}, turn_complete={has_turn_complete} (delay={delay_ms:.0f}ms)")
-
         if response.data:
             if self._interrupted:
-                pass  # discard old audio only
+                pass
             else:
                 try:
                     await self.ws.send_bytes(response.data)
@@ -1343,8 +1586,6 @@ hr {{ border: 1px solid #eee; }}
         if response.server_content:
             sc = response.server_content
 
-            # Skip OLD transcriptions (user already speaking new message)
-            # but KEEP turn_complete to reset state
             if self._interrupted:
                 if sc.turn_complete:
                     self._interrupted = False
@@ -1353,30 +1594,41 @@ hr {{ border: 1px solid #eee; }}
             if sc.input_transcription and sc.input_transcription.text:
                 txt = sc.input_transcription.text.strip()
                 if txt:
+                    self._last_user_speech = time.monotonic()
                     self._in_buf.append(txt)
-                    try:
-                        await self.ws.send_json({
-                            "type": "transcript",
-                            "speaker": "user",
-                            "text": txt,
-                        })
-                    except Exception:
-                        pass
             if sc.output_transcription and sc.output_transcription.text:
                 txt = sc.output_transcription.text.strip()
                 if txt:
                     self._out_buf.append(txt)
+            if sc.turn_complete:
+                self._turn_done_event.set()
+
+                # Send accumulated user transcription (Mark-LI logic)
+                full_in = " ".join(self._in_buf).strip()
+                if full_in:
+                    self._session_log.append(f"User: {full_in}")
                     try:
                         await self.ws.send_json({
                             "type": "transcript",
-                            "speaker": "Charon",
-                            "text": txt,
+                            "speaker": "user",
+                            "text": full_in,
                         })
                     except Exception:
                         pass
-            if sc.turn_complete:
-                self._turn_done_event.set()
                 self._in_buf = []
+
+                # Send accumulated Charon transcription (Mark-LI logic)
+                full_out = " ".join(self._out_buf).strip()
+                if full_out:
+                    self._session_log.append(f"{self._voice}: {full_out}")
+                    try:
+                        await self.ws.send_json({
+                            "type": "transcript",
+                            "speaker": self._voice,
+                            "text": full_out,
+                        })
+                    except Exception:
+                        pass
                 self._out_buf = []
 
                 try:
@@ -1384,12 +1636,32 @@ hr {{ border: 1px solid #eee; }}
                 except Exception:
                     pass
 
+                # Vision injection: model finished tool-response turn → send the image
+                if self._pending_vision and self.session:
+                    img_b, mime_t, question, source = self._pending_vision
+                    self._pending_vision = None
+                    b64 = base64.b64encode(img_b).decode("ascii")
+                    print(f"[VoiceWS] Vision inject: {len(img_b):,} bytes (source={source})")
+                    try:
+                        await self.session.send_client_content(
+                            turns={"parts": [
+                                {"inline_data": {"mime_type": mime_t, "data": b64}},
+                                {"text": question},
+                            ]},
+                            turn_complete=True,
+                        )
+                    except Exception as e:
+                        print(f"[VoiceWS] Vision inject error: {e}")
+                        self._vision_busy = False
+                else:
+                    self._vision_busy = False
+
         if response.tool_call:
             fn_responses = []
             for fc in response.tool_call.function_calls:
                 print(f"[VoiceWS] Executando tool: {fc.name}")
                 try:
-                    await self.ws.send_json({"type": "status", "message": f"Executando {fc.name}..."})
+                    await self.ws.send_json({"type": "tool_start", "tool": fc.name})
                 except Exception:
                     pass
                 try:
@@ -1425,13 +1697,15 @@ hr {{ border: 1px solid #eee; }}
                     except Exception as e:
                         print(f"[VoiceWS] Erro no _handle_response: {e}")
                         traceback.print_exc()
+            except asyncio.CancelledError:
+                return
             except Exception as e:
                 if not self._running:
                     return
                 print(f"[VoiceWS] Receive erro: {e}")
                 traceback.print_exc()
                 if self._running:
-                    await self._reconnect()
+                    asyncio.create_task(self._safe_reconnect())
 
     def _ensure_receive_loop(self):
         """Reinicia receive se parou (erro de conexao)."""
@@ -1448,27 +1722,43 @@ hr {{ border: 1px solid #eee; }}
                 if not self._running or not self.session:
                     return
 
-                # Verifica se a receive task ainda esta rodando
                 if self._receive_task and self._receive_task.done():
                     print("[VoiceWS] Receive task morta! Tentando reconexao...")
                     await self._reconnect()
+                    continue
 
-                # Envia ping a cada 45 segundos para manter sessao ativa
+                now = asyncio.get_event_loop().time()
+                silence_duration = now - self._last_response_time
+                if silence_duration > 60:
+                    print(f"[VoiceWS] Watchdog: {silence_duration:.0f}s sem resposta. Reconectando...")
+                    await self._reconnect()
+                    continue
+
+                # Send keepalive silence ping every 45s
                 ping_count += 1
-                if ping_count >= 3:  # 3 * 15s = 45s
+                if ping_count >= 3:
                     ping_count = 0
                     try:
-                        silence = b'\x00' * 480  # 15ms de silencio (16kHz 16bit mono)
+                        silence = b'\x00' * 480
                         await self.session.send_realtime_input(
                             media={"data": silence, "mime_type": "audio/pcm;rate=16000"}
                         )
                     except Exception as e:
-                        print(f"[VoiceWS] Ping falhou, reconectando... ({e})")
+                        print(f"[VoiceWS] Ping falhou: {e}")
                         await self._reconnect()
 
+            except asyncio.CancelledError:
+                return
             except Exception as e:
                 if self._running:
                     print(f"[VoiceWS] Keepalive erro: {e}")
+
+    async def _safe_reconnect(self):
+        """Reconnect seguro — não bloqueia a receive_loop."""
+        await asyncio.sleep(1)
+        if self._reconnecting:
+            return
+        await self._reconnect()
 
     async def _reconnect(self):
         """Reconecta ao Gemini Live quando a sessao expira."""
@@ -1476,40 +1766,41 @@ hr {{ border: 1px solid #eee; }}
             return
         self._reconnecting = True
         try:
-            # Cancela tasks antigas
             if self._receive_task and not self._receive_task.done():
                 self._receive_task.cancel()
             if self._keepalive_task and not self._keepalive_task.done():
                 self._keepalive_task.cancel()
 
-            # Fecha sessao antiga
             if self.session:
                 try:
-                    await self.session.close()
+                    await asyncio.wait_for(self.session.close(), timeout=5)
                 except Exception:
                     pass
             if self._cm:
                 try:
-                    await self._cm.__aexit__(None, None, None)
+                    await asyncio.wait_for(self._cm.__aexit__(None, None, None), timeout=5)
                 except Exception:
                     pass
                 self._cm = None
             self.session = None
 
-            await asyncio.sleep(2)  # Espera antes de reconectar
+            await asyncio.sleep(2)
 
-            # Client novo a cada reconexao — evita estado stale
             api_key = _get_gemini_key()
             if not api_key or api_key == "cole_sua_chave_aqui":
                 print("[VoiceWS] API key nao configurada")
                 return
 
-            self.client = genai.Client(api_key=api_key)
-            config = types.LiveConnectConfig(
+            self.client = genai.Client(
+                api_key=api_key,
+                http_options={"api_version": "v1alpha" if self._enhanced_live else "v1beta"}
+            )
+            sys_instr = _build_system_instruction(self._voice, self._context_filter)
+            config_dict = dict(
                 response_modalities=["AUDIO"],
                 output_audio_transcription={},
                 input_audio_transcription={},
-                system_instruction=_build_system_instruction(self._voice, self._context_filter),
+                system_instruction=sys_instr,
                 tools=[types.Tool(function_declarations=_get_active_tools())],
                 session_resumption=types.SessionResumptionConfig(),
                 context_window_compression=types.ContextWindowCompressionConfig(
@@ -1521,16 +1812,19 @@ hr {{ border: 1px solid #eee; }}
                     )
                 ),
             )
+            if self._enhanced_live:
+                config_dict["enable_affective_dialog"] = True
+                config_dict["proactivity"] = types.ProactivityConfig(proactive_audio=True)
+            config = types.LiveConnectConfig(**config_dict)
+
             self._cm = self.client.aio.live.connect(model=LIVE_MODEL, config=config)
             self.session = await self._cm.__aenter__()
             self._last_response_time = asyncio.get_event_loop().time()
             print(f"[VoiceWS] Reconectado! Voz: {self._voice}")
 
-            # Reinicia tasks
             self._receive_task = asyncio.create_task(self._receive_loop())
             self._keepalive_task = asyncio.create_task(self._keepalive_loop())
 
-            # Notifica frontend
             try:
                 await self.ws.send_json({"type": "connected", "voice": self._voice, "tools": len(_get_active_tools())})
             except Exception:
@@ -1539,11 +1833,28 @@ hr {{ border: 1px solid #eee; }}
 
         except Exception as e:
             self._reconnecting = False
+            err_str = str(e)
             print(f"[VoiceWS] Falha na reconexao: {e}")
             traceback.print_exc()
+
+            # Enhanced audio features rejected — reconnect without them
+            if self._enhanced_live and (
+                "INVALID_ARGUMENT" in err_str
+                or "affective" in err_str.lower()
+                or "proactiv" in err_str.lower()
+                or "Unknown name" in err_str
+                or "unexpected keyword" in err_str
+            ):
+                self._enhanced_live = False
+                print("[VoiceWS] Enhanced features unavailable — reconectando sem elas.")
+                self._reconnecting = False
+                asyncio.create_task(self._reconnect())
+                return
+                return
+
             self._running = False
             try:
-                await self.ws.send_json({"type": "error", "message": f"Falha na reconexao: {str(e)[:200]}"})
+                await self.ws.send_json({"type": "error", "message": f"Falha na reconexao: {err_str[:200]}"})
                 await self.ws.send_json({"type": "disconnected"})
             except Exception:
                 pass
@@ -1554,6 +1865,12 @@ hr {{ border: 1px solid #eee; }}
             self._keepalive_task.cancel()
         if self._receive_task and not self._receive_task.done():
             self._receive_task.cancel()
+        # Save session summary before stopping (Mark-LI)
+        if len(self._session_log) >= 3:
+            try:
+                await self._save_session_summary()
+            except Exception:
+                pass
         if self.session:
             try:
                 await self.session.close()
@@ -1693,4 +2010,24 @@ async def voice_status():
         "tools": len(_get_active_tools()),
         "actions_loaded": _ACTIONS_OK,
         "skills": get_skill_count(),
+        "proactive": _PROACTIVE_OK,
+        "system_monitor": _SYSMON_OK,
+        "enhanced_live": True,
     }
+
+
+@router.post("/api/voice/phone-audio")
+async def phone_audio_relay(data: dict):
+    """Relay phone mic audio chunks to the active Charon session."""
+    session = next(iter(_sessions.values()), None)
+    if not session or not session._running:
+        return {"status": "no_active_session"}
+    import base64 as _b64
+    try:
+        audio_b64 = data.get("audio", "")
+        chunk = _b64.b64decode(audio_b64)
+        session._phone_active = True
+        await session._phone_audio_queue.put(chunk)
+        return {"status": "ok"}
+    except Exception as e:
+        return {"status": "error", "message": str(e)[:200]}
