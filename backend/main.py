@@ -185,7 +185,7 @@ app.include_router(admin_router)
 async def root():
     return {
         "app": "DEEP-OS",
-        "version=1.0",
+        "version": "1.0",
         "endpoints": [
             "/chat", "/chat/stream",
             "/explorer", "/explorer/read",
@@ -222,7 +222,7 @@ async def status():
     return {
         "status": "ok",
         "base_dir": str(get_base_dir()),
-        "version=1.0",
+        "version": "1.0",
         "db": str(DB_PATH),
     }
 

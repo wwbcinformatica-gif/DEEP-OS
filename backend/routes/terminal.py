@@ -1,6 +1,6 @@
 """
-WBC Terminal — WebSocket-based real terminal with persistent shell sessions
-Suporta powershell.exe e cmd.exe com sessão persistente.
+WBC Terminal - WebSocket-based real terminal with persistent shell sessions
+Suporta powershell.exe e cmd.exe com sessao persistente.
 """
 import asyncio
 import logging
@@ -22,7 +22,7 @@ def strip_ansi(text: str) -> str:
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
-# -- Sessões Shell Persistentes ------------------------------------------
+# -- Sessï¿½es Shell Persistentes ------------------------------------------
 # _sessions[session_id] = { "process": asyncio.subprocess.Process,
 #                            "last_active": float,
 #                            "workdir": str }
@@ -37,7 +37,7 @@ class TerminalCommand(BaseModel):
 
 
 async def _cleanup_stale_sessions():
-    """Remove sessões inativas a cada minuto"""
+    """Remove sessï¿½es inativas a cada minuto"""
     while True:
         await asyncio.sleep(60)
         now = time.time()
@@ -55,7 +55,7 @@ async def _cleanup_stale_sessions():
 
 
 async def _create_session(session_id: str, workdir: str) -> dict:
-    """Cria uma nova sessão shell cmd.exe"""
+    """Cria uma nova sessï¿½o shell cmd.exe"""
     cwd = workdir if workdir and Path(workdir).exists() else str(get_base_dir())
     process = await asyncio.create_subprocess_exec(
         "cmd.exe",
@@ -75,12 +75,12 @@ async def _create_session(session_id: str, workdir: str) -> dict:
 
 
 async def _ensure_session(session_id: str, workdir: str = "") -> dict:
-    """Recupera ou cria uma sessão"""
+    """Recupera ou cria uma sessï¿½o"""
     if session_id in _sessions:
         session = _sessions[session_id]
         proc = session["process"]
         if proc.returncode is not None:
-            # Sessão morta, recria
+            # Sessï¿½o morta, recria
             del _sessions[session_id]
             return await _create_session(session_id, workdir)
         session["last_active"] = time.time()
@@ -92,11 +92,11 @@ async def _ensure_session(session_id: str, workdir: str = "") -> dict:
 
 BUILTINS = {
     "help": (
-        "Comandos disponíveis:\n"
-        "  help          — mostra esta ajuda\n"
-        "  clear         — limpa o terminal (frontend)\n"
-        "  status        — status do projeto\n"
-        "  pwd           — diretório atual\n"
+        "Comandos disponï¿½veis:\n"
+        "  help          ï¿½ mostra esta ajuda\n"
+        "  clear         ï¿½ limpa o terminal (frontend)\n"
+        "  status        ï¿½ status do projeto\n"
+        "  pwd           ï¿½ diretï¿½rio atual\n"
         "  (qualquer comando do sistema)"
     ),
     "status": (
@@ -121,7 +121,7 @@ async def run_terminal(body: TerminalCommand):
     if cmd_lower == "clear":
         return {"stdout": "", "stderr": "", "returncode": 0}
 
-    # Usa sessão persistente para comandos HTTP também
+    # Usa sessï¿½o persistente para comandos HTTP tambï¿½m
     sid = body.session_id or "http_default"
     try:
         session = await _ensure_session(sid, body.workdir)
@@ -131,7 +131,7 @@ async def run_terminal(body: TerminalCommand):
         await proc.stdin.drain()
         session["last_active"] = time.time()
 
-        # Lê até o marcador
+        # Lï¿½ atï¿½ o marcador
         output = ""
         while True:
             line = await asyncio.wait_for(proc.stdout.readline(), timeout=10)
@@ -140,7 +140,7 @@ async def run_terminal(body: TerminalCommand):
                 break
             output += decoded
 
-        # Captura o diretório atual após o comando
+        # Captura o diretï¿½rio atual apï¿½s o comando
         cwd = ""
         try:
             proc.stdin.write(b"cd\r\n")
@@ -200,7 +200,7 @@ async def terminal_websocket(websocket: WebSocket, session_id: str = ""):
                     # Suppress echo of @echo off command itself
                     if text.strip() == "@echo off":
                         continue
-                    # -- Detecta marcador de diretório atual --
+                    # -- Detecta marcador de diretï¿½rio atual --
                     if "__WBC_CWD__" in text:
                         import re as _re
                         m = _re.search(r"__WBC_CWD__(.*?)__WBC_CWD__", text)
@@ -220,7 +220,7 @@ async def terminal_websocket(websocket: WebSocket, session_id: str = ""):
                         break
                     session["last_active"] = time.time()
                 except asyncio.TimeoutError:
-                    continue  # Keep reading — not an error
+                    continue  # Keep reading ï¿½ not an error
 
         # Task: receber input do cliente
         async def write_stdin():
@@ -238,7 +238,7 @@ async def terminal_websocket(websocket: WebSocket, session_id: str = ""):
                         await proc.stdin.drain()
                         session["last_active"] = time.time()
 
-                        # -- Após Enter, captura o diretório atual --
+                        # -- Apï¿½s Enter, captura o diretï¿½rio atual --
                         if "\r" in raw:
                             await asyncio.sleep(0.05)
                             cwd_query = b"\r\necho __WBC_CWD__%cd%__WBC_CWD__\r\n"
@@ -269,7 +269,7 @@ async def terminal_websocket(websocket: WebSocket, session_id: str = ""):
 
 @router.get("/terminal/sessions")
 async def list_sessions():
-    """Lista sessões ativas"""
+    """Lista sessï¿½es ativas"""
     return {
         "sessions": [
             {
@@ -285,7 +285,7 @@ async def list_sessions():
 
 @router.post("/terminal/session/{session_id}/kill")
 async def kill_session(session_id: str):
-    """Mata uma sessão específica"""
+    """Mata uma sessï¿½o especï¿½fica"""
     session = _sessions.pop(session_id, None)
     if session:
         try:
@@ -297,5 +297,5 @@ async def kill_session(session_id: str):
     return {"status": "not_found"}
 
 
-# Cleanup é iniciado via startup event no main.py
-# start_cleanup() é chamado por app.add_event_handler("startup", ...)
+# Cleanup ï¿½ iniciado via startup event no main.py
+# start_cleanup() ï¿½ chamado por app.add_event_handler("startup", ...)

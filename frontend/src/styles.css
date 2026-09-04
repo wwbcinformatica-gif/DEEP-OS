@@ -879,3 +879,25 @@ input[type='range']::-moz-range-thumb {
   from { transform: rotate(0deg); }
   to { transform: rotate(360deg); }
 }
+
+/* ── scrollbar ────────────────────────────────────────────────────────── */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(255,255,255,0.15);
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255,255,255,0.25);
+}
+.saas-sidebar ::-webkit-scrollbar {
+  width: 4px;
+}
+.saas-sidebar ::-webkit-scrollbar-thumb {
+  background: rgba(255,255,255,0.1);
+}

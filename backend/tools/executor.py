@@ -106,40 +106,32 @@ TOOL_REGISTRY = {
 }
 
 TOOL_METADATA = [
-    {"name": "read", "description": "Lê arquivo ou lista diretório", "params": {"path": "string", "root": "string (opcional)"}},
+    {"name": "read", "description": "Le arquivo ou lista diretorio", "params": {"path": "string", "root": "string (opcional)"}},
     {"name": "write", "description": "Cria ou edita arquivo", "params": {"path": "string", "content": "string", "root": "string (opcional)"}},
-    {"name": "bash", "description": "Executa comandos no terminal. IMPORTANTE: Use sempre flags não-interativas (como -y, --yes, --quiet) para comandos npx, npm, pip, etc. Se o comando esperar interação do usuário, ele vai falhar ou travar.", "params": {"command": "string", "workdir": "string (opcional)"}},
+    {"name": "bash", "description": "Executa comandos no terminal. IMPORTANTE: Use sempre flags nao-interativas (como -y, --yes, --quiet) para comandos npx, npm, pip, etc. Se o comando esperar interacao do usuario, ele vai falhar ou travar.", "params": {"command": "string", "workdir": "string (opcional)"}},
     {"name": "explorer", "description": "Navega no explorador de arquivos", "params": {"path": "string", "root": "string (opcional)"}},
-    {"name": "explorer_read", "description": "Lê arquivo com syntax highlight", "params": {"path": "string", "root": "string (opcional)"}},
+    {"name": "explorer_read", "description": "Le arquivo com syntax highlight", "params": {"path": "string", "root": "string (opcional)"}},
     {"name": "search", "description": "Busca texto em arquivos (regex)", "params": {"pattern": "string", "path": "string", "include": "string"}},
     {"name": "grep", "description": "Busca recursiva com regex em arquivos", "params": {"pattern": "string", "path": "string", "include": "string"}},
-    {"name": "execute_python", "description": "Executa código Python em sandbox isolado", "params": {"code": "string"}},
+    {"name": "execute_python", "description": "Executa codigo Python em sandbox isolado", "params": {"code": "string"}},
     {"name": "install_package", "description": "Instala pacote pip", "params": {"package": "string"}},
     {"name": "create_directory", "description": "Cria uma ou mais pastas", "params": {"path": "string", "root": "string (opcional)"}},
     {"name": "delete", "description": "Deleta arquivo ou pasta", "params": {"path": "string", "root": "string (opcional)"}},
     {"name": "rename", "description": "Renomeia ou move arquivo ou pasta", "params": {"old_path": "string", "new_path": "string", "root": "string (opcional)"}},
     {"name": "list_mcp_servers", "description": "Lista todos os servidores MCP do OpenClaude ativos e suas ferramentas disponiveis", "params": {}},
     {"name": "init_mcp_plugin", "description": "Inicializa um plugin MCP do OpenClaude pelo nome (ex: github, discord, telegram). Apos iniciar, as ferramentas do plugin ficam disponiveis automaticamente.", "params": {"name": "string (nome do plugin)"}},
-    # Web & Fetch
     {"name": "web_search", "description": "Busca na internet", "params": {"query": "string"}},
     {"name": "web_fetch", "description": "Busca conteudo de URL", "params": {"url": "string", "prompt": "string (opcional)"}},
-    # Document Reader
     {"name": "read_document", "description": "Le documentos: PDF, DOCX, XLSX, CSV, XML, TXT, PPTX", "params": {"path": "string", "root": "string (opcional)"}},
-    # File Operations
     {"name": "file_edit", "description": "Edita arquivo com find-and-replace", "params": {"path": "string", "old_string": "string", "new_string": "string", "root": "string (opcional)"}},
     {"name": "glob", "description": "Busca arquivos por padrao glob", "params": {"pattern": "string", "path": "string (opcional)"}},
-    # Tool Discovery
     {"name": "tool_search", "description": "Busca ferramentas disponiveis", "params": {"query": "string"}},
-    # Monitor
     {"name": "monitor_dashboard", "description": "Coleta dados de CPU, RAM e logs do servidor", "params": {"linhas_log": "integer (opcional)"}},
-    # Agent Forking
     {"name": "fork_subagent", "description": "Cria subagente para tarefa paralela", "params": {"task": "string", "system_prompt": "string (opcional)"}},
     {"name": "get_subagent_result", "description": "Obtem resultado de subagente", "params": {"subagent_id": "string"}},
-    # Agent Teams
     {"name": "team_create", "description": "Cria time de agentes", "params": {"name": "string", "members": "list (opcional)"}},
     {"name": "team_delete", "description": "Deleta time de agentes", "params": {"team_id": "string"}},
     {"name": "send_message", "description": "Envia mensagem para agente", "params": {"recipient": "string", "message": "string"}},
-    # Cron
     {"name": "cron_create", "description": "Agenda tarefa recorrente", "params": {"expression": "string", "task": "string"}},
     {"name": "cron_delete", "description": "Remove job cron", "params": {"job_id": "string"}},
     {"name": "cron_list", "description": "Lista jobs cron", "params": {}},

@@ -272,11 +272,17 @@ const JarvisPage: React.FC = () => {
     handleSendMessageDirect(input);
   };
 
-  const handleKeyPress = (e: React.KeyboardEvent) => {
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       handleSendMessage();
     }
+    // Auto-resize textarea
+    const target = e.target;
+    setTimeout(() => {
+      target.style.height = 'auto';
+      target.style.height = Math.min(target.scrollHeight, 150) + 'px';
+    }, 0);
   };
 
   return (
@@ -316,28 +322,6 @@ const JarvisPage: React.FC = () => {
           </button>
         </div>
       </div>
-
-      {/* Settings Panel */}
-      {showSettings && (
-        <div style={styles.settingsPanel}>
-          <h3 style={styles.settingsTitle}>Configurações do Jarvis</h3>
-          <div style={styles.formGroup}>
-            <label style={styles.label}>Chave API (Cloud)</label>
-            <input
-              type="password"
-              value={apiKey}
-              onChange={(e) => setApiKey(e.target.value)}
-              placeholder="Cole sua chave de API aqui..."
-              style={styles.input}
-            />
-            <p style={styles.hint}>Necessária para modelos cloud (Gemini). Modelos locais não precisam.</p>
-          </div>
-          <div style={styles.formGroup}>
-            <label style={styles.label}>Status do Ollama</label>
-            <OllamaStatus />
-          </div>
-        </div>
-      )}
 
       {/* Chat Area */}
       <div style={styles.chatContainer}>
@@ -428,14 +412,14 @@ const JarvisPage: React.FC = () => {
             {isListening ? '⏹' : '🎤'}
           </button>
 
-          <input
-            type="text"
+          <textarea
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            onKeyPress={handleKeyPress}
+            onKeyDown={handleKeyDown}
             placeholder={isListening ? 'Ouvindo...' : 'Digite sua mensagem...'}
+            rows={1}
             style={{
-              ...styles.input,
+              ...styles.textarea,
               borderColor: isListening ? '#ef4444' : 'var(--saas-border)',
             }}
             disabled={isTyping}
@@ -454,30 +438,6 @@ const JarvisPage: React.FC = () => {
               🔇 Parar
             </button>
           )}
-        </div>
-      </div>
-
-      {/* Quick Actions */}
-      <div style={styles.quickActions}>
-        <h3 style={styles.quickTitle}>Ações Rápidas</h3>
-        <div style={styles.quickGrid}>
-          {[
-            { icon: '📊', label: 'Gerar Relatório', cmd: 'Gere um relatório detalhado do projeto' },
-            { icon: '🔍', label: 'Pesquisar Web', cmd: 'Pesquise na web sobre' },
-            { icon: '📝', label: 'Escrever Texto', cmd: 'Escreva um texto sobre' },
-            { icon: '💻', label: 'Executar Código', cmd: 'Execute o seguinte comando' },
-            { icon: '📁', label: 'Listar Arquivos', cmd: 'Liste todos os arquivos do projeto' },
-            { icon: '🔧', label: 'Status do Sistema', cmd: 'Verifique o status do sistema' },
-          ].map((action, i) => (
-            <button
-              key={i}
-              style={styles.quickCard}
-              onClick={() => setInput(action.cmd)}
-            >
-              <span style={styles.quickIcon}>{action.icon}</span>
-              <span style={styles.quickLabel}>{action.label}</span>
-            </button>
-          ))}
         </div>
       </div>
     </div>
@@ -557,27 +517,6 @@ const styles: Record<string, React.CSSProperties> = {
     cursor: 'pointer',
     fontSize: '16px',
   },
-  settingsPanel: {
-    padding: '20px',
-    background: 'var(--saas-bg-card)',
-    border: '1px solid var(--saas-border)',
-    borderRadius: '12px',
-    marginBottom: '16px',
-  },
-  settingsTitle: { margin: '0 0 16px 0', fontSize: '16px', color: 'var(--saas-text)' },
-  formGroup: { marginBottom: '16px' },
-  label: { display: 'block', fontSize: '13px', color: 'var(--saas-text-muted)', marginBottom: '6px' },
-  input: {
-    width: '100%',
-    padding: '12px 16px',
-    background: 'var(--saas-bg-input)',
-    border: '1px solid var(--saas-border)',
-    borderRadius: '8px',
-    color: 'var(--saas-text)',
-    fontSize: '14px',
-    boxSizing: 'border-box',
-  },
-  hint: { fontSize: '12px', color: 'var(--saas-text-muted)', marginTop: '4px' },
   chatContainer: {
     flex: 1,
     display: 'flex',
@@ -668,17 +607,22 @@ const styles: Record<string, React.CSSProperties> = {
     border: '1px solid rgba(239, 68, 68, 0.3)',
     borderRadius: '8px', color: '#ef4444', fontSize: '12px', cursor: 'pointer',
   },
-  quickActions: { flexShrink: 0 },
-  quickTitle: { fontSize: '13px', fontWeight: '600', margin: '0 0 10px 0', color: 'var(--saas-text-muted)' },
-  quickGrid: { display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: '8px' },
-  quickCard: {
-    display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px',
-    padding: '12px 8px', background: 'var(--saas-bg-card)',
-    border: '1px solid var(--saas-border)', borderRadius: '10px',
-    cursor: 'pointer', transition: 'all 0.2s', textAlign: 'center',
+  textarea: {
+    flex: 1,
+    padding: '12px 16px',
+    background: 'var(--saas-bg-input)',
+    border: '1px solid var(--saas-border)',
+    borderRadius: '8px',
+    color: 'var(--saas-text)',
+    fontSize: '14px',
+    resize: 'vertical' as const,
+    minHeight: '44px',
+    maxHeight: '150px',
+    lineHeight: 1.5,
+    fontFamily: 'inherit',
+    outline: 'none',
+    overflow: 'auto',
   },
-  quickIcon: { fontSize: '20px' },
-  quickLabel: { fontSize: '11px', fontWeight: '500', color: 'var(--saas-text)' },
 };
 
 export default JarvisPage;

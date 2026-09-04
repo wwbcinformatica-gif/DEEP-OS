@@ -154,8 +154,22 @@ const SettingsPage: React.FC = () => {
 
   return (
     <div style={styles.container}>
-      <h1 style={styles.title}>Configurações</h1>
-      <p style={styles.subtitle}>Personalize sua experiência</p>
+      <div style={styles.header}>
+        <div>
+          <h1 style={styles.title}>Configurações</h1>
+          <p style={styles.subtitle}>Personalize sua experiência</p>
+        </div>
+        <button
+          style={styles.saveButton}
+          onClick={() => {
+            localStorage.setItem('spaceSettings', JSON.stringify(space));
+            localStorage.setItem('themeSettings', JSON.stringify(theme));
+            alert('Configurações salvas com sucesso!');
+          }}
+        >
+          Salvar
+        </button>
+      </div>
 
       {/* Tabs */}
       <div style={styles.tabs}>
@@ -560,6 +574,52 @@ const SettingsPage: React.FC = () => {
             </div>
           </div>
 
+          {/* Font Size */}
+          <div style={{...styles.settingGroup, opacity: 1, pointerEvents: 'auto'}}>
+            <div style={styles.settingHeader}>
+              <label style={styles.label}>Tamanho da Fonte</label>
+              <span style={styles.settingValue}>{space.fontSize}</span>
+            </div>
+            <div style={{display: 'flex', gap: '12px', marginTop: '8px'}}>
+              <button
+                onClick={() => updateSpace({ fontSize: '8px' })}
+                style={{
+                  ...styles.settingButton,
+                  width: '50px',
+                  background: space.fontSize === '8px' ? 'var(--saas-accent)' : 'transparent',
+                  color: space.fontSize === '8px' ? '#fff' : 'var(--saas-text)',
+                }}
+              >8px</button>
+              <button
+                onClick={() => updateSpace({ fontSize: '10px' })}
+                style={{
+                  ...styles.settingButton,
+                  width: '50px',
+                  background: space.fontSize === '10px' ? 'var(--saas-accent)' : 'transparent',
+                  color: space.fontSize === '10px' ? '#fff' : 'var(--saas-text)',
+                }}
+              >10px</button>
+              <button
+                onClick={() => updateSpace({ fontSize: '12px' })}
+                style={{
+                  ...styles.settingButton,
+                  width: '50px',
+                  background: space.fontSize === '12px' ? 'var(--saas-accent)' : 'transparent',
+                  color: space.fontSize === '12px' ? '#fff' : 'var(--saas-text)',
+                }}
+              >12px</button>
+              <button
+                onClick={() => updateSpace({ fontSize: '14px' })}
+                style={{
+                  ...styles.settingButton,
+                  width: '50px',
+                  background: space.fontSize === '14px' ? 'var(--saas-accent)' : 'transparent',
+                  color: space.fontSize === '14px' ? '#fff' : 'var(--saas-text)',
+                }}
+              >14px</button>
+            </div>
+          </div>
+
           {/* Star Count */}
           <div style={{...styles.settingGroup, opacity: space.enabled ? 1 : 0.4, pointerEvents: space.enabled ? 'auto' : 'none'}}>
             <div style={styles.settingHeader}>
@@ -591,6 +651,20 @@ const SettingsPage: React.FC = () => {
               <button style={styles.presetBtn} onClick={() => updateSpace({ speed: 30, starCount: 2000 })}>Hiperespaço</button>
             </div>
           </div>
+
+          {/* Save Button */}
+          <div style={{marginTop: '24px', display: 'flex', gap: '12px', justifyContent: 'flex-end'}}>
+            <button
+              style={styles.saveButton}
+              onClick={() => {
+                localStorage.setItem('spaceSettings', JSON.stringify(space));
+                localStorage.setItem('themeSettings', JSON.stringify(theme));
+                alert('Configurações salvas com sucesso!');
+              }}
+            >
+              Salvar Configurações
+            </button>
+          </div>
         </div>
       )}
     </div>
@@ -601,6 +675,15 @@ const styles: Record<string, React.CSSProperties> = {
   container: {
     padding: '40px',
     color: 'var(--saas-text)',
+    height: 'calc(100vh - 80px)',
+    overflowY: 'auto',
+    overflowX: 'hidden',
+  },
+  header: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: '24px',
   },
   title: {
     fontSize: '28px',
@@ -887,6 +970,41 @@ const styles: Record<string, React.CSSProperties> = {
     background: 'rgba(0, 217, 255, 0.05)',
     borderRadius: '8px',
     border: '1px solid rgba(0, 217, 255, 0.1)',
+  },
+  settingHeader: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '8px',
+    marginBottom: '8px',
+  },
+  settingLabel: {
+    fontSize: '11px',
+    fontWeight: '600',
+    color: 'var(--saas-text)',
+    textTransform: 'uppercase' as const,
+    letterSpacing: '0.5px',
+  },
+  settingValue: {
+    fontSize: '12px',
+    color: 'var(--saas-text)',
+    minWidth: '40px',
+    textAlign: 'center',
+  },
+  settingButton: {
+    padding: '6px 12px',
+    background: 'transparent',
+    color: 'var(--saas-text)',
+    border: '1px solid var(--saas-border)',
+    borderRadius: '6px',
+    fontSize: '12px',
+    fontWeight: '500',
+    cursor: 'pointer',
+    transition: 'all 0.2s',
+  },
+  settingRow: {
+    display: 'flex',
+    gap: '12px',
+    marginTop: '8px',
   },
   pixInfoText: {
     fontSize: '13px',

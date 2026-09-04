@@ -9,8 +9,25 @@
     "precos_de_passagens_para_paris": {
       "topic": "precos de passagens para Paris",
       "added": "2026-08-16",
-      "last_check": "",
-      "last_hash": ""
+      "last_check": "2026-09-04",
+      "last_hash": "77f79661ac3b"
     }
-  }
+  },
+  "sessions": [
+    {
+      "date": "2026-09-04",
+      "summary": "O usuário indicou suas preferências de notícias, afirmando que tem interesse principalmente em conteúdos da Globo.",
+      "language": "portugues"
+    },
+    {
+      "date": "2026-09-04",
+      "summary": "O usuário cumprimentou o assistente e perguntou sobre as notícias do dia.",
+      "language": "portugues"
+    },
+    {
+      "date": "2026-09-04",
+      "summary": "O usuário perguntou se a lista de ferramentas e recursos apresentada poderia ser exibida no chat central.",
+      "language": "portugues"
+    }
+  ]
 }

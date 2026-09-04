@@ -10,6 +10,8 @@ import AdminLogin from './AdminLogin';
 import AdminDashboard from './AdminDashboard';
 import DownloadsPage from './DownloadsPage';
 import JarvisPage from './JarvisPage';
+import CharonPage from './CharonPage';
+import ChatBotPage from './ChatBotPage';
 import { AppSettingsProvider } from './AppSettingsContext';
 
 interface User {
@@ -129,6 +131,8 @@ const SaaSApp: React.FC = () => {
         return <DownloadsPage />;
       case 'jarvis':
         return <JarvisPage />;
+      case 'charon':
+        return <CharonPage />;
       case 'commands':
         return (
           <div style={styles.placeholder}>
@@ -148,14 +152,7 @@ const SaaSApp: React.FC = () => {
           </div>
         );
       case 'chatbot':
-        return (
-          <div style={styles.placeholder}>
-            <span style={styles.placeholderIcon}>💬</span>
-            <h2>ChatBot</h2>
-            <p>Configure seu chatbot inteligente</p>
-            <div style={styles.proBadge}>PRO</div>
-          </div>
-        );
+        return <ChatBotPage />;
       case 'leads':
         return (
           <div style={styles.placeholder}>
@@ -264,9 +261,8 @@ const styles: Record<string, React.CSSProperties> = {
   mainContent: {
     flex: 1,
     marginLeft: '240px',
-    minHeight: '100vh',
-    overflowY: 'auto',
-    paddingBottom: '40px',
+    height: '100vh',
+    overflow: 'hidden',
     background: 'transparent',
     position: 'relative',
     zIndex: 1,

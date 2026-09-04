@@ -1,4 +1,159 @@
-**Ultima atualizacao:** 2026-08-27 (Sessao 27) - Correcao Frontend: VoiceHud, StatusBar, CharonPanel, ToolPanel
+**Ultima atualizacao:** 2026-09-04 (Sessao 28) - Portacao Mark-LI + Filtro de Contexto + Audio Fix
+
+---
+
+## Sessao 2026-09-04 (28) - Portacao Mark-LI + Filtro de Contexto + Audio Fix
+
+### Resumo
+
+Portadas todas as funcionalidades do Mark-LI para o Charon do DEEP-OS. Corrigido audio engasgando/cortando com buffer intermediario e ring buffer maior. Adicionado filtro de contexto para focar em topicos relevantes. Atualizada chave do Gemini (anterior foi bloqueada por leaked). Painel central separado do painel de voz.
+
+### 1. Portacao Mark-LI — Todas as Funcionalidades (NOVO)
+
+**Problema:** Charon do DEEP-OS nao tinha as funcionalidades avancadas do Mark-LI (affective dialog, proactive audio, visao real, monitores, etc).
+
+**Solucao:** Portadas 10 funcionalidades do Mark-LI para o `voice_ws.py`:
+
+| Funcionalidade | Status |
+|---------------|--------|
+| Affective Dialog + Proactive Audio (v1alpha) | ✓ |
+| Visao Real (screen_process injeta imagem no Gemini) | ✓ |
+| System Monitor (alertas de CPU/RAM por voz) | ✓ |
+| Proactive Mode (check-in apos 15min de silencio) | ✓ |
+| Background Monitor (verifica topicos a cada 30min) | ✓ |
+| Phone Audio Relay (microfone do celular) | ✓ |
+| Session Memory (resumo automatico ao fechar) | ✓ |
+| Briefing com temperatura da cidade local | ✓ |
+| Fallback automatico v1alpha → v1beta | ✓ |
+| Context Window Compression + Session Resumption | ✓ |
+
+**Arquivos criados:**
+- `actions/proactive.py` — ProactiveEngine 2.0 (copiado do Mark-LI)
+- `actions/download_image.py` — Download de imagens (criado)
+
+**Arquivos modificados:**
+- `backend/routes/voice_ws.py` — Portacao completa + 10 funcionalidades
+
+### 2. 3 Actions Faltantes Adicionadas (NOVO)
+
+**Problema:** `calorie_counter`, `pushup_counter`, `upload_video` existiam em `actions/` mas nao estavam integradas no Charon.
+
+**Solucao:** Adicionadas tool declarations + imports + handlers no `voice_ws.py`.
+
+| Action | Tipo | Toolset |
+|--------|------|---------|
+| calorie_counter | Visao (webcam) | FULL |
+| pushup_counter | Visao (webcam) | FULL |
+| upload_video | Browser automation | FULL |
+
+**Total de actions:** 24 (todas integradas)
+**Total de tools:** 28 (toolset FULL)
+
+### 3. Audio Engasgando/Cortando (CORRECAO CRITICA)
+
+**Problema:** Charon respondia engasgando, cortando audio, demorando responder.
+
+**Causa:** Ring buffer de 48000 (1s) com prebuffer de 2400 (0.1s) — muito pequeno. Chunks WebSocket iam direto ao worklet sem acumular.
+
+**Solucao (baseada no MEMORY-charon-voice-fix.md):**
+1. Ring buffer aumentado: 48000 → **192000** (8 segundos)
+2. Prebuffer aumentado: 2400 → **12000** (0.5 segundos)
+3. Buffer intermediario de **20ms** — acumula chunks antes de enviar ao worklet
+
+**Arquivo modificado:**
+- `frontend/src/components/saas/CharonPage.tsx` — PLAYBACK_WORKLET + buffer intermediario
+
+### 4. Filtro de Contexto (NOVO)
+
+**Problema:** Charon trazia conteudo irrelevante (futebol, rede globo, celebridades).
+
+**Solucao:** Campo "Filtro de Contexto" nas Configuracoes do Charon. Usuario define topicos relevantes e o Charon ignora o resto.
+
+- Salvo em `localStorage` (`charon_context_filter`)
+- Enviado via WebSocket (`type: context_filter`)
+- Aplicado no `_build_system_instruction()` como `[FILTRO DE CONTEXTO]`
+
+**Arquivo modificado:**
+- `frontend/src/components/saas/CharonPage.tsx` — Campo de filtro + handler
+- `backend/routes/voice_ws.py` — `_context_filter` + handler WebSocket + system_instruction
+
+### 5. Painel Central vs Painel Direito (MODIFICADO)
+
+**Problema:** Ambos os paineis mostravam o mesmo conteudo (transcripts).
+
+**Solucao:** Separacao de paineis:
+- **Painel Central (esquerdo):** Log de atividades (tool calls, pesquisas web, resultados, relatorios)
+- **Painel Direito:** Voz — transcrição do usuario + respostas do Charon
+
+**Estado separado:** `activityLog` (painel central) vs `transcripts` (painel direito)
+
+**Arquivo modificado:**
+- `frontend/src/components/saas/CharonPage.tsx` — Estados separados + JSX
+
+### 6. Layout Fixo (CORRECAO)
+
+**Problema:** Painel se estendia abaixo da janela, cortando conteudo.
+
+**Solucao:**
+- `SaaSApp.tsx`: `mainContent` mudou de `minHeight: 100vh` + `overflowY: auto` para `height: 100vh` + `overflow: hidden`
+- `CharonPage.tsx`: Todos os paineis com `minHeight: 0` + `overflow: hidden`
+
+**Arquivos modificados:**
+- `frontend/src/components/saas/SaaSApp.tsx` — mainContent fixo
+- `frontend/src/components/saas/CharonPage.tsx` — container + paineis fixos
+
+### 7. Briefing Simplificado (MODIFICADO)
+
+**Antes:** Briefing de 2 fases (saudacao + noticias do mundo)
+
+**Agora:** Saudacao com nome do usuario + temperatura da cidade local (detectada via IP) + status do sistema (CPU/RAM)
+
+**Arquivo modificado:**
+- `backend/routes/voice_ws.py` — `_send_startup_briefing` reescrito
+
+### 8. Chave Gemini Atualizada (CORRECAO CRITICA)
+
+**Problema:** Chave `AIzaSyBDdw...` foi marcada como leaked pelo Google. Nenhum projeto conectava.
+
+**Solucao:** Nova chave `AIzaSyAGOFw...` atualizada em 3 projetos:
+- `C:\DEEP-OS\backend\config\api_keys.json`
+- `C:\DEEP-OS\backend\.env`
+- `C:\Mark-LI\config\api_keys.json`
+- `C:\DEEP-AUREA\backend\config\api_keys.json`
+- `C:\DEEP-AUREA\backend\.env`
+
+### 9. Toolset FULL Ativado (CONFIG)
+
+**Mudanca:** `config.yaml` mudou de `charon_toolset: basic` para `charon_toolset: full`
+
+**Resultado:** 28 tools ativas (18 BASIC + 10 EXTRA incluindo calorie_counter, pushup_counter, upload_video, save_document, memory_save/recall, web_fetch, bash, file_edit)
+
+### Arquivos Modificados
+
+- `backend/routes/voice_ws.py` — Portacao Mark-LI + 3 actions + filtro contexto + briefing + vision
+- `frontend/src/components/saas/CharonPage.tsx` — Audio fix + painel separado + filtro contexto + layout fixo
+- `frontend/src/components/saas/SaaSApp.tsx` — mainContent fixo
+- `config.yaml` — charon_toolset: full
+- `actions/proactive.py` — CRIADO (ProactiveEngine)
+- `actions/download_image.py` — CRIADO
+- `backend/config/api_keys.json` — Nova chave Gemini
+- `backend/.env` — Nova chave Gemini
+
+### Status do Voice API
+
+```json
+{
+    "available": true,
+    "default_voice": "charon",
+    "toolset": "full",
+    "tools": 28,
+    "actions_loaded": true,
+    "skills": 40,
+    "proactive": true,
+    "system_monitor": true,
+    "enhanced_live": true
+}
+```
 
 ---
 

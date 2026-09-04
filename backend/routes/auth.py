@@ -119,7 +119,7 @@ async def register(req: RegisterRequest):
 async def login(req: LoginRequest):
     """Autentica um tenant existente."""
     MASTER_EMAIL = "wwbc22@gmail.com"
-    MASTER_PASSWORD = "admin123"
+    MASTER_PASSWORD = "admin123@"
 
     # Master admin login
     if req.email == MASTER_EMAIL and req.password == MASTER_PASSWORD:
@@ -212,7 +212,7 @@ async def admin_login(req: AdminLoginRequest):
     """Login do painel administrativo com email e senha."""
     # Master admin credentials
     MASTER_EMAIL = "wwbc22@gmail.com"
-    MASTER_PASSWORD = "admin123"
+    MASTER_PASSWORD = "admin123@"
     
     if req.email != MASTER_EMAIL or req.password != MASTER_PASSWORD:
         raise HTTPException(

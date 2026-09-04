@@ -4,6 +4,7 @@ interface SpaceSettings {
   enabled: boolean;
   speed: number;
   starCount: number;
+  fontSize: '8px' | '10px' | '12px' | '14px';
 }
 
 interface ThemeSettings {
@@ -35,7 +36,7 @@ export const useSpaceSettings = () => {
 export const AppSettingsProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [space, setSpace] = useState<SpaceSettings>(() => {
     const saved = localStorage.getItem('spaceSettings');
-    return saved ? JSON.parse(saved) : { enabled: true, speed: 12, starCount: 800 };
+    return saved ? JSON.parse(saved) : { enabled: true, speed: 12, starCount: 800, fontSize: '12px' };
   });
 
   const [theme, setTheme] = useState<ThemeSettings>(() => {
@@ -71,8 +72,33 @@ export const AppSettingsProvider: React.FC<{ children: ReactNode }> = ({ childre
 
   useEffect(() => {
     const root = document.documentElement;
+    root.style.fontSize = space.fontSize;
+    document.body.style.fontSize = space.fontSize;
+    document.body.style.lineHeight = '1.5';
+    let style = document.getElementById('dynamic-font-size') as HTMLStyleElement;
+    if (!style) {
+      style = document.createElement('style');
+      style.id = 'dynamic-font-size';
+      document.head.appendChild(style);
+    }
+    const fs = space.fontSize;
+    style.textContent = `
+      html, body, #root {
+        font-size: ${fs} !important;
+      }
+      .saas-sidebar, .saas-sidebar * {
+        font-size: ${fs} !important;
+      }
+      [style*="font-size"] {
+        font-size: ${fs} !important;
+      }
+    `;
+  }, [space.fontSize]);
+
+  useEffect(() => {
+    const root = document.documentElement;
     root.removeAttribute('data-theme');
-    
+
     switch (theme.theme) {
       case 'glass':
         document.body.style.background = '#0a0a1a';
