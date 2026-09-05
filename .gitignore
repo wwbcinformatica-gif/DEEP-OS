@@ -32,6 +32,11 @@ pessoal/
 # Binários do llama.cpp (baixar separadamente)
 bin/
 
+# Arquivos grandes
+*.rar
+*.zip
+*.7z
+
 # Fotos e capturas pessoais
 backend/pictures/
 
