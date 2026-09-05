@@ -119,10 +119,10 @@ const CharonPage: React.FC = () => {
   const [activityLog, setActivityLog] = useState<TranscriptEntry[]>([]);
   const [inputText, setInputText] = useState('');
   const [voiceName, setVoiceName] = useState('Charon');
-  const [userName, setUserName] = useState('WBC');
+  const [userName, setUserName] = useState('');
+  const [assistantName, setAssistantName] = useState('DEEP-OS');
   const [accentColor, setAccentColor] = useState('#b478ff');
   const [apiKey, setApiKey] = useState('');
-  const [groqKey, setGroqKey] = useState('');
   const [contextFilter, setContextFilter] = useState('');
   const [voiceStatus, setVoiceStatus] = useState<string>('idle');
   const [isCharonActive, setIsCharonActive] = useState(false);
@@ -148,19 +148,65 @@ const CharonPage: React.FC = () => {
   const dupCountRef = useRef(0);
   const audioBufRef = useRef<Int16Array[]>([]);
   const audioFlushRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const connectVoiceRef = useRef<() => void>(() => {});
+  const manualDisconnectRef = useRef(false);
+  const voiceNameRef = useRef('Charon');
+  const assistantNameRef = useRef('DEEP-OS');
+  const userNameRef = useRef('');
+  const contextFilterRef = useRef('');
 
   useEffect(() => {
     const savedKey = localStorage.getItem('saas_api_key') || '';
     const savedVoice = localStorage.getItem('charon_voice') || 'Charon';
     const savedFilter = localStorage.getItem('charon_context_filter') || '';
+    const savedHeight = parseInt(localStorage.getItem('charon_textarea_height') || '60');
+    const savedWidth = parseInt(localStorage.getItem('charon_right_panel_width') || '340');
     setApiKey(savedKey);
     setVoiceName(savedVoice);
     setContextFilter(savedFilter);
+    setTextareaHeight(savedHeight);
+    textareaHeightRef.current = savedHeight;
+    setRightPanelWidth(savedWidth);
+    rightPanelWidthRef.current = savedWidth;
+    contextFilterRef.current = savedFilter;
+    // Carrega identity do backend config.yaml
+    fetch('/api/config/identity')
+      .then(r => r.ok ? r.json() : null)
+      .then(data => {
+        if (data) {
+          const name = data.assistant_name || 'DEEP-OS';
+          const user = data.user_name || '';
+          const voice = data.voice || '';
+          setAssistantName(name);
+          setUserName(user);
+          assistantNameRef.current = name;
+          userNameRef.current = user;
+          localStorage.setItem('charon_assistant_name', name);
+          localStorage.setItem('charon_user_name', user);
+          if (voice) {
+            setVoiceName(voice);
+            voiceNameRef.current = voice;
+            localStorage.setItem('charon_voice', voice);
+          }
+        }
+      })
+      .catch(() => {
+        // Fallback para localStorage
+        const savedAssistant = localStorage.getItem('charon_assistant_name') || 'DEEP-OS';
+        const savedUser = localStorage.getItem('charon_user_name') || '';
+        setAssistantName(savedAssistant);
+        setUserName(savedUser);
+        assistantNameRef.current = savedAssistant;
+        userNameRef.current = savedUser;
+      });
 
-    // Auto-start: Charon sempre ouvindo (modo conversa continua)
-    if (!startedRef.current) {
-      connectVoice();
-    }
+    // Auto-start: Charon ativa quando a pagina carrega
+    // Timeout maior para garantir que os states do localStorage foram carregados
+    setTimeout(() => {
+      if (!startedRef.current) {
+        connectVoiceRef.current();
+      }
+    }, 300);
   }, []);
 
   useEffect(() => {
@@ -183,6 +229,59 @@ const CharonPage: React.FC = () => {
     setActivityLog(prev => [...prev, { speaker, text, time: now() }]);
   }, []);
 
+  const renderActivity = (t: TranscriptEntry) => {
+    const isWebSearch = t.text.startsWith('web_search:') && t.text.includes('Source:');
+    if (!isWebSearch) {
+      return (
+        <div key={t.time + t.text.slice(0, 20)} style={{ ...s.messageItem, borderLeft: t.speaker === 'tool' ? '2px solid #b478ff' : t.speaker === 'error' ? '2px solid #f44' : '2px solid #0c0', marginLeft: 4 }}>
+          <div style={s.messageSpeaker}>
+            {t.speaker === 'tool' ? '🔧 TOOL' : t.speaker === 'error' ? '❌ ERRO' : 'SYSTEM'} - {t.time}
+          </div>
+          <div style={{ ...s.messageText, whiteSpace: 'pre-wrap', wordBreak: 'break-word', overflowWrap: 'break-word', fontFamily: "'Cascadia Code', 'Fira Code', 'Consolas', monospace", fontSize: 11, lineHeight: 1.6 }}>{t.text}</div>
+        </div>
+      );
+    }
+    const lines = t.text.split('\n');
+    const header = lines[0] || '';
+    const query = header.replace('web_search: Search results for: ', '');
+    const results: { num: string; title: string; snippet: string; source: string }[] = [];
+    let cur: { num: string; title: string; snippet: string; source: string } | null = null;
+    for (const line of lines.slice(1)) {
+      const numMatch = line.match(/^(\d+)\.\s+(.+)/);
+      if (numMatch) {
+        if (cur) results.push(cur);
+        cur = { num: numMatch[1], title: numMatch[2], snippet: '', source: '' };
+      } else if (line.startsWith('Source: ')) {
+        if (cur) cur.source = line.replace('Source: ', '');
+      } else if (cur && line.trim()) {
+        cur.snippet += (cur.snippet ? ' ' : '') + line.trim();
+      }
+    }
+    if (cur) results.push(cur);
+    return (
+      <div key={t.time + 'ws'} style={{ ...s.messageItem, borderLeft: '2px solid #b478ff', marginLeft: 4, padding: '8px 10px', background: '#1a1a2e', borderRadius: 6, marginBottom: 6 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
+          <span style={{ fontSize: 11, color: '#b478ff', fontWeight: 700 }}>🔍 WEB SEARCH</span>
+          <span style={{ fontSize: 10, color: '#999' }}>•</span>
+          <span style={{ fontSize: 10, color: '#ccc', fontStyle: 'italic' }}>"{query}"</span>
+          <span style={{ fontSize: 9, color: '#666', marginLeft: 'auto' }}>{t.time}</span>
+        </div>
+        {results.map((r) => (
+          <div key={r.num} style={{ padding: '6px 8px', marginBottom: 4, background: '#12121f', borderRadius: 4, border: '1px solid #222' }}>
+            <div style={{ display: 'flex', alignItems: 'flex-start', gap: 6 }}>
+              <span style={{ fontSize: 10, color: '#b478ff', fontWeight: 700, minWidth: 14 }}>{r.num}.</span>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 11, color: '#e0e0e0', fontWeight: 600, lineHeight: 1.3 }}>{r.title}</div>
+                {r.snippet && <div style={{ fontSize: 10, color: '#999', marginTop: 2, lineHeight: 1.4 }}>{r.snippet}</div>}
+                {r.source && <div style={{ fontSize: 9, color: '#b478ff', marginTop: 3, wordBreak: 'break-all' }}>🔗 {r.source}</div>}
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+    );
+  };
+
   const setupPlayback = useCallback(async () => {
     if (playCtxRef.current) return;
     const ctx = new AudioContext({ sampleRate: 24000 });
@@ -202,6 +301,7 @@ const CharonPage: React.FC = () => {
   const connectVoice = useCallback(async () => {
     if (startedRef.current) return;
     startedRef.current = true;
+    manualDisconnectRef.current = false;
     setVoiceStatus('connecting');
     setError(null);
 
@@ -230,10 +330,12 @@ const CharonPage: React.FC = () => {
       wsRef.current = ws;
 
       ws.onopen = () => {
-        ws.send(JSON.stringify({ type: 'start', voice: voiceName }));
-        if (contextFilter) {
-          ws.send(JSON.stringify({ type: 'context_filter', filter: contextFilter }));
-        }
+        ws.send(JSON.stringify({
+          type: 'start',
+          voice: voiceNameRef.current,
+          assistant_name: assistantNameRef.current,
+          user_name: userNameRef.current,
+        }));
       };
 
       ws.onmessage = async (e) => {
@@ -298,9 +400,12 @@ const CharonPage: React.FC = () => {
         startedRef.current = false;
         setIsCharonActive(false);
         setVoiceStatus('idle');
-        setTimeout(() => {
-          if (!startedRef.current) connectVoice();
-        }, 3000);
+        // So reconecta automaticamente se nao foi desconexao manual (queda acidental)
+        if (!manualDisconnectRef.current) {
+          setTimeout(() => {
+            if (!startedRef.current) connectVoice();
+          }, 3000);
+        }
       };
 
       await new Promise<void>((resolve, reject) => {
@@ -348,9 +453,20 @@ const CharonPage: React.FC = () => {
       setVoiceStatus('error');
       startedRef.current = false;
     }
-  }, [voiceName, setupPlayback, addUserTranscript, addCharonTranscript]);
+  }, [setupPlayback, addUserTranscript, addCharonTranscript]);
+
+  // Mantem o ref atualizado com a funcao connectVoice mais recente
+  useEffect(() => {
+    connectVoiceRef.current = connectVoice;
+  }, [connectVoice]);
+
+  // Atualiza voiceNameRef quando a voz muda (para WebSocket enviar a nova voz)
+  useEffect(() => {
+    voiceNameRef.current = voiceName;
+  }, [voiceName]);
 
   const disconnectVoice = useCallback(() => {
+    manualDisconnectRef.current = true;
     if (wsRef.current) { wsRef.current.close(); wsRef.current = null; }
     if (micNodeRef.current) { micNodeRef.current.disconnect(); micNodeRef.current = null; }
     if (streamRef.current) { streamRef.current.getTracks().forEach(t => t.stop()); streamRef.current = null; }
@@ -389,9 +505,24 @@ const CharonPage: React.FC = () => {
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); }
   };
 
-  const handleSaveVoice = () => {
+  const handleSaveVoice = async () => {
     localStorage.setItem('charon_voice', voiceName);
-    alert('Voz salva!');
+    try {
+      await fetch('/api/config/identity', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          assistant_name: assistantName,
+          user_name: userName,
+          custom_color: '',
+          voice: voiceName
+        })
+      });
+      await fetch('/voice/disconnect-all', { method: 'POST' }).catch(() => {});
+    } catch (e) {
+      console.error('Erro ao salvar voz:', e);
+    }
+    alert('Voz salva! Aplicada na proxima vez que reiniciar o Charon.');
   };
 
   const handleSaveApiKey = () => {
@@ -406,6 +537,31 @@ const CharonPage: React.FC = () => {
     }
     alert('Filtro de contexto salvo!');
   };
+
+const handleSaveIdentity = async () => {
+    localStorage.setItem('charon_assistant_name', assistantName);
+    localStorage.setItem('charon_user_name', userName);
+    
+    // Salva no backend config.yaml via API correta
+    try {
+      await fetch('/api/config/identity', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          assistant_name: assistantName,
+          user_name: userName,
+          custom_color: '',
+          voice: voiceName
+        })
+      });
+      // Forca reconexao do Charon para usar novo identity
+      await fetch('/voice/disconnect-all', { method: 'POST' }).catch(() => {});
+    } catch (e) {
+      console.error('Erro ao salvar identity:', e);
+    }
+    
+    alert('Identidade salva! Aplicada na proxima vez que reiniciar o Charon.');
+};
 
   const statusColor: Record<string, string> = { idle: '#666', connecting: '#ff0', listening: '#0c0', speaking: '#0af', processing: '#f80', error: '#f44' };
   const statusLabel: Record<string, string> = { idle: 'inativo', connecting: 'conectando', listening: 'ouvindo', speaking: 'falando', processing: 'processando', error: 'erro' };
@@ -445,12 +601,7 @@ const CharonPage: React.FC = () => {
                 </div>
               ) : (
                 activityLog.map((t, i) => (
-                  <div key={i} style={{ ...s.messageItem, borderLeft: t.speaker === 'tool' ? '2px solid #b478ff' : t.speaker === 'error' ? '2px solid #f44' : '2px solid #0c0', marginLeft: 4 }}>
-                    <div style={s.messageSpeaker}>
-                      {t.speaker === 'tool' ? '🔧 TOOL' : t.speaker === 'error' ? '❌ ERRO' : 'SYSTEM'} - {t.time}
-                    </div>
-                    <div style={{ ...s.messageText, whiteSpace: 'pre-wrap', fontFamily: 'monospace', fontSize: 11 }}>{t.text}</div>
-                  </div>
+                  <div key={i}>{renderActivity(t)}</div>
                 ))
               )}
             </div>
@@ -465,6 +616,7 @@ const CharonPage: React.FC = () => {
                     const delta = startY - ev.clientY;
                     textareaHeightRef.current = Math.max(36, Math.min(400, startH + delta));
                     setTextareaHeight(textareaHeightRef.current);
+                    localStorage.setItem('charon_textarea_height', String(textareaHeightRef.current));
                   };
                   const up = () => {
                     window.removeEventListener('pointermove', move);
@@ -519,6 +671,7 @@ const CharonPage: React.FC = () => {
                 const delta = startX - ev.clientX;
                 rightPanelWidthRef.current = Math.max(240, Math.min(600, startW + delta));
                 setRightPanelWidth(rightPanelWidthRef.current);
+                localStorage.setItem('charon_right_panel_width', String(rightPanelWidthRef.current));
               };
               const up = () => {
                 window.removeEventListener('pointermove', move);
@@ -572,7 +725,7 @@ const CharonPage: React.FC = () => {
                       </span>
                       <span style={{ fontSize: 10, color: '#666', marginLeft: 'auto' }}>{t.time}</span>
                     </div>
-                    <div style={{ color: '#ccc', whiteSpace: 'pre-wrap', fontSize: 12, lineHeight: 1.5 }}>{t.text}</div>
+                    <div style={{ color: '#ccc', whiteSpace: 'pre-wrap', wordBreak: 'break-word', overflowWrap: 'break-word', fontSize: 12, lineHeight: 1.6, fontFamily: "'Cascadia Code', 'Fira Code', 'Consolas', monospace" }}>{t.text}</div>
                   </div>
                 ))
               )}
@@ -598,13 +751,14 @@ const CharonPage: React.FC = () => {
             <div style={s.configRow}>
               <div style={s.configField}>
                 <label style={s.configLabel}>NOME DO ASSISTENTE</label>
-                <input type="text" value="Charon" readOnly style={s.configInput} />
+                <input type="text" value={assistantName} onChange={(e) => setAssistantName(e.target.value)} style={s.configInput} />
               </div>
               <div style={s.configField}>
                 <label style={s.configLabel}>SEU NOME</label>
                 <input type="text" value={userName} onChange={(e) => setUserName(e.target.value)} style={s.configInput} />
               </div>
             </div>
+            <button style={{ ...s.saveBtn, marginTop: 12 }} onClick={handleSaveIdentity}>Salvar Identidade</button>
           </div>
 
           <div style={s.configSection}>
@@ -637,36 +791,12 @@ const CharonPage: React.FC = () => {
           </div>
 
           <div style={s.configSection}>
-            <h3 style={s.sectionTitle}>Filtro de Contexto</h3>
-            <p style={{ fontSize: 11, color: '#999', marginBottom: 8 }}>
-              Defina os topicos que o Charon deve focar. Ele ira ignorar conteudo irrelevante.
-            </p>
-            <div style={s.configField}>
-              <label style={s.configLabel}>TOPICOS RELEVANTES</label>
-              <textarea
-                value={contextFilter}
-                onChange={(e) => setContextFilter(e.target.value)}
-                placeholder="Ex: programacao, tecnologia, inteligencia artificial, projetos do WBC..."
-                style={{ ...s.configInput, height: 80, resize: 'vertical', fontFamily: 'inherit', lineHeight: 1.4 }}
-              />
-            </div>
-            <button style={s.saveBtn} onClick={handleSaveContextFilter}>Salvar Filtro</button>
-          </div>
-
-          <div style={s.configSection}>
-            <h3 style={s.sectionTitle}>Chaves API</h3>
+            <h3 style={s.sectionTitle}>Chave API</h3>
             <div style={s.configField}>
               <label style={s.configLabel}>Google Gemini</label>
               <div style={{ display: 'flex', gap: 8 }}>
                 <input type="password" value={apiKey} onChange={(e) => setApiKey(e.target.value)} placeholder="AIza..." style={{ ...s.configInput, flex: 1 }} />
                 <button style={s.saveBtn} onClick={handleSaveApiKey}>Salvar</button>
-              </div>
-            </div>
-            <div style={s.configField}>
-              <label style={s.configLabel}>Groq</label>
-              <div style={{ display: 'flex', gap: 8 }}>
-                <input type="password" value={groqKey} onChange={(e) => setGroqKey(e.target.value)} placeholder="gsk_..." style={{ ...s.configInput, flex: 1 }} />
-                <button style={s.saveBtn}>Salvar</button>
               </div>
             </div>
           </div>
@@ -691,19 +821,19 @@ const s: Record<string, React.CSSProperties> = {
   modelSelect: { fontSize: 11, padding: '4px 8px', background: '#1a1a2e', border: '1px solid #333', borderRadius: 3, color: '#ccc' },
   modelSelectWide: { fontSize: 11, padding: '4px 8px', background: '#1a1a2e', border: '1px solid #333', borderRadius: 3, color: '#ccc', minWidth: 160 },
   greenDot: { width: 6, height: 6, borderRadius: '50%', background: '#0c0' },
-  chatArea: { flex: 1, overflowY: 'auto', padding: 12, minHeight: 0 },
+  chatArea: { flex: 1, overflowY: 'auto', overflowX: 'hidden', padding: 12, minHeight: 0 },
   emptyState: { color: '#666', textAlign: 'center', marginTop: 40, fontSize: 11 },
   inputSection: { padding: '0 16px 8px 16px', flexShrink: 0 },
   textarea: { width: '100%', height: 60, resize: 'none', padding: '8px', borderRadius: 4, border: '1px solid #333', background: '#1a1a2e', color: '#ccc', fontFamily: 'inherit', fontSize: 11, lineHeight: 1.4, boxSizing: 'border-box', outline: 'none' },
   inputButtons: { display: 'flex', justifyContent: 'flex-end', marginTop: 4 },
   sendBtn: { width: 28, height: 28, borderRadius: 4, border: '1px solid #333', background: '#1a1a2e', color: '#ccc', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' },
   statusLine: { display: 'flex', alignItems: 'center', marginTop: 6 },
-  messageItem: { marginBottom: 10, padding: '8px 10px', borderRadius: 6, background: 'rgba(255,255,255,0.02)' },
+  messageItem: { marginBottom: 10, padding: '8px 10px', borderRadius: 6, background: 'rgba(255,255,255,0.02)', overflowWrap: 'break-word', wordBreak: 'break-word' as const },
   messageSpeaker: { fontSize: 10, color: '#b478ff', fontWeight: 600, marginBottom: 4 },
-  messageText: { color: '#ccc', whiteSpace: 'pre-wrap', fontSize: 12, lineHeight: 1.5 },
+  messageText: { color: '#ccc', whiteSpace: 'pre-wrap' as const, wordBreak: 'break-word' as const, overflowWrap: 'break-word' as const, fontSize: 12, lineHeight: 1.6, fontFamily: "'Cascadia Code', 'Fira Code', 'Consolas', monospace" },
   rightPanel: { width: 340, display: 'flex', flexDirection: 'column', flexShrink: 0, borderLeft: '1px solid #222', minHeight: 0, overflow: 'hidden' },
   rightHeader: { padding: '8px 12px', borderBottom: '1px solid #222', flexShrink: 0 },
-  messagesList: { flex: 1, overflowY: 'auto', padding: 10, minHeight: 0 },
+  messagesList: { flex: 1, overflowY: 'auto', overflowX: 'hidden', padding: 10, minHeight: 0 },
   rightFooter: { padding: '6px 12px', borderTop: '1px solid #222', display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 },
   configPanel: { flex: 1, overflowY: 'auto', padding: 20 },
   configSection: { background: '#111', border: '1px solid #222', borderRadius: 8, padding: 16, marginBottom: 16 },

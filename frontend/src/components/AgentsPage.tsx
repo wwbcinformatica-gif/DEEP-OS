@@ -328,13 +328,13 @@ export default function AgentsPage(props: Props) {
       }
     } catch {}
     // Restaura identity para padrao
-    setAssistantName('Charon');
+    setAssistantName('DEEP-OS');
     setUserName('');
     setVoiceName('Charon');
     fetch(`${API_BASE}/api/config/identity`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ assistant_name: 'Charon', user_name: '', custom_color: '', voice: 'Charon' }),
+      body: JSON.stringify({ assistant_name: 'DEEP-OS', user_name: '', custom_color: '', voice: 'Charon' }),
     }).catch(() => {});
     fetch(`${API_BASE}/voice/disconnect-all`, { method: 'POST' }).catch(() => {});
     setToast('Restaurado para padrao!');

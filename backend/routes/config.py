@@ -144,6 +144,12 @@ async def update_identity(config: IdentityConfig):
     data = _read_config()
     data["identity"] = config.model_dump()
     _write_config(data)
+    # Mantem api_keys.json sincronizado (usado por config_manager.py / morning brief)
+    try:
+        from memory.config_manager import save_assistant_config
+        save_assistant_config(config.assistant_name, config.user_name)
+    except Exception:
+        pass
     return {"status": "success", "identity": data["identity"]}
 
 @router.get("/accent-theme")

@@ -9,7 +9,7 @@ echo.
 
 :: Inicia backend
 echo [1/3] Iniciando Backend (porta 8001)...
-start "DEEP-OS Backend" cmd /k "cd /d C:\DEEP-OS\backend && C:\DEEP-OS\venv\Scripts\python.exe -m uvicorn main:app --host 127.0.0.1 --port 8001 --reload"
+start "WBC Backend" cmd /k "cd /d C:\DEEP-OS\backend && C:\DEEP-OS\venv\Scripts\python.exe -m uvicorn main:app --host 127.0.0.1 --port 8001 --reload --reload-dir routes"
 
 :: Aguarda backend iniciar
 timeout /t 5 /nobreak >nul
@@ -23,7 +23,7 @@ timeout /t 3 /nobreak >nul
 
 :: Inicia frontend
 echo [3/3] Iniciando Frontend SaaS (porta 5176)...
-start "DEEP-OS Frontend" cmd /k "cd /d C:\DEEP-OS\frontend && npx vite --mode saas --port 5176"
+start "WBC Frontend" cmd /k "cd /d C:\DEEP-OS\frontend && npx vite --mode saas --port 5176"
 
 timeout /t 4 /nobreak >nul
 

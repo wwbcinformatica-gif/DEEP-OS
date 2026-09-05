@@ -74,7 +74,7 @@ if exist "%PROJECT_DIR%backend\requirements.txt" (
 ) else (
     echo       [AVISO] requirements.txt nao encontrado em backend\
     echo       Instalando pacotes essenciais manualmente...
-    "%PROJECT_DIR%venv\Scripts\pip.exe" install fastapi uvicorn pydantic google-genai python-multipart websockets aiohttp
+    "%PROJECT_DIR%venv\Scripts\pip.exe" install fastapi uvicorn pydantic google-genai python-multipart websockets aiohttp pyyaml
 )
 
 :: Verifica instalacao

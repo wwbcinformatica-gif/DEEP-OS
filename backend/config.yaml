@@ -1,8 +1,8 @@
 identity:
-  assistant_name: DEEP-OS
+  assistant_name: fabio
   custom_color: ''
   user_name: Wilson
-  voice: Aoede
+  voice: Charon
 llamacpp:
   gpu_enabled: true
   gpu_layers: 999

@@ -23,7 +23,7 @@ display:
 identity:
   assistant_name: Charon
   custom_color: ''
-  user_name: WBC
+  user_name: Wilson
   voice: Charon
 security:
   sandbox_enabled: false

@@ -12,16 +12,28 @@ def _get_base_dir() -> Path:
 BASE_DIR        = _get_base_dir()
 API_CONFIG_PATH = BASE_DIR / "config" / "api_keys.json"
 
+# Cache do cliente Gemini para reutilizar (evita criar novo a cada busca)
+_gemini_client_cache = None
+_gemini_api_key_cache = None
+
 
 def _get_api_key() -> str:
     with open(API_CONFIG_PATH, "r", encoding="utf-8") as f:
         return json.load(f)["gemini_api_key"]
 
 
-def _gemini_search(query: str) -> str:
-    from google import genai
+def _get_gemini_client():
+    global _gemini_client_cache, _gemini_api_key_cache
+    api_key = _get_api_key()
+    if _gemini_client_cache is None or _gemini_api_key_cache != api_key:
+        from google import genai
+        _gemini_client_cache = genai.Client(api_key=api_key)
+        _gemini_api_key_cache = api_key
+    return _gemini_client_cache
 
-    client   = genai.Client(api_key=_get_api_key())
+
+def _gemini_search(query: str) -> str:
+    client = _get_gemini_client()
     response = client.models.generate_content(
         model="gemini-2.5-flash",
         contents=query,
@@ -120,9 +132,8 @@ def _gemini_headlines(n: int = 5) -> tuple[list[str], str]:
     Returns (headline_list, raw_text_for_display).
     """
     import re
-    from google import genai
 
-    client = genai.Client(api_key=_get_api_key())
+    client = _get_gemini_client()
     response = client.models.generate_content(
         model="gemini-2.5-flash",
         contents=f"Current world news: {n} headlines. Numbered list, titles only.",
@@ -153,90 +164,52 @@ def _gemini_headlines(n: int = 5) -> tuple[list[str], str]:
 # ── Modes ──────────────────────────────────────────────────────────────────────
 
 def _search(query: str) -> str:
-    """Default search — Gemini grounded, DDG fallback."""
+    """Default search — DDG fast (primary), Gemini grounded (fallback)."""
     try:
-        return _gemini_search(query)
-    except Exception as e:
-        print(f"[WebSearch] ⚠️ Gemini failed ({e}) — trying DDG...")
-        results = _ddg_search(query)
+        results = _ddg_search(query, max_results=6)
         return _format_ddg(query, results)
+    except Exception as e:
+        print(f"[WebSearch] ⚠️ DDG failed ({e}) — trying Gemini...")
+        return _gemini_search(query)
 
 
 def _news(query: str) -> str:
-    """
-    Runs Gemini grounded search AND DDG news in parallel.
-    Returns whichever delivers a valid result first; cancels the other.
-    """
-    import threading
-
-    gemini_query = f"latest news today: {query}" if query else "top world news today"
-    ddg_query    = query if query else "world news today"
-
-    result_box  = [None]   # first valid result lands here
-    lock        = threading.Lock()
-    done_evt    = threading.Event()
-    failures    = [0]
-
-    def _store(r: str) -> None:
-        if r and len(r) > 60:
-            with lock:
-                if result_box[0] is None:
-                    result_box[0] = r
-            done_evt.set()
-        else:
-            with lock:
-                failures[0] += 1
-                if failures[0] >= 2:   # both failed — unblock caller
-                    done_evt.set()
-
-    def _try_gemini():
+    """News search — DDG fast (primary), Gemini grounded (fallback)."""
+    try:
+        results = _ddg_news(query, max_results=8)
+        return _format_news(query, results)
+    except Exception as e:
+        print(f"[WebSearch] ⚠️ DDG news failed ({e}) — trying Gemini...")
         try:
-            _store(_gemini_search(gemini_query))
-        except Exception as e:
-            print(f"[WebSearch] ⚠️ Gemini news failed ({e})")
-            _store("")
-
-    def _try_ddg():
-        try:
-            results = _ddg_news(ddg_query, max_results=8)
-            _store(_format_news(ddg_query, results))
-        except Exception as e:
-            print(f"[WebSearch] ⚠️ DDG news failed ({e})")
-            _store("")
-
-    threading.Thread(target=_try_gemini, daemon=True).start()
-    threading.Thread(target=_try_ddg,    daemon=True).start()
-
-    done_evt.wait(timeout=10.0)
-    return result_box[0] or f"No news found for: {query}"
+            return _gemini_search(f"latest news today: {query}")
+        except Exception as e2:
+            print(f"[WebSearch] ⚠️ Gemini news also failed ({e2})")
+            return f"No news found for: {query}"
 
 
 def _research(query: str) -> str:
-    """
-    Deep dive — asks Gemini for a comprehensive answer with context.
-    Falls back to a wider DDG fetch.
-    """
-    research_query = (
-        f"Comprehensive, detailed explanation of: {query}. "
-        "Include background context, key facts, current state, and important nuances."
-    )
+    """Deep dive — DDG fast (primary), Gemini grounded (fallback)."""
     try:
-        return _gemini_search(research_query)
-    except Exception as e:
-        print(f"[WebSearch] ⚠️ Research Gemini failed ({e}) — DDG fallback...")
         results = _ddg_search(query, max_results=10)
         return _format_ddg(query, results)
+    except Exception as e:
+        print(f"[WebSearch] ⚠️ DDG research failed ({e}) — trying Gemini...")
+        research_query = (
+            f"Comprehensive, detailed explanation of: {query}. "
+            "Include background context, key facts, current state, and important nuances."
+        )
+        return _gemini_search(research_query)
 
 
 def _price(query: str) -> str:
-    """Product price lookup — searches for current market prices."""
-    price_query = f"current price of {query} — how much does it cost today"
+    """Product price lookup — DDG fast (primary), Gemini grounded (fallback)."""
     try:
-        return _gemini_search(price_query)
-    except Exception as e:
-        print(f"[WebSearch] ⚠️ Price Gemini failed ({e}) — DDG fallback...")
         results = _ddg_search(f"{query} price buy", max_results=6)
         return _format_ddg(query, results)
+    except Exception as e:
+        print(f"[WebSearch] ⚠️ DDG price failed ({e}) — trying Gemini...")
+        price_query = f"current price of {query} — how much does it cost today"
+        return _gemini_search(price_query)
 
 
 def _compare(items: list[str], aspect: str) -> str:
@@ -290,7 +263,7 @@ def web_search(
     if player:
         player.write_log(f"[Search:{mode}] {query or ', '.join(items)}")
 
-    print(f"[WebSearch] 🔍 mode={mode!r}  query={query!r}")
+    print(f"[WebSearch] mode={mode!r}  query={query!r}")
 
     try:
         if mode == "compare" and items:

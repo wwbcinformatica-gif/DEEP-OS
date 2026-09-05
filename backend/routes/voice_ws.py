@@ -791,7 +791,7 @@ def _load_identity() -> dict:
         return {}
 
 
-def _build_system_instruction(voice_name: str = "Charon", context_filter: str = "") -> str:
+def _build_system_instruction(voice_name: str = "Charon") -> str:
     project_ctx = _load_project_context()
     context_block = f"\n\n--- CONTEXTO ---\n{project_ctx}" if project_ctx else ""
     toolset = _get_charon_toolset()
@@ -804,7 +804,9 @@ def _build_system_instruction(voice_name: str = "Charon", context_filter: str = 
     print(f"[VoiceWS] Identity: assistant={assistant_name}, user={user_name or '(vazio)'}, tools={tool_count}")
 
     base = (
-        f"Nome: {assistant_name}. Usuario: {user_name}. "
+        f"IMPORTANTE: Voce se chama {assistant_name}. O usuario se chama {user_name}. "
+        f"Fale EXCLUSIVAMENTE em portugues brasileiro. NUNCA use outro idioma. "
+        f"Ao receber qualquer mensagem, responda em portugues. "
         f"Portugues brasileiro, direto, util, respostas curtas. "
         f"Use tools sempre ({tool_count} tools, {toolset}). "
         f"Se tool falhar, diga erro. Nao reinicie conversa. Mantenha contexto."
@@ -812,15 +814,6 @@ def _build_system_instruction(voice_name: str = "Charon", context_filter: str = 
 
     if toolset == "full":
         base += " Docs: save_document. Cod: bash/read/write/edit."
-
-    # Context filter (user-defined topics)
-    if context_filter:
-        base += (
-            f"\n\n[FILTRO DE CONTEXTO]\n"
-            f"Foque APENAS nestes topicos: {context_filter}\n"
-            f"Ignore conteudo irrelevante (futebol, celebridades, rede globo, etc). "
-            f"So traga informacoes relacionadas aos topicos definidos pelo usuario."
-        )
 
     return base + context_block
 
@@ -843,9 +836,6 @@ class VoiceSession:
         self._reconnecting = False
         self._interrupted = False
         self._audio_buffer: list[bytes] = []
-        self._in_buf: list[str] = []
-        self._out_buf: list[str] = []
-        self._context_filter: str = ""
 
     async def start(self, voice: str = "Charon"):
         if self._running:
@@ -860,7 +850,7 @@ class VoiceSession:
         self._voice = _resolve_voice(voice)
         await self.ws.send_json({"type": "status", "message": "Conectando ao Gemini..."})
 
-        sys_instr = _build_system_instruction(self._voice, self._context_filter)
+        sys_instr = _build_system_instruction(self._voice)
         t_sys = (asyncio.get_event_loop().time() - t_start) * 1000
         print(f"[VoiceWS] System instruction pronta em {t_sys:.0f}ms ({len(sys_instr)} chars)")
 
@@ -877,6 +867,7 @@ class VoiceSession:
                     sliding_window=types.SlidingWindow(),
                 ),
                 speech_config=types.SpeechConfig(
+                    language_code="pt-BR",
                     voice_config=types.VoiceConfig(
                         prebuilt_voice_config=types.PrebuiltVoiceConfig(voice_name=self._voice)
                     )
@@ -893,7 +884,8 @@ class VoiceSession:
 
             self._receive_task = asyncio.create_task(self._receive_loop())
             self._keepalive_task = asyncio.create_task(self._keepalive_loop())
-            if not self._briefing_sent and (not _BRIEF_OK or get_brief_enabled()):
+            # Envia greeting apos 1s
+            if not self._briefing_sent:
                 self._briefing_sent = True
                 asyncio.create_task(self._send_startup_briefing())
 
@@ -1212,25 +1204,6 @@ hr {{ border: 1px solid #eee; }}
                 except Exception as e:
                     result = f"Erro: {e}"
 
-            elif name == "read_file":
-                from tools.system_tools import tool_read as _tool_read
-                path = args.get("path", "")
-                r = await _tool_read(path)
-                if "error" in r:
-                    result = r["error"]
-                elif r.get("type") == "directory":
-                    items = [i["name"] for i in r.get("items", [])[:50]]
-                    result = f"Pasta: {r.get('name', path)}\nItens: {len(items)}\n" + "\n".join(items)
-                else:
-                    result = r.get("content", str(r))
-
-            elif name == "write_file":
-                from tools.system_tools import tool_write as _tool_write
-                path = args.get("path", "")
-                content = args.get("content", "")
-                r = await _tool_write(path, content)
-                result = f"Arquivo salvo: {r.get('path', path)}" if r.get("status") == "ok" else str(r)
-
             elif name == "file_edit":
                 from tools.file_edit import tool_file_edit
                 path = args.get("path", "")
@@ -1288,30 +1261,21 @@ hr {{ border: 1px solid #eee; }}
         return types.FunctionResponse(id=fc.id, name=name, response={"result": result})
 
     async def _send_startup_briefing(self):
-        await asyncio.sleep(2)
+        await asyncio.sleep(1)
         if not self.session or not self._running:
             return
-
-        time_str = datetime.now().strftime("%H:%M")
-        hour = datetime.now().hour
-        greeting = "Bom dia" if hour < 12 else ("Boa tarde" if hour < 18 else "Boa noite")
 
         identity = _load_identity()
         assistant_name = identity.get("assistant_name", "") or self._voice
         user_name = identity.get("user_name", "") or ""
 
-        saudacao = f"{greeting}, {user_name}. " if user_name else f"{greeting}. "
-        p1 = (
-            f"{saudacao}Sao {time_str}. "
-            f"Sou o {assistant_name}, seu assistente de voz. "
-            f"Como posso ajudar?"
-        )
+        trigger = f"Se apresente para {user_name} agora. Diga seu nome, horario e como pode ajudar." if user_name else "Se apresente agora. Diga seu nome e horario."
 
-        print(f"[VoiceWS] Enviando briefing: {p1}")
+        print(f"[VoiceWS] Enviando trigger: {trigger}")
         self._turn_done_event.clear()
         try:
             await self.session.send_client_content(
-                turns={"parts": [{"text": p1}]},
+                turns={"parts": [{"text": trigger}]},
                 turn_complete=True,
             )
         except Exception as e:
@@ -1351,34 +1315,25 @@ hr {{ border: 1px solid #eee; }}
                 return
 
             if sc.input_transcription and sc.input_transcription.text:
-                txt = sc.input_transcription.text.strip()
-                if txt:
-                    self._in_buf.append(txt)
-                    try:
-                        await self.ws.send_json({
-                            "type": "transcript",
-                            "speaker": "user",
-                            "text": txt,
-                        })
-                    except Exception:
-                        pass
+                try:
+                    await self.ws.send_json({
+                        "type": "transcript",
+                        "speaker": "user",
+                        "text": sc.input_transcription.text,
+                    })
+                except Exception:
+                    pass
             if sc.output_transcription and sc.output_transcription.text:
-                txt = sc.output_transcription.text.strip()
-                if txt:
-                    self._out_buf.append(txt)
-                    try:
-                        await self.ws.send_json({
-                            "type": "transcript",
-                            "speaker": "Charon",
-                            "text": txt,
-                        })
-                    except Exception:
-                        pass
+                try:
+                    await self.ws.send_json({
+                        "type": "transcript",
+                        "speaker": "Charon",
+                        "text": sc.output_transcription.text,
+                    })
+                except Exception:
+                    pass
             if sc.turn_complete:
                 self._turn_done_event.set()
-                self._in_buf = []
-                self._out_buf = []
-
                 try:
                     await self.ws.send_json({"type": "turn_complete"})
                 except Exception:
@@ -1425,13 +1380,15 @@ hr {{ border: 1px solid #eee; }}
                     except Exception as e:
                         print(f"[VoiceWS] Erro no _handle_response: {e}")
                         traceback.print_exc()
+            except asyncio.CancelledError:
+                return
             except Exception as e:
                 if not self._running:
                     return
                 print(f"[VoiceWS] Receive erro: {e}")
                 traceback.print_exc()
                 if self._running:
-                    await self._reconnect()
+                    asyncio.create_task(self._safe_reconnect())
 
     def _ensure_receive_loop(self):
         """Reinicia receive se parou (erro de conexao)."""
@@ -1452,6 +1409,15 @@ hr {{ border: 1px solid #eee; }}
                 if self._receive_task and self._receive_task.done():
                     print("[VoiceWS] Receive task morta! Tentando reconexao...")
                     await self._reconnect()
+                    continue
+
+                # Watchdog: se nao recebe nada por 60s, forca reconexao
+                now = asyncio.get_event_loop().time()
+                silence_duration = now - self._last_response_time
+                if silence_duration > 60:
+                    print(f"[VoiceWS] Watchdog: {silence_duration:.0f}s sem resposta. Forcando reconexao...")
+                    await self._reconnect()
+                    continue
 
                 # Envia ping a cada 45 segundos para manter sessao ativa
                 ping_count += 1
@@ -1466,9 +1432,18 @@ hr {{ border: 1px solid #eee; }}
                         print(f"[VoiceWS] Ping falhou, reconectando... ({e})")
                         await self._reconnect()
 
+            except asyncio.CancelledError:
+                return
             except Exception as e:
                 if self._running:
                     print(f"[VoiceWS] Keepalive erro: {e}")
+
+    async def _safe_reconnect(self):
+        """Reconnect seguro — não bloqueia a receive_loop."""
+        await asyncio.sleep(1)
+        if self._reconnecting:
+            return
+        await self._reconnect()
 
     async def _reconnect(self):
         """Reconecta ao Gemini Live quando a sessao expira."""
@@ -1482,15 +1457,15 @@ hr {{ border: 1px solid #eee; }}
             if self._keepalive_task and not self._keepalive_task.done():
                 self._keepalive_task.cancel()
 
-            # Fecha sessao antiga
+            # Fecha sessao antiga (com timeout para nao travar)
             if self.session:
                 try:
-                    await self.session.close()
+                    await asyncio.wait_for(self.session.close(), timeout=5)
                 except Exception:
                     pass
             if self._cm:
                 try:
-                    await self._cm.__aexit__(None, None, None)
+                    await asyncio.wait_for(self._cm.__aexit__(None, None, None), timeout=5)
                 except Exception:
                     pass
                 self._cm = None
@@ -1509,7 +1484,7 @@ hr {{ border: 1px solid #eee; }}
                 response_modalities=["AUDIO"],
                 output_audio_transcription={},
                 input_audio_transcription={},
-                system_instruction=_build_system_instruction(self._voice, self._context_filter),
+                system_instruction=_build_system_instruction(self._voice),
                 tools=[types.Tool(function_declarations=_get_active_tools())],
                 session_resumption=types.SessionResumptionConfig(),
                 context_window_compression=types.ContextWindowCompressionConfig(
@@ -1639,7 +1614,8 @@ async def voice_websocket(ws: WebSocket):
                 elif msg_type == "text":
                     if data.get("text") and session.session:
                         try:
-                            # Injeta skills relevantes na mensagem
+                            session._turn_done_event.clear()
+                            session._interrupted = False
                             from core.skill_loader import get_charon_skills_context
                             user_text = data["text"]
                             skills_ctx = get_charon_skills_context(user_text)
@@ -1652,10 +1628,6 @@ async def voice_websocket(ws: WebSocket):
                             )
                         except Exception:
                             pass
-
-                elif msg_type == "context_filter":
-                    session._context_filter = data.get("filter", "")
-                    print(f"[VoiceWS] Filtro de contexto atualizado: {session._context_filter[:80]}")
 
                 elif msg_type == "stop":
                     break
