@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """
 DEEP-OS WebSocket Terminal â€” endpoint /ws/terminal
 Shell: powershell.exe com sessÃ£o persistente.
@@ -74,7 +75,7 @@ async def ws_terminal(websocket: WebSocket, session_id: str = "", root: str = ""
         proc = session["process"]
         session["last_active"] = time.time()
 
-        # Bootstrap apenas na primeira conexão desta sessão
+        # Bootstrap apenas na primeira conexao desta sessao
         if not session.get("bootstrapped"):
             proc.stdin.write(b"$function:prompt = { 'WBC:' ++ (Get-Location).Path + '> ' }\r\n")
             proc.stdin.write(b"cd '" + workspace_root.encode("utf-8") + b"'\r\n")
@@ -82,7 +83,7 @@ async def ws_terminal(websocket: WebSocket, session_id: str = "", root: str = ""
             await proc.stdin.drain()
             await asyncio.sleep(0.3)
             session["bootstrapped"] = True
-            # Mostra o prompt inicial com o diretório do projeto
+            # Mostra o prompt inicial com o diretï¿½rio do projeto
             await websocket.send_json({"type": "cwd", "path": workspace_root})
             await websocket.send_json({"type": "output", "data": f"WBC:{workspace_root}> "})
 
@@ -95,7 +96,7 @@ async def ws_terminal(websocket: WebSocket, session_id: str = "", root: str = ""
                     if not line:
                         break
                     text = line.decode("utf-8", errors="replace")
-                    # Pular linhas de bootstrap/definição de prompt
+                    # Pular linhas de bootstrap/definiï¿½ï¿½o de prompt
                     if "WBC_TERMINAL_READY" in text or "$function:prompt" in text or "function prompt" in text:
                         continue
                     # Detecta cwd a partir do prompt: "WBC:C:\path>"
@@ -114,7 +115,7 @@ async def ws_terminal(websocket: WebSocket, session_id: str = "", root: str = ""
                 except asyncio.TimeoutError:
                     continue
                 except RuntimeError:
-                    # Another coroutine is already reading — wait and retry
+                    # Another coroutine is already reading ï¿½ wait and retry
                     await asyncio.sleep(0.1)
                     continue
 
@@ -132,14 +133,14 @@ async def ws_terminal(websocket: WebSocket, session_id: str = "", root: str = ""
                         proc.stdin.write(payload.encode("utf-8"))
                         await proc.stdin.drain()
                         session["last_active"] = time.time()
-                        # Local echo — PowerShell não retorna chars individuais via pipe
+                        # Local echo ï¿½ PowerShell nï¿½o retorna chars individuais via pipe
                         for ch in raw:
                             if ch == "\r":
                                 await websocket.send_json({"type": "output", "data": "\r\n"})
                             elif ch == "\x7f":
                                 await websocket.send_json({"type": "output", "data": "\b \b"})
                             elif ch == "\t":
-                                pass  # tab completion é tratado pelo PowerShell
+                                pass  # tab completion ï¿½ tratado pelo PowerShell
                             elif ch == "\x03":
                                 await websocket.send_json({"type": "output", "data": "^C\r\n"})
                             elif ord(ch) >= 0x20:
