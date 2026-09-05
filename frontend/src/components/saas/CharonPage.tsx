@@ -110,7 +110,8 @@ registerProcessor('playback-proc', PlaybackProcessor);
 
 function getWsUrl(): string {
   const host = window.location.hostname || 'localhost';
-  return `ws://${host}:8001/ws/voice`;
+  const proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+  return `${proto}//${host}:${window.location.port || (window.location.protocol === 'https:' ? '443' : '80')}/ws/voice`;
 }
 
 const CharonPage: React.FC = () => {
