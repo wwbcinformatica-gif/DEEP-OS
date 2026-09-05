@@ -12,7 +12,13 @@ from pathlib import Path
 from typing import Optional
 
 import numpy as np
-import sounddevice as sd
+
+try:
+    import sounddevice as sd
+    _SD = True
+except (ImportError, Exception):
+    sd = None
+    _SD = False
 
 try:
     import cv2
@@ -360,6 +366,8 @@ class _VisionSession:
             raise  
 
     async def _play_loop(self) -> None:
+        if not _SD:
+            return
         stream = sd.RawOutputStream(
             samplerate=_RECEIVE_SAMPLE_RATE,
             channels=_CHANNELS,
