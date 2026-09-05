@@ -4,5 +4,6 @@
   "assistant_name": "JARVIS",
   "user_name": "Sir",
   "brief_enabled": true,
+  "morning_brief_enabled": true,
   "voice_preset": "charon"
 }

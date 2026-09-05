@@ -17,7 +17,7 @@ export default defineConfig(({ mode }) => {
     },
     server: {
       port: isSaaS ? 5176 : 5175,
-      host: 'localhost',
+      host: '0.0.0.0',
       open: false,
       proxy: {
         '/api': {
@@ -26,6 +26,22 @@ export default defineConfig(({ mode }) => {
           secure: false,
         },
         '/auth': {
+          target: 'http://127.0.0.1:8001',
+          changeOrigin: true,
+          secure: false,
+        },
+        '/chat': {
+          target: 'http://127.0.0.1:8001',
+          changeOrigin: true,
+          secure: false,
+        },
+        '/voice': {
+          target: 'http://127.0.0.1:8001',
+          changeOrigin: true,
+          secure: false,
+          ws: true,
+        },
+        '/admin': {
           target: 'http://127.0.0.1:8001',
           changeOrigin: true,
           secure: false,

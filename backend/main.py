@@ -47,6 +47,10 @@ ALLOWED_ORIGINS = [
     "http://127.0.0.1:5173",
     "http://127.0.0.1:5175",
     "http://127.0.0.1:5176",
+    "http://2.25.143.185:5176",
+    "http://2.25.143.185:8001",
+    "http://deep-os.tech",
+    "https://deep-os.tech",
 ]
 
 app.add_middleware(
